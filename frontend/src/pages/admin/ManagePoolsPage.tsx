@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { poolService } from '@/services/poolService';
 import { userService } from '@/services/userService';
-import { Plus, FolderKanban, ChevronRight } from 'lucide-react';
+import { Plus, FolderKanban, ChevronRight, Calendar } from 'lucide-react';
 import { Badge } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -53,6 +53,51 @@ const ManagePoolsPage: React.FC = () => {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+};
+
+// ── ACADEMIC YEAR PICKER ──
+// Calendar-style dropdown for selecting an academic year range (e.g. "2026-2027")
+// instead of free-text input.
+const AcademicYearPicker: React.FC<{ value: string; onChange: (v: string) => void }> = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const currentYear = new Date().getFullYear();
+  // Shows a range: 3 years back to 5 years ahead of the current year
+  const years = Array.from({ length: 9 }, (_, i) => currentYear - 3 + i);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none flex items-center justify-between focus:ring-2 focus:ring-blue-500 bg-white"
+      >
+        <span className={value ? 'text-gray-900' : 'text-gray-400'}>{value || 'Select academic year'}</span>
+        <Calendar className="w-4 h-4 text-gray-400" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-56 overflow-y-auto">
+            {years.map(y => {
+              const range = `${y}-${y + 1}`;
+              const active = range === value;
+              return (
+                <button
+                  key={y}
+                  type="button"
+                  onClick={() => { onChange(range); setOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 ${active ? 'bg-blue-100 font-medium text-blue-700' : ''}`}
+                >
+                  {range}
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
@@ -148,7 +193,10 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <h3 className="font-semibold text-gray-900">Basic Info</h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="col-span-3"><label className="text-sm font-medium">Pool Name *</label><input value={form.name} onChange={e => set('name', e.target.value)} required className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="PCS 2026 Odd" /></div>
-          <div><label className="text-sm font-medium">Academic Year</label><input value={form.academicYear} onChange={e => set('academicYear', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none" /></div>
+          <div>
+            <label className="text-sm font-medium">Academic Year</label>
+            <AcademicYearPicker value={form.academicYear} onChange={v => set('academicYear', v)} />
+          </div>
           <div><label className="text-sm font-medium">Semester</label><select value={form.semester} onChange={e => set('semester', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none"><option>Odd</option><option>Even</option></select></div>
           <div><label className="text-sm font-medium">Department</label><input value={form.department} onChange={e => set('department', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none" /></div>
         </div>
