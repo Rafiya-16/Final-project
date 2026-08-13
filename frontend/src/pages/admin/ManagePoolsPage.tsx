@@ -79,7 +79,7 @@ interface CreatePoolFormState {
 
 const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [form, setForm] = useState<CreatePoolFormState>({
-    name: '', academicYear: '2025-2026', semester: 'Spring', department: 'CSE',
+    name: '', academicYear: '2026-2027', semester: 'odd', department: 'CSE',
     submissionStart: '', submissionEnd: '', reviewStart: '', reviewEnd: '',
     decisionDeadline: '', selectionStart: '', selectionEnd: '', teamFreezeDate: '',
     subadminIds: [], facultyIds: [], studentIds: [],
@@ -147,9 +147,9 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       <div className="bg-white rounded-xl border p-6 space-y-4">
         <h3 className="font-semibold text-gray-900">Basic Info</h3>
         <div className="grid grid-cols-3 gap-4">
-          <div className="col-span-3"><label className="text-sm font-medium">Pool Name *</label><input value={form.name} onChange={e => set('name', e.target.value)} required className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="FYP 2026 Spring" /></div>
+          <div className="col-span-3"><label className="text-sm font-medium">Pool Name *</label><input value={form.name} onChange={e => set('name', e.target.value)} required className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="PCS 2026 Odd" /></div>
           <div><label className="text-sm font-medium">Academic Year</label><input value={form.academicYear} onChange={e => set('academicYear', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none" /></div>
-          <div><label className="text-sm font-medium">Semester</label><select value={form.semester} onChange={e => set('semester', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none"><option>Spring</option><option>Fall</option></select></div>
+          <div><label className="text-sm font-medium">Semester</label><select value={form.semester} onChange={e => set('semester', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none"><option>Odd</option><option>Even</option></select></div>
           <div><label className="text-sm font-medium">Department</label><input value={form.department} onChange={e => set('department', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none" /></div>
         </div>
       </div>
