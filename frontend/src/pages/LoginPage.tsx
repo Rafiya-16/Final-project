@@ -77,8 +77,9 @@ const LoginPage: React.FC = () => {
             <p className="text-xs text-stone-500 dark:text-slate-500 font-medium mb-2">Demo credentials:</p>
             <div className="text-xs text-stone-600 dark:text-slate-400 space-y-1 font-mono">
               <p>Admin: admin@iul.ac.in / Admin@123456</p>
-              <p>Faculty: drkhan@iul.ac.in / Faculty@123</p>
-              <p>Student: ali@iul.ac.in / Student@123</p>
+              <p>SubAdmin: subadmin@iul.ac.in / Subadmin@123456</p>
+              <p>Faculty: faculty@iul.ac.in / Faculty@123456</p>
+              <p>Student: student@iul.ac.in / Student@123456</p>
             </div>
           </div>
         </div>
