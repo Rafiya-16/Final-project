@@ -30,6 +30,7 @@ export class PoolsController {
   async assignUsers(req: Request, res: Response, next: NextFunction) {
     try { res.json({ success: true, data: await poolsService.assignUsers(req.params.id as string, req.body) }); } catch (e) { next(e); }
   }
+  
   async getStats(req: Request, res: Response, next: NextFunction) {
     try { res.json({ success: true, data: await poolsService.getPoolStats(req.params.id as string) }); } catch (e) { next(e); }
   }

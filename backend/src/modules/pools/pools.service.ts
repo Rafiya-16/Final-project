@@ -181,7 +181,7 @@ export class PoolsService {
     return prisma.pool.update({ where: { id: poolId }, data: { status: 'ARCHIVED' } });
   }
 
-  async assignUsers(poolId: string, data: any) {
+async assignUsers(poolId: string, data: any) {
     const pool = await prisma.pool.findUnique({ where: { id: poolId } });
     if (!pool) throw new NotFoundError('Pool not found');
 

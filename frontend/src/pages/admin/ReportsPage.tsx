@@ -143,7 +143,7 @@ const ReportsPage: React.FC = () => {
             {[
               { label: 'Total Students', value: summary.totalStudents, color: 'text-blue-600' },
               { label: 'Total Faculty', value: summary.totalFaculty, color: 'text-purple-600' },
-              { label: 'Approved Projects', value: `${summary.approvedCount}/${summary.totalProjects}`, color: 'text-green-600' },
+              { label: 'Approved Projects', value: `${summary.approvedProjects}/${summary.totalProjects}`, color: 'text-green-600' },
               { label: 'Teams Formed', value: summary.totalTeams, color: 'text-orange-600' },
               { label: 'Frozen Teams', value: summary.frozenTeams, color: 'text-cyan-600' },
               { label: 'Unassigned Students', value: summary.unassignedStudents, color: summary.unassignedStudents > 0 ? 'text-red-600' : 'text-green-600' },
@@ -264,7 +264,7 @@ const ReportsPage: React.FC = () => {
             <div className="stats-grid">
               <div className="stat-card"><div className="stat-value">{summary.totalStudents}</div><div className="stat-label">Students</div></div>
               <div className="stat-card"><div className="stat-value">{summary.totalFaculty}</div><div className="stat-label">Faculty</div></div>
-              <div className="stat-card"><div className="stat-value">{summary.approvedCount}</div><div className="stat-label">Approved Projects</div></div>
+              <div className="stat-card"><div className="stat-value">{summary.approvedProjects}</div><div className="stat-label">Approved Projects</div></div>
               <div className="stat-card"><div className="stat-value">{summary.totalTeams}</div><div className="stat-label">Teams</div></div>
             </div>
           </>

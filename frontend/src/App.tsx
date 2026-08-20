@@ -1,6 +1,6 @@
 // frontend/src/App.tsx
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/stores/authStore';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -43,7 +43,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> 
   const { isAuthenticated, user } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (roles && user && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
-  if (user?.mustResetPwd && window.location.pathname !== '/change-password') {
+  if (user?.mustResetPwd && location.pathname !== '/change-password') {
     return <Navigate to="/change-password" replace />;
   }
   return <>{children}</>;
@@ -82,8 +82,9 @@ const App: React.FC = () => (
       <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardRedirect />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/change-password" element={<ChangePasswordPage />} />
+
 
         {/* Admin */}
         <Route path="/users" element={<ProtectedRoute roles={['ADMIN']}><ManageUsersPage /></ProtectedRoute>} />
