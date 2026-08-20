@@ -27,10 +27,24 @@ export class PoolsController {
   async archive(req: Request, res: Response, next: NextFunction) {
     try { res.json({ success: true, data: await poolsService.archivePool(req.params.id as string) }); } catch (e) { next(e); }
   }
+  async restore(req: Request, res: Response, next: NextFunction) {
+  try {
+    const pool = await poolsService.restorePool(
+      req.params.id, req.user!.userId
+    );
+
+    res.json({
+      success: true,
+      data: pool,
+    });
+  } catch (e) {
+    next(e);
+  }
+}
   async assignUsers(req: Request, res: Response, next: NextFunction) {
     try { res.json({ success: true, data: await poolsService.assignUsers(req.params.id as string, req.body) }); } catch (e) { next(e); }
   }
-  
+
   async getStats(req: Request, res: Response, next: NextFunction) {
     try { res.json({ success: true, data: await poolsService.getPoolStats(req.params.id as string) }); } catch (e) { next(e); }
   }

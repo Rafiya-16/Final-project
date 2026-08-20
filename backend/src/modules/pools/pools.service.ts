@@ -181,6 +181,29 @@ export class PoolsService {
     return prisma.pool.update({ where: { id: poolId }, data: { status: 'ARCHIVED' } });
   }
 
+  async restorePool(id: string, userId: string) {
+  const pool = await prisma.pool.findUnique({
+    where: { id },
+  });
+
+  if (!pool) {
+    throw new Error('Pool not found');
+  }
+
+  if (pool.status !== 'ARCHIVED') {
+    throw new Error('Only archived pools can be restored');
+  }
+
+  const restoredPool = await prisma.pool.update({
+    where: { id },
+    data: {
+      status: 'DRAFT',
+    },
+  });
+
+  return restoredPool;
+}
+
 async assignUsers(poolId: string, data: any) {
     const pool = await prisma.pool.findUnique({ where: { id: poolId } });
     if (!pool) throw new NotFoundError('Pool not found');

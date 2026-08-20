@@ -10,6 +10,10 @@ export const poolService = {
   advancePhase: async (id: string) => { const { data } = await api.post(`/pools/${id}/advance-phase`); return data; },
   freeze: async (id: string) => { const { data } = await api.post(`/pools/${id}/freeze`); return data; },
   archive: async (id: string) => { const { data } = await api.post(`/pools/${id}/archive`); return data; },
+  restore: async (id: string) => {
+  const { data } = await api.post(`/pools/${id}/restore`);
+  return data;
+},
   assignUsers: async (id: string, body: AssignUsersInput) => { const { data } = await api.post(`/pools/${id}/assign-users`, body); return data; },
   getStats: async (id: string) => { const { data } = await api.get(`/pools/${id}/stats`); return data.data; },
 };
