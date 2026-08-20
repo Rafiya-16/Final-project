@@ -17,6 +17,18 @@ enum UserRole {
   STUDENT
 }
 
+enum Permission {
+  MANAGE_USERS
+  MANAGE_POOLS
+  MANAGE_PROJECTS
+  APPROVE_PROJECTS
+  REJECT_PROJECTS
+  PUBLISH_PROJECTS
+  ASSIGN_SUPERVISORS
+  MANAGE_TEAMS
+  VIEW_REPORTS
+}
+
 enum PoolStatus {
   DRAFT
   SUBMISSION_OPEN
@@ -113,47 +125,68 @@ enum NotificationType {
 // ═══════════════════════════════════════
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  password      String
-  role          UserRole
-  firstName     String    @map("first_name")
-  lastName      String    @map("last_name")
-  enrollmentNo  String?   @unique @map("enrollment_no")
-  department    String?
-  semester      Int?
-  section       String?
-  designation   String?
-  phone         String?
-  isActive      Boolean   @default(true) @map("is_active")
-  mustResetPwd  Boolean   @default(true) @map("must_reset_pwd")
-  lastLoginAt   DateTime? @map("last_login_at")
-  createdBy     String?   @map("created_by")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id           String    @id @default(uuid())
+  email        String    @unique
+  password     String
+  role         UserRole
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  enrollmentNo String?   @unique @map("enrollment_no")
+  department   String?
+  semester     Int?
+  section      String?
+  designation  String?
+  phone        String?
+  isActive     Boolean   @default(true) @map("is_active")
+  mustResetPwd Boolean   @default(true) @map("must_reset_pwd")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdBy    String?   @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  creator       User?     @relation("UserCreator", fields: [createdBy], references: [id])
-  createdUsers  User[]    @relation("UserCreator")
+  creator      User?  @relation("UserCreator", fields: [createdBy], references: [id])
+  createdUsers User[] @relation("UserCreator")
 
-  refreshTokens   RefreshToken[]
-  createdPools     Pool[]           @relation("PoolCreator")
-  poolSubadmins    PoolSubadmin[]
-  poolFaculty      PoolFaculty[]
-  poolStudents     PoolStudent[]
-  facultyProjects  Project[]        @relation("FacultyProjects")
-  reviewedProjects Project[]        @relation("ProjectReviewer")
-  decidedProjects  Project[]        @relation("ProjectDecider")
-  ledTeams         Team[]           @relation("TeamLeader")
-  teamMemberships  TeamMember[]
-  sentInvites      TeamInvite[]     @relation("InviteSender")
-  receivedInvites  TeamInvite[]     @relation("InviteReceiver")
-  studentIdeas     StudentIdea[]
-  importJobs       BulkImportJob[]  @relation("ImportCreator")
-  importRows       ImportRow[]
-  notifications    Notification[]
-  auditLogs        AuditLog[]       @relation("AuditUser")
+  refreshTokens               RefreshToken[]
+  createdPools                Pool[]                @relation("PoolCreator")
+  poolSubadmins               PoolSubadmin[]
+  poolFaculty                 PoolFaculty[]
+  poolStudents                PoolStudent[]
+  facultyProjects             Project[]             @relation("FacultyProjects")
+  reviewedProjects            Project[]             @relation("ProjectReviewer")
+  decidedProjects             Project[]             @relation("ProjectDecider")
+  ledTeams                    Team[]                @relation("TeamLeader")
+  teamMemberships             TeamMember[]
+  sentInvites                 TeamInvite[]          @relation("InviteSender")
+  receivedInvites             TeamInvite[]          @relation("InviteReceiver")
+  studentIdeas                StudentIdea[]
+  importJobs                  BulkImportJob[]       @relation("ImportCreator")
+  importRows                  ImportRow[]
+  notifications               Notification[]
+  auditLogs                   AuditLog[]            @relation("AuditUser")
+  temporaryPermissionsGranted TemporaryPermission[] @relation("TemporaryPermissionUser")
+  temporaryPermissionsCreated TemporaryPermission[] @relation("TemporaryPermissionCreator")
 
   @@map("users")
+}
+
+model TemporaryPermission {
+  id          String     @id @default(uuid())
+  userId      String     @map("user_id")
+  permission  Permission
+  startsAt    DateTime   @map("starts_at")
+  expiresAt   DateTime   @map("expires_at")
+  revokedAt   DateTime?  @map("revoked_at")
+  createdById String     @map("created_by_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  user      User @relation("TemporaryPermissionUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User @relation("TemporaryPermissionCreator", fields: [createdById], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([permission])
+  @@map("temporary_permissions")
 }
 
 model RefreshToken {
@@ -272,10 +305,10 @@ model Project {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  pool       Pool    @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  faculty    User    @relation("FacultyProjects", fields: [facultyId], references: [id])
-  reviewedBy User?   @relation("ProjectReviewer", fields: [reviewedById], references: [id])
-  decidedBy  User?   @relation("ProjectDecider", fields: [decidedById], references: [id])
+  pool       Pool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  faculty    User  @relation("FacultyProjects", fields: [facultyId], references: [id])
+  reviewedBy User? @relation("ProjectReviewer", fields: [reviewedById], references: [id])
+  decidedBy  User? @relation("ProjectDecider", fields: [decidedById], references: [id])
   team       Team?
 
   @@map("projects")
@@ -296,12 +329,12 @@ model Team {
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
 
-  pool        Pool          @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  project     Project?      @relation(fields: [projectId], references: [id])
-  leader      User          @relation("TeamLeader", fields: [leaderId], references: [id])
+  pool        Pool         @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  project     Project?     @relation(fields: [projectId], references: [id])
+  leader      User         @relation("TeamLeader", fields: [leaderId], references: [id])
   members     TeamMember[]
   invites     TeamInvite[]
-  studentIdea StudentIdea?  @relation("IdeaTeam")
+  studentIdea StudentIdea? @relation("IdeaTeam")
 
   @@map("teams")
 }

@@ -30,8 +30,7 @@ export class PoolsController {
   async restore(req: Request, res: Response, next: NextFunction) {
   try {
     const pool = await poolsService.restorePool(
-      req.params.id, req.user!.userId
-    );
+String(req.params.id), req.user!.userId    );
 
     res.json({
       success: true,

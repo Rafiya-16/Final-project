@@ -17,6 +17,7 @@ import ideaRoutes from './modules/student-ideas/ideas.routes';
 import notificationRoutes from './modules/notifications/notifications.routes';
 import reportRoutes from './modules/reports/reports.routes';
 import auditRoutes from './modules/audit/audit.routes';
+import temporaryPermissionsRoutes from './modules/temporary-permissions/temporary-permissions.routes';
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use('/api/pools', ideaRoutes);      // /api/pools/:poolId/ideas
 app.use('/api/pools', reportRoutes);    // /api/pools/:poolId/reports
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/audit-logs', auditRoutes);
+app.use('/api/temporary-permissions', temporaryPermissionsRoutes);
 
 // 404
 app.use((_req, res) => { res.status(404).json({ success: false, message: 'Route not found' }); });
