@@ -768,7 +768,7 @@ const CreateProposal: React.FC = () => {
                         Team Size <span className="text-red-500">*</span>
                       </label>
                       <div className="flex gap-2">
-                        {[2, 3, 4, 5].map((size) => (
+                        {[2, 3, 4 ].map((size) => (
                           <button
                             key={size}
                             type="button"

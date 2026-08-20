@@ -6,7 +6,7 @@ export const submitProjectSchema = z.object({
     description: z.string().min(20).max(2000),
     domain: z.string().optional(),
     prerequisites: z.string().optional(),
-    maxTeamSize: z.number().int().min(3).max(4).optional().default(3),
+    maxTeamSize: z.number().int().min(2).max(4).optional().default(3),
     expectedOutcome: z.string().optional(),
   }),
 });
