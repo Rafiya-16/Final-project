@@ -57,42 +57,34 @@ const App: React.FC = () => (
         <Route path="/faq" element={<FAQPage />} />
         <Route path="/contact" element={<ContactPage />} />
       </Route>
-
       <Route path="/login" element={<LoginPage />} />
-
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
-
           <Route element={<ProtectedRoute roles={['ADMIN']} />}>
             <Route path="/users" element={<ManageUsersPage />} />
             <Route path="/audit" element={<AuditPage />} />
             <Route path="/student-ideas" element={<ReviewIdeasPage />} />
             <Route path="/temporary-permissions" element={<TemporaryPermissionsPage />} />
           </Route>
-
           <Route element={<ProtectedRoute permissions={['VIEW_REPORTS']} />}>
             <Route path="/reports" element={<ReportsPage />} />
           </Route>
-
-          <Route element={<ProtectedRoute roles={['ADMIN', 'SUBADMIN']} />}>
+          <Route element={<ProtectedRoute permissions={['MANAGE_POOLS']} />}>
             <Route path="/pools" element={<ManagePoolsPage />} />
             <Route path="/pools/:id" element={<PoolDetailPage />} />
           </Route>
-
           <Route element={<ProtectedRoute roles={['SUBADMIN']} />}>
             <Route path="/review" element={<ReviewPage />} />
           </Route>
-
           <Route element={<ProtectedRoute roles={['FACULTY']} />}>
             <Route path="/faculty/proposals" element={<CreateProposal />} />
             <Route path="/my-projects" element={<MyProjects />} />
             <Route path="/faculty/team-management" element={<TeamManagement />} />
           </Route>
-
           <Route element={<ProtectedRoute roles={['STUDENT']} />}>
             <Route path="/projects" element={<BrowseProjectsPage />} />
             <Route path="/my-team" element={<MyTeamPage />} />
@@ -100,7 +92,6 @@ const App: React.FC = () => (
           </Route>
         </Route>
       </Route>
-
       <Route element={<PublicLayout />}><Route path="*" element={<NotFoundPage />} /></Route>
     </Routes>
   </BrowserRouter>
