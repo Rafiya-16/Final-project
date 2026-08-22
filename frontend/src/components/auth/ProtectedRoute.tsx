@@ -9,96 +9,44 @@ interface ProtectedRouteProps {
 }
 
 const rolePermissions: Record<UserRole, string[]> = {
-  ADMIN: [
-    'MANAGE_USERS',
-    'MANAGE_POOLS',
-    'MANAGE_PROJECTS',
-    'APPROVE_PROJECTS',
-    'REJECT_PROJECTS',
-    'PUBLISH_PROJECTS',
-    'ASSIGN_SUPERVISORS',
-    'MANAGE_TEAMS',
-    'VIEW_REPORTS',
-  ],
-
-  SUBADMIN: [
-    'MANAGE_PROJECTS',
-    'APPROVE_PROJECTS',
-    'REJECT_PROJECTS',
-    'PUBLISH_PROJECTS',
-    'ASSIGN_SUPERVISORS',
-    'MANAGE_TEAMS',
-    'VIEW_REPORTS',
-  ],
-
-  FACULTY: [
-    'MANAGE_TEAMS',
-  ],
-
+  ADMIN: ['MANAGE_USERS','MANAGE_POOLS','MANAGE_PROJECTS','APPROVE_PROJECTS','REJECT_PROJECTS','PUBLISH_PROJECTS','ASSIGN_SUPERVISORS','MANAGE_TEAMS','VIEW_REPORTS'],
+  SUBADMIN: ['MANAGE_PROJECTS','APPROVE_PROJECTS','REJECT_PROJECTS','PUBLISH_PROJECTS','ASSIGN_SUPERVISORS','MANAGE_TEAMS','VIEW_REPORTS'],
+  FACULTY: ['MANAGE_TEAMS'],
   STUDENT: [],
 };
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
-  roles,
-  permissions,
-}) => {
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ roles, permissions }) => {
   const { user, isAuthenticated } = useAuthStore();
   const location = useLocation();
 
-  // Not logged in
   if (!isAuthenticated || !user) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-        state={{ from: location.pathname }}
-      />
-    );
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  // ADMIN has unrestricted access
-  if (user.role === 'ADMIN') {
-    return <Outlet />;
+  // Explicit role restrictions must be exact. ADMIN is not silently allowed
+  // into a route intended only for another role.
+  if (roles?.length && !roles.includes(user.role)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
-  // Check explicit roles
-  if (roles && roles.length > 0) {
-    if (!roles.includes(user.role)) {
-      return <Navigate to="/dashboard" replace />;
-    }
-  }
+  if (permissions?.length) {
+    // ADMIN has every permission, but only after any explicit role check above.
+    if (user.role !== 'ADMIN') {
+      const permanentPermissions = rolePermissions[user.role] || [];
+      const temporaryPermissions = user.temporaryPermissions || [];
 
-  // Check permissions
-  if (permissions && permissions.length > 0) {
-    const permanentPermissions =
-      rolePermissions[user.role] || [];
+      const hasPermission = permissions.some((required) =>
+        permanentPermissions.includes(required) ||
+        temporaryPermissions.some((temp) => {
+          if (typeof temp === 'string') return temp === required;
+          return temp.permission === required &&
+            new Date(temp.startsAt) <= new Date() &&
+            new Date(temp.expiresAt) > new Date() &&
+            !temp.revokedAt;
+        })
+      );
 
-    const temporaryPermissions =
-      user.temporaryPermissions || [];
-
-    const hasPermission = permissions.some((permission) => {
-      // Permanent role permission
-      if (permanentPermissions.includes(permission)) {
-        return true;
-      }
-
-      // Temporary permission
-      return temporaryPermissions.some((temp: any) => {
-        if (typeof temp === 'string') {
-          return temp === permission;
-        }
-
-        return (
-          temp.permission === permission &&
-          new Date(temp.startsAt) <= new Date() &&
-          new Date(temp.expiresAt) > new Date() &&
-          !temp.revokedAt
-        );
-      });
-    });
-
-    if (!hasPermission) {
-      return <Navigate to="/dashboard" replace />;
+      if (!hasPermission) return <Navigate to="/dashboard" replace />;
     }
   }
 
