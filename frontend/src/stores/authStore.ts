@@ -1,4 +1,3 @@
-// frontend/src/stores/authStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@/types';
@@ -6,7 +5,14 @@ import type { User } from '@/types';
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+
   setAuth: (user: User, token: string) => void;
+
+  setTemporaryPermissions: (
+    temporaryPermissions: User['temporaryPermissions']
+  ) => void;
+
+  logout: () => void;
   clearAuth: () => void;
 }
 
@@ -15,15 +21,53 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
+
       setAuth: (user, token) => {
         localStorage.setItem('accessToken', token);
-        set({ user, isAuthenticated: true });
+
+        set({
+          user,
+          isAuthenticated: true,
+        });
       },
+
+      setTemporaryPermissions: (temporaryPermissions) => {
+        set((state) => ({
+          user: state.user
+            ? {
+                ...state.user,
+                temporaryPermissions,
+              }
+            : null,
+        }));
+      },
+
+      logout: () => {
+        localStorage.removeItem('accessToken');
+
+        set({
+          user: null,
+          isAuthenticated: false,
+        });
+      },
+
       clearAuth: () => {
         localStorage.removeItem('accessToken');
-        set({ user: null, isAuthenticated: false });
+
+        set({
+          user: null,
+          isAuthenticated: false,
+        });
       },
     }),
-    { name: 'auth', partialize: (s) => ({ user: s.user, isAuthenticated: s.isAuthenticated }) }
+
+    {
+      name: 'auth',
+
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    }
   )
 );

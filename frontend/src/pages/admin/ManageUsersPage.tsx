@@ -247,8 +247,7 @@ const CreateUser: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
       if (form.role !== 'STUDENT') { delete body.enrollmentNo; delete body.semester; delete body.section; }
       if (form.role === 'STUDENT') { delete body.designation; }
       Object.keys(body).forEach(k => { if (body[k] === '') delete body[k]; });
-      const res = await userService.create(body as CreateUserInput);
-      setCreated(res); toast.success('User created!');
+const res = await userService.create(body as unknown as CreateUserInput);      setCreated(res); toast.success('User created!');
     } catch (e: unknown) { toast.error(getErrorMessage(e)); }
     finally { setLoading(false); }
   };

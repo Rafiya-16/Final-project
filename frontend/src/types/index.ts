@@ -4,6 +4,15 @@ export type PoolStatus = 'DRAFT' | 'SUBMISSION_OPEN' | 'UNDER_REVIEW' | 'DECISIO
 export type ProjectStatus = 'DRAFT' | 'SUBMITTED' | 'LOCKED' | 'ON_HOLD' | 'APPROVED' | 'REJECTED';
 export type TeamStatus = 'FORMING' | 'COMPLETE' | 'FROZEN' | 'DISSOLVED';
 export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+export type Permission =  'MANAGE_USERS' | 'MANAGE_POOLS' | 'MANAGE_PROJECTS' | 'APPROVE_PROJECTS' | 'REJECT_PROJECTS' | 'PUBLISH_PROJECTS'  | 'ASSIGN_SUPERVISORS' | 'MANAGE_TEAMS' | 'VIEW_REPORTS';
+
+export interface TemporaryPermission {
+  id: string;
+  permission: Permission;
+  startsAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+}
 
 export interface User {
   id: string;
@@ -21,6 +30,7 @@ export interface User {
   mustResetPwd: boolean;
   lastLoginAt?: string;
   createdAt: string;
+  temporaryPermissions?: TemporaryPermission[];
 }
 
 export interface Pool {
