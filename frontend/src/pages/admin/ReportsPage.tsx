@@ -143,7 +143,7 @@ const ReportsPage: React.FC = () => {
             {[
               { label: 'Total Students', value: summary.totalStudents, color: 'text-blue-600' },
               { label: 'Total Faculty', value: summary.totalFaculty, color: 'text-purple-600' },
-              { label: 'Approved Projects', value: `${summary.approvedCount}/${summary.totalProjects}`, color: 'text-green-600' },
+              { label: 'Approved Projects', value: `${summary.approvedProjects}/${summary.totalProjects}`, color: 'text-green-600' },
               { label: 'Teams Formed', value: summary.totalTeams, color: 'text-orange-600' },
               { label: 'Frozen Teams', value: summary.frozenTeams, color: 'text-cyan-600' },
               { label: 'Unassigned Students', value: summary.unassignedStudents, color: summary.unassignedStudents > 0 ? 'text-red-600' : 'text-green-600' },

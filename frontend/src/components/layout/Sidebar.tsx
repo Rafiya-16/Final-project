@@ -30,7 +30,7 @@ const navItems: Record<string, { label: string; path: string; icon: React.ReactN
     { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { label: 'Create Projects', path: '/faculty/proposals', icon: <FileText className="w-5 h-5" /> },
     { label: 'My Projects', path: '/my-projects', icon: <BookOpen className="w-5 h-5" /> },
-    { label: 'Project Management', path: '/team-management', icon: <User className="w-5 h-5" /> },
+    { label: 'Project Management', path: '/faculty/team-management', icon: <User className="w-5 h-5" /> },
     { label: 'Notifications', path: '/notifications', icon: <Bell className="w-5 h-5" /> },
   ],
   STUDENT: [

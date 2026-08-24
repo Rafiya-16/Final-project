@@ -90,8 +90,7 @@ const UsersList: React.FC = () => {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Enrollment</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dept</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dept</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -104,7 +103,7 @@ const UsersList: React.FC = () => {
                     <p className="text-xs text-gray-500 font-mono">{u.email}</p>
                   </td>
                   <td className="px-4 py-3"><Badge text={u.role} /></td>
-                  <td className="px-4 py-3 text-sm font-mono text-gray-600">{u.enrollmentNo || '—'}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-600">{u.role === 'STUDENT' ? u.enrollmentNo || '—' : u.facultyId || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{u.department || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -236,7 +235,7 @@ const BulkImport: React.FC = () => {
 
 // ── CREATE USER ──
 const CreateUser: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', role: 'STUDENT', department: 'CSE', enrollmentNo: '', semester: '', section: '', designation: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', role: 'STUDENT', department: 'CSE', enrollmentNo: '', facultyId: '', semester: '', section: '', designation: '' });
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<CreatedUserResult | null>(null);
 
@@ -245,7 +244,8 @@ const CreateUser: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
     try {
       const body: Record<string, unknown> = { ...form, semester: form.semester ? Number(form.semester) : undefined };
       if (form.role !== 'STUDENT') { delete body.enrollmentNo; delete body.semester; delete body.section; }
-      if (form.role === 'STUDENT') { delete body.designation; }
+      if (form.role === 'STUDENT') { delete body.designation; delete body.facultyId; }
+      if (form.role === 'FACULTY' || form.role === 'SUBADMIN') { delete body.enrollmentNo; delete body.semester; delete body.section; }
       Object.keys(body).forEach(k => { if (body[k] === '') delete body[k]; });
       const res = await userService.create(body as CreateUserInput);
       setCreated(res); toast.success('User created!');
@@ -298,6 +298,25 @@ const CreateUser: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
           <div><label className="text-sm font-medium">Section</label><input value={form.section} onChange={e => set('section', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none" /></div>
         </div>
       )}
+      {(form.role === 'FACULTY' || form.role === 'SUBADMIN') && (
+  <div className="bg-purple-50 p-4 rounded-lg">
+    <label className="text-sm font-medium text-gray-700">
+      Faculty ID *
+    </label>
+
+    <input
+      value={form.facultyId}
+      onChange={e => set('facultyId', e.target.value)}
+      required
+      placeholder="e.g. FAC001"
+      className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+    />
+
+    <p className="text-xs text-gray-500 mt-1">
+      This Faculty ID will be used to log in.
+    </p>
+  </div>
+)}
       <button type="submit" disabled={loading} className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300">
         {loading ? 'Creating...' : 'Create User'}
       </button>

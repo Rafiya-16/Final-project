@@ -120,6 +120,7 @@ model User {
   firstName     String    @map("first_name")
   lastName      String    @map("last_name")
   enrollmentNo  String?   @unique @map("enrollment_no")
+  facultyId     String?   @unique @map("faculty_id")
   department    String?
   semester      Int?
   section       String?

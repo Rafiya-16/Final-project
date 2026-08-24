@@ -6,8 +6,18 @@ import { auditService } from '../audit/audit.service';
 import { notificationsService } from '../notifications/notifications.service';
 
 export class AuthService {
-  async login(email: string, password: string) {
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+async login(identifier: string, password: string) {
+  const normalizedIdentifier = identifier.trim();
+
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: normalizedIdentifier.toLowerCase(), },
+        { enrollmentNo: normalizedIdentifier, },
+        { facultyId: normalizedIdentifier, },
+      ],
+    },
+  });
     if (!user || !user.isActive) throw new UnauthorizedError('Invalid credentials');
 
     const isMatch = await comparePassword(password, user.password);
@@ -68,7 +78,7 @@ export class AuthService {
       where: { id: userId },
       select: {
         id: true, email: true, role: true, firstName: true, lastName: true,
-        department: true, enrollmentNo: true, phone: true,
+        department: true, enrollmentNo: true, facultyId: true, phone: true,
         mustResetPwd: true, lastLoginAt: true, createdAt: true,
       },
     });

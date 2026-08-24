@@ -1,10 +1,8 @@
 import { z } from 'zod';
 
 export const loginSchema = z.object({
-  body: z.object({
-    email: z.string().email('Invalid email'),
-    password: z.string().min(1, 'Password required'),
-  }),
+  identifier: z.string().min(1, 'Email, enrollment number, or faculty ID is required'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 export const changePasswordSchema = z.object({

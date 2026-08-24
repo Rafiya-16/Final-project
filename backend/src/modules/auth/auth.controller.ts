@@ -3,21 +3,70 @@ import { authService } from './auth.service';
 
 export class AuthController {
   async login(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { email, password } = req.body;
-      if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
-  throw new Error("JWT secrets are missing in environment variables");
-}
-      const result = await authService.login(email, password);
+  try {
+    console.log('========== AUTH CONTROLLER LOGIN ==========');
+    console.log('Request body:', {
+      identifier: req.body?.identifier,
+      passwordReceived: !!req.body?.password,
+    });
 
-      res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true, secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000,
+    const { identifier, password } = req.body;
+
+    console.log('JWT_ACCESS_SECRET exists:', !!process.env.JWT_ACCESS_SECRET);
+    console.log('JWT_REFRESH_SECRET exists:', !!process.env.JWT_REFRESH_SECRET);
+
+    if (!identifier || !password) {
+      console.log('LOGIN ERROR: identifier or password missing');
+      res.status(400).json({
+        success: false,
+        message: 'Identifier and password are required',
       });
+      return;
+    }
 
-      res.json({ success: true, data: { accessToken: result.accessToken, user: result.user } });
-    } catch (error) { next(error); }
+    if (
+      !process.env.JWT_ACCESS_SECRET ||
+      !process.env.JWT_REFRESH_SECRET
+    ) {
+      console.log('LOGIN ERROR: JWT secrets missing');
+
+      throw new Error(
+        'JWT secrets are missing in environment variables'
+      );
+    }
+
+    console.log('Calling authService.login()...');
+
+    const result = await authService.login(identifier, password);
+
+    console.log('authService.login() completed successfully');
+
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    console.log('Sending successful login response');
+
+    res.json({
+      success: true,
+      data: {
+        accessToken: result.accessToken,
+        user: result.user,
+      },
+    });
+
+    console.log('========== LOGIN RESPONSE SENT ==========');
+  } catch (error) {
+    console.error('========== AUTH CONTROLLER LOGIN ERROR ==========');
+    console.error(error);
+    console.error('=================================================');
+
+    next(error);
   }
+}
 
   async refresh(req: Request, res: Response, next: NextFunction) {
     try {
