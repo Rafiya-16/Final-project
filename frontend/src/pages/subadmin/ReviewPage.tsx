@@ -1,267 +1,703 @@
-// frontend/src/pages/subadmin/ReviewPage.tsx
-import React, { useState, useEffect } from 'react';
-import { poolService } from '@/services/poolService';
-import { projectService } from '@/services/projectService';
-import { Badge } from '@/lib/utils';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { EmptyState } from '@/components/ui/EmptyState';
+import React, { useState, useEffect } from "react";
+import { poolService } from "@/services/poolService";
+import { projectService } from "@/services/projectService";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import {
-  Lock, AlertTriangle, CheckCircle2, Send, ClipboardList,
-  ChevronRight, UserCheck, FileSearch, ArrowRight
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import type { Pool, Project, FacultyStatus, ReviewDecision } from '@/types';
-import { getErrorMessage } from '@/types';
+  Lock,
+  AlertTriangle,
+  Send,
+  ClipboardList,
+  ChevronRight,
+  ArrowRight,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import type { Pool, Project, FacultyStatus, ReviewDecision } from "@/types";
+import { getErrorMessage } from "@/types";
 
+/* ─────────────────────────── Inline styles ─────────────────────────── */
+const font = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Sora:wght@300;400;500;600&display=swap');
+`;
+
+const css = `
+  .rp-root { font-family: 'Sora', sans-serif; }
+  .rp-root * { box-sizing: border-box; }
+
+  /* Pool selector */
+  .rp-select {
+    appearance: none;
+    background: #fffbf5 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b45309' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center;
+    padding: 10px 36px 10px 14px;
+    border: 1.5px solid #f0bc12;
+    border-radius: 10px;
+    font-family: 'Sora', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: #92400e;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .rp-select:focus { outline: none; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+
+  /* Faculty rows */
+  .rp-faculty-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    cursor: default;
+    border-bottom: 1px solid rgba(245,158,11,0.08);
+    transition: background 0.12s;
+    position: relative;
+  }
+  .rp-faculty-row.clickable { cursor: pointer; }
+  .rp-faculty-row.clickable:hover { background: rgba(245,158,11,0.05); }
+  .rp-faculty-row.active { background: linear-gradient(90deg, rgba(245,158,11,0.12) 0%, transparent 100%); }
+  .rp-faculty-row.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, #f59e0b, #d97706);
+    border-radius: 0 2px 2px 0;
+  }
+  .rp-faculty-row:last-child { border-bottom: none; }
+
+  /* Submitted badge */
+  .badge-submitted {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #065f46;
+    background: #d1fae5;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .badge-awaiting {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: #9ca3af;
+    background: #f3f4f6;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  /* Project card */
+  .rp-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1.5px solid #e5e7eb;
+    padding: 24px;
+    transition: border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+  }
+  .rp-card:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(235, 190, 11, 0.06); }
+  .rp-card.state-lock { border-color: #34d399; background: #f0fdf9; }
+  .rp-card.state-hold { border-color: #fbbf24; background: #fffbeb; }
+
+  /* Decision buttons */
+  .rp-btn-lock, .rp-btn-hold {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Sora', sans-serif;
+    cursor: pointer;
+    transition: all 0.14s;
+    border: 1.5px solid;
+  }
+  .rp-btn-lock { color: #065f46; background: #fff; border-color: #d1fae5; }
+  .rp-btn-lock:hover { background: #ecfdf5; border-color: #6ee7b7; }
+  .rp-btn-lock.active { background: #059669; border-color: #059669; color: #fff; }
+
+  .rp-btn-hold { color: #92400e; background: #fff; border-color: #fde68a; }
+  .rp-btn-hold:hover { background: #fffbeb; border-color: #fcd34d; }
+  .rp-btn-hold.active { background: #d97706; border-color: #d97706; color: #fff; }
+
+  /* Progress bar */
+  .rp-progress-track {
+    height: 4px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .rp-progress-fill {
+    height: 100%;
+    background: #fff;
+    border-radius: 2px;
+    transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* Submit button */
+  .rp-submit {
+    width: 100%;
+    padding: 15px;
+    border-radius: 14px;
+    border: none;
+    font-family: 'Sora', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #fff;
+    letter-spacing: 0.02em;
+    transition: opacity 0.15s, transform 0.12s, box-shadow 0.15s;
+    box-shadow: 0 2px 16px rgba(217,119,6,0.28);
+  }
+  .rp-submit:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(217,119,6,0.35); }
+  .rp-submit:active { transform: translateY(0); }
+
+  /* Index chip */
+  .rp-index {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* Dark mode overrides */
+  @media (prefers-color-scheme: dark) {
+    .rp-select { background-color: #725d2b; color: #f1bf19; border-color: #78350f; }
+    .rp-faculty-row.clickable:hover { background: rgba(245,158,11,0.08); }
+    .rp-faculty-row.active { background: rgba(245,158,11,0.1); }
+    .rp-card { background: #fff; border-color: #2d2d2d; }
+    .rp-card.state-lock { background: #fef3c7; border-color: #059669; }
+    .rp-card.state-hold { background: #fef3c7; border-color: #d97706; } 
+    .rp-btn-lock { background: #fef3c7; color: #6ee7b7; border-color: #064e2e; }
+    .rp-btn-lock.active { background: #059669; color: #fff; }
+    .rp-btn-hold { background: #fef3c7; color: #fcd34d; border-color: #78350f; }
+    .rp-btn-hold.active { background: #d97706; color: #fff; }
+    .rp-index { background: #fef3c7; color: #ebb812; }
+    // .rp-card h3 { color: #fef3c7 !important; }
+    .rp-card.state-lock h3 { color: #6ee7b7 !important; }
+    .rp-card.state-hold h3 { color: #fbbf24 !important; }
+  }
+`;
+
+/* ─────────────────────────── Component ─────────────────────────────── */
 const ReviewPage: React.FC = () => {
   const [pools, setPools] = useState<Pool[]>([]);
-  const [selectedPool, setSelectedPool] = useState('');
+  const [selectedPool, setSelectedPool] = useState("");
   const [facultyList, setFacultyList] = useState<FacultyStatus[]>([]);
-  const [selectedFaculty, setSelectedFaculty] = useState('');
+  const [selectedFaculty, setSelectedFaculty] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
-  const [decisions, setDecisions] = useState<Record<string, 'LOCK' | 'HOLD'>>({});
+  const [decisions, setDecisions] = useState<Record<string, "LOCK" | "HOLD">>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { poolService.list().then(r => { setPools(r.data || []); if (r.data?.length) setSelectedPool(r.data[0].id); }).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    poolService
+      .list()
+      .then((r) => {
+        setPools(r.data || []);
+        if (r.data?.length) setSelectedPool(r.data[0].id);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!selectedPool) return;
-    projectService.getFacultyStatus(selectedPool).then(r => setFacultyList(r || []));
+    projectService
+      .getFacultyStatus(selectedPool)
+      .then((r) => setFacultyList(r || []));
   }, [selectedPool]);
 
   useEffect(() => {
     if (!selectedPool || !selectedFaculty) return;
-    projectService.listByPool(selectedPool).then(all => {
-      const fProjects = all.filter((p: Project) => p.facultyId === selectedFaculty && p.status === 'SUBMITTED');
-      setProjects(fProjects); setDecisions({});
+    projectService.listByPool(selectedPool).then((all) => {
+      const fProjects = all.filter(
+        (p: Project) =>
+          p.facultyId === selectedFaculty && p.status === "SUBMITTED",
+      );
+      setProjects(fProjects);
+      setDecisions({});
     });
   }, [selectedFaculty, selectedPool]);
 
-  const setDecision = (projectId: string, action: 'LOCK' | 'HOLD') => {
-    setDecisions(prev => {
+  const setDecision = (projectId: string, action: "LOCK" | "HOLD") => {
+    setDecisions((prev) => {
       const next = { ...prev, [projectId]: action };
-      const holds = Object.values(next).filter(v => v === 'HOLD').length;
-      if (holds > 1 && action === 'HOLD') {
-        toast.error('Only 1 can be held'); return prev;
+      const holds = Object.values(next).filter((v) => v === "HOLD").length;
+      if (holds > 1 && action === "HOLD") {
+        toast.error("Only 1 can be held");
+        return prev;
       }
       return next;
     });
   };
 
   const submitReview = async () => {
-    const locks = Object.values(decisions).filter(v => v === 'LOCK').length;
-    const holds = Object.values(decisions).filter(v => v === 'HOLD').length;
-    if (locks !== 3 || holds !== 1) { toast.error('Must lock 3 and hold 1'); return; }
-
-    const dec: ReviewDecision[] = Object.entries(decisions).map(([projectId, action]) => ({ projectId, action }));
+    const locks = Object.values(decisions).filter((v) => v === "LOCK").length;
+    const holds = Object.values(decisions).filter((v) => v === "HOLD").length;
+    if (locks !== 3 || holds !== 1) {
+      toast.error("Must lock 3 and hold 1");
+      return;
+    }
+    const dec: ReviewDecision[] = Object.entries(decisions).map(
+      ([projectId, action]) => ({ projectId, action }),
+    );
     try {
       await projectService.reviewBatch(selectedPool, selectedFaculty, dec);
-      toast.success('Review submitted!');
-      setSelectedFaculty(''); setDecisions({});
-    } catch (e: unknown) { toast.error(getErrorMessage(e)); }
+      toast.success("Review submitted!");
+      setSelectedFaculty("");
+      setDecisions({});
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e));
+    }
   };
 
   if (loading) return <LoadingSpinner />;
 
-  const lockedCount = Object.values(decisions).filter(v => v === 'LOCK').length;
-  const heldCount = Object.values(decisions).filter(v => v === 'HOLD').length;
-  const submittedFaculty = facultyList.filter(f => f.hasSubmitted).length;
-  const totalFaculty = facultyList.length;
+  const lockedCount = Object.values(decisions).filter(
+    (v) => v === "LOCK",
+  ).length;
+  const heldCount = Object.values(decisions).filter((v) => v === "HOLD").length;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-amber-900 dark:text-white">Review Console</h1>
-          <p className="text-sm text-amber-700/60 dark:text-slate-400 mt-0.5">Evaluate and manage faculty proposals</p>
-        </div>
-        <select
-          value={selectedPool}
-          onChange={e => { setSelectedPool(e.target.value); setSelectedFaculty(''); }}
-          className="px-4 py-2.5 border-2 border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-slate-800 rounded-xl text-sm font-medium text-amber-900 dark:text-amber-300 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 dark:focus:ring-amber-500/20"
+    <>
+      <style>
+        {font}
+        {css}
+      </style>
+
+      <div
+        className="rp-root"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 28,
+          maxWidth: 960,
+          margin: "0 auto",
+        }}
+      >
+        {/* ── Header ── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            paddingBottom: 4,
+          }}
         >
-          {pools.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </div>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-3 gap-4 stagger-children">
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-500/10 dark:to-amber-500/5 border-2 border-amber-200/50 dark:border-amber-500/20 rounded-2xl p-5 text-center">
-          <div className="w-10 h-10 mx-auto bg-amber-500/10 rounded-xl flex items-center justify-center mb-3">
-            <ClipboardList className="w-5 h-5 text-amber-600" />
-          </div>
-          <p className="text-3xl font-bold text-amber-900 dark:text-white">{totalFaculty}</p>
-          <p className="text-xs text-amber-600 mt-1 font-medium">Total Faculty</p>
-        </div>
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-emerald-500/10 dark:to-emerald-500/5 border-2 border-green-200/50 dark:border-emerald-500/20 rounded-2xl p-5 text-center">
-          <div className="w-10 h-10 mx-auto bg-green-500/10 rounded-xl flex items-center justify-center mb-3">
-            <UserCheck className="w-5 h-5 text-green-600" />
-          </div>
-          <p className="text-3xl font-bold text-green-900 dark:text-white">{submittedFaculty}</p>
-          <p className="text-xs text-green-600 mt-1 font-medium">Submitted</p>
-        </div>
-        <div className="bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-800 dark:to-slate-800 border-2 border-slate-200/50 dark:border-slate-700 rounded-2xl p-5 text-center">
-          <div className="w-10 h-10 mx-auto bg-slate-500/10 rounded-xl flex items-center justify-center mb-3">
-            <FileSearch className="w-5 h-5 text-slate-600" />
-          </div>
-          <p className="text-3xl font-bold text-stone-800 dark:text-white">{totalFaculty - submittedFaculty}</p>
-          <p className="text-xs text-slate-600 mt-1 font-medium">Pending</p>
-        </div>
-      </div>
-
-      {/* Faculty List */}
-      <div className="bg-cream-50 dark:bg-slate-800 rounded-2xl border-2 border-amber-100 dark:border-amber-500/20 overflow-hidden">
-        <div className="px-6 py-4 border-b border-amber-100 dark:border-amber-500/20 bg-gradient-to-r from-amber-50 dark:from-amber-500/10 to-transparent">
-          <h2 className="font-semibold text-amber-900 flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-amber-500" />
-            Faculty Submissions
-          </h2>
-        </div>
-        <div className="divide-y divide-amber-100/50">
-          {facultyList.map((f: FacultyStatus) => (
-            <div
-              key={f.facultyId}
-              onClick={() => f.hasSubmitted && setSelectedFaculty(f.facultyId)}
-              className={`flex items-center justify-between px-6 py-4 cursor-pointer transition-all duration-200 ${
-                selectedFaculty === f.facultyId
-                  ? 'bg-amber-500/5 border-l-4 border-l-amber-500'
-                  : f.hasSubmitted
-                    ? 'hover:bg-amber-50/50 border-l-4 border-l-transparent'
-                    : 'opacity-40 cursor-not-allowed border-l-4 border-l-transparent'
-              }`}
+          <div>
+            <p
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "#98560b",
+                marginBottom: 4,
+              }}
             >
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${
-                  selectedFaculty === f.facultyId
-                    ? 'bg-amber-500 text-white'
-                    : f.hasSubmitted
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'bg-slate-100 text-slate-400'
-                }`}>
-                  {f.faculty.firstName[0]}{f.faculty.lastName[0]}
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-900">{f.faculty.firstName} {f.faculty.lastName}</p>
-                  <p className="text-xs text-slate-500">{f.faculty.email}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={`text-xs px-3 py-1.5 rounded-lg font-semibold ${
-                  f.hasSubmitted
-                    ? 'bg-green-500/10 text-green-700 border border-green-200'
-                    : 'bg-slate-100 text-slate-500 border border-slate-200'
-                }`}>
-                  {f.hasSubmitted ? '✓ Submitted' : 'Awaiting'}
+              {/* Welcome Back SubAdmin */}
+            </p>
+            <h1
+              style={{
+                fontFamily: "'DM Serif Display', serif",
+                fontSize: 30,
+                fontWeight: 400,
+                color: "#a25803",
+                margin: 0,
+                lineHeight: 1.15,
+              }}
+            >
+              Please Review The Project
+            </h1>
+            <p
+              style={{
+                fontSize: 13,
+                color: "#a16207",
+                marginTop: 4,
+                fontWeight: 400,
+              }}
+            >
+              {/* Evaluate and manage faculty proposals */}
+            </p>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "#a16207", fontWeight: 500 }}>
+              Pool
+            </span>
+            <select
+              value={selectedPool}
+              onChange={(e) => {
+                setSelectedPool(e.target.value);
+                setSelectedFaculty("");
+              }}
+              className="rp-select"
+            >
+              {pools.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* ── Two-column layout ── */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "300px 1fr",
+            gap: 24,
+            alignItems: "start",
+          }}
+        >
+          {/* ── Faculty Sidebar ── */}
+          <div
+            style={{
+              background: "#fffbf5",
+              border: "1.5px solid rgba(245,158,11,0.2)",
+              borderRadius: 18,
+              overflow: "hidden",
+              position: "sticky",
+              top: 24,
+            }}
+          >
+            <div
+              style={{
+                padding: "16px 24px",
+                borderBottom: "1px solid rgba(245,158,11,0.12)",
+                background: "linear-gradient(135deg, #fef9ee 0%, #fffbf5 100%)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <ClipboardList size={15} color="#d97706" />
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#92400e",
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Faculty
                 </span>
-                {f.hasSubmitted && <ChevronRight className="w-4 h-4 text-amber-400" />}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Review Projects */}
-      {projects.length > 0 && (
-        <div className="space-y-4">
-          {/* Review Progress */}
-          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-bold text-lg">Review Progress</p>
-                <p className="text-amber-100 text-sm mt-1">Lock 3 proposals, Hold 1 for admin review</p>
-              </div>
-              <div className="flex gap-4">
-                <div className="text-center">
-                  <p className="text-3xl font-bold">{lockedCount}<span className="text-lg text-amber-200">/3</span></p>
-                  <p className="text-xs text-amber-200 font-medium">Locked</p>
-                </div>
-                <div className="w-px bg-white/20" />
-                <div className="text-center">
-                  <p className="text-3xl font-bold">{heldCount}<span className="text-lg text-amber-200">/1</span></p>
-                  <p className="text-xs text-amber-200 font-medium">On Hold</p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 bg-white/20 rounded-full h-2 overflow-hidden">
+            {facultyList.length === 0 ? (
               <div
-                className="h-full bg-white rounded-full transition-all duration-500"
-                style={{ width: `${((lockedCount + heldCount) / 4) * 100}%` }}
-              />
-            </div>
-          </div>
-
-          {projects.map((p, idx) => (
-            <div
-              key={p.id}
-              className={`bg-cream-50 rounded-2xl border-2 p-6 transition-all duration-300 ${
-                decisions[p.id] === 'LOCK'
-                  ? 'border-green-400 shadow-lg shadow-green-100'
-                  : decisions[p.id] === 'HOLD'
-                    ? 'border-amber-400 shadow-lg shadow-amber-100'
-                    : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                    decisions[p.id] === 'LOCK'
-                      ? 'bg-green-500 text-white'
-                      : decisions[p.id] === 'HOLD'
-                        ? 'bg-amber-500 text-white'
-                        : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {idx + 1}
-                  </div>
+                style={{
+                  padding: "32px 24px",
+                  textAlign: "center",
+                  color: "#d97706",
+                  fontSize: 13,
+                }}
+              >
+                No faculty found
+              </div>
+            ) : (
+              facultyList.map((f) => (
+                <div
+                  key={f.facultyId}
+                  onClick={() =>
+                    f.hasSubmitted && setSelectedFaculty(f.facultyId)
+                  }
+                  className={`rp-faculty-row ${f.hasSubmitted ? "clickable" : ""} ${selectedFaculty === f.facultyId ? "active" : ""}`}
+                >
                   <div>
-                    <h3 className="font-bold text-slate-900 text-lg">{p.title}</h3>
-                    <p className="text-sm text-slate-600 mt-2 leading-relaxed">{p.description}</p>
-                    {p.domain && (
-                      <span className="inline-block mt-3 text-xs bg-amber-100 text-amber-800 px-3 py-1 rounded-lg font-medium">
-                        {p.domain}
-                      </span>
+                    <p
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 500,
+                        color: "#93530b",
+                        margin: 0,
+                      }}
+                    >
+                      {f.faculty.firstName} {f.faculty.lastName}
+                    </p>
+                  </div>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    {f.hasSubmitted ? (
+                      <>
+                        <span className="badge-submitted">✓ Submitted</span>
+                        <ChevronRight size={13} color="#d97706" />
+                      </>
+                    ) : (
+                      <span className="badge-awaiting">Awaiting</span>
                     )}
                   </div>
                 </div>
-              </div>
-              <div className="flex gap-3 mt-5 ml-14">
-                <button
-                  onClick={() => setDecision(p.id, 'LOCK')}
-                  className={`flex items-center gap-2 px-5 py-2.5 text-sm rounded-xl font-semibold transition-all duration-200 ${
-                    decisions[p.id] === 'LOCK'
-                      ? 'bg-green-600 text-white shadow-lg shadow-green-200'
-                      : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-green-400 hover:bg-green-50 hover:text-green-700'
-                  }`}
-                >
-                  <Lock className="w-4 h-4" />
-                  {decisions[p.id] === 'LOCK' ? '✓ Locked' : 'Lock'}
-                </button>
-                <button
-                  onClick={() => setDecision(p.id, 'HOLD')}
-                  className={`flex items-center gap-2 px-5 py-2.5 text-sm rounded-xl font-semibold transition-all duration-200 ${
-                    decisions[p.id] === 'HOLD'
-                      ? 'bg-amber-500 text-white shadow-lg shadow-amber-200'
-                      : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700'
-                  }`}
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  {decisions[p.id] === 'HOLD' ? '⏸ Held' : 'Hold'}
-                </button>
-              </div>
-            </div>
-          ))}
+              ))
+            )}
+          </div>
 
-          <button
-            onClick={submitReview}
-            disabled={Object.keys(decisions).length !== 4}
-            className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-bold text-base hover:from-amber-600 hover:to-orange-600 disabled:from-slate-200 disabled:to-slate-300 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-amber-200/50 disabled:shadow-none transition-all duration-300"
-          >
-            <Send className="w-5 h-5" />Submit Review
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          {/* ── Projects Panel ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {!selectedFaculty && (
+              <div
+                style={{
+                  borderRadius: 18,
+                  border: "1.5px dashed rgba(245,158,11,0.25)",
+                  padding: "52px 24px",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    background: "#fef3c7",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 16px",
+                  }}
+                >
+                  <ClipboardList size={22} color="#d97706" />
+                </div>
+                <p
+                  style={{
+                    fontFamily: "'DM Serif Display', serif",
+                    fontSize: 20,
+                    color: "#92400e",
+                    margin: "0 0 6px",
+                  }}
+                >
+                  Select a faculty member
+                </p>
+                <p style={{ fontSize: 13, color: "#a16207", margin: 0 }}>
+                  Choose from the panel on the left to begin reviewing their
+                  proposals.
+                </p>
+              </div>
+            )}
+
+            {projects.length > 0 && (
+              <>
+                {/* Progress banner */}
+                <div
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
+                    borderRadius: 14,
+                    padding: "16px 20px",
+                    color: "#fff",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <span
+                      style={{ fontSize: 13, fontWeight: 600, opacity: 0.9 }}
+                    >
+                      Review Progress
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        background: "rgba(255,255,255,0.2)",
+                        padding: "3px 10px",
+                        borderRadius: 20,
+                      }}
+                    >
+                      {lockedCount + heldCount} / {projects.length} decided
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 12,
+                    }}
+                  >
+                    {/* Lock progress */}
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: 5,
+                        }}
+                      >
+                        <span style={{ fontSize: 11, opacity: 0.8 }}>
+                          Locked
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700 }}>
+                          {lockedCount} / 3
+                        </span>
+                      </div>
+                      <div className="rp-progress-track">
+                        <div
+                          className="rp-progress-fill"
+                          style={{ width: `${(lockedCount / 3) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                    {/* Hold progress */}
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: 5,
+                        }}
+                      >
+                        <span style={{ fontSize: 11, opacity: 0.8 }}>
+                          On Hold
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700 }}>
+                          {heldCount} / 1
+                        </span>
+                      </div>
+                      <div className="rp-progress-track">
+                        <div
+                          className="rp-progress-fill"
+                          style={{ width: `${(heldCount / 1) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Project cards */}
+                {projects.map((p, idx) => (
+                  <div
+                    key={p.id}
+                    className={`rp-card ${
+                      decisions[p.id] === "LOCK"
+                        ? "state-lock"
+                        : decisions[p.id] === "HOLD"
+                          ? "state-hold"
+                          : ""
+                    }`}
+                  >
+                    {/* Card header */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 12,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <span className="rp-index">{idx + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <h3
+                          style={{
+                            fontFamily: "'DM Serif Display', serif",
+                            fontSize: 20,
+                            fontWeight: 400,
+                            color: "#92400e",
+                            margin: "0 0 5px",
+                            lineHeight: 1.3,
+                            letterSpacing: "-0.01em",
+                          }}
+                        >
+                          {p.title}
+                        </h3>
+                      </div>
+
+                      {decisions[p.id] && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            padding: "4px 12px",
+                            borderRadius: 20,
+                            flexShrink: 0,
+                            ...(decisions[p.id] === "LOCK"
+                              ? { background: "#d1fae5", color: "#065f46" }
+                              : { background: "#fef3c7", color: "#92400e" }),
+                          }}
+                        >
+                          {decisions[p.id] === "LOCK"
+                            ? "✓ Locked"
+                            : "⏸ On Hold"}
+                        </span>
+                      )}
+                    </div>
+
+                    <p
+                      style={{
+                        fontSize: 14,
+                        lineHeight: 1.65,
+                        color: "#6b5b3e",
+                        margin: "0 0 20px",
+                      }}
+                    >
+                      {p.description}
+                    </p>
+
+                    {/* Divider */}
+                    <div
+                      style={{
+                        height: 1,
+                        background: "rgba(47, 46, 46, 0.06)",
+                        marginBottom: 18,
+                      }}
+                    />
+
+                    {/* Action buttons */}
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button
+                        onClick={() => setDecision(p.id, "LOCK")}
+                        className={`rp-btn-lock ${decisions[p.id] === "LOCK" ? "active" : ""}`}
+                      >
+                        <Lock size={14} />
+                        {decisions[p.id] === "LOCK" ? "Locked" : "Lock"}
+                      </button>
+
+                      <button
+                        onClick={() => setDecision(p.id, "HOLD")}
+                        className={`rp-btn-hold ${decisions[p.id] === "HOLD" ? "active" : ""}`}
+                      >
+                        <AlertTriangle size={14} />
+                        {decisions[p.id] === "HOLD" ? "On Hold" : "Hold"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Submit */}
+                <button onClick={submitReview} className="rp-submit">
+                  <Send size={15} />
+                  Submit Review
+                  <ArrowRight size={15} />
+                </button>
+              </>
+            )}
+          </div>
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 };
 
