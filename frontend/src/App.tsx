@@ -1,12 +1,6 @@
 // frontend/src/App.tsx
 import React from 'react';
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-  useLocation,
-} from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/stores/authStore';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -42,6 +36,7 @@ import TeamManagement from '@/pages/faculty/TeamManagement';
 // Student Pages
 import StudentDashboard from '@/pages/student/StudentDashboard';
 import BrowseProjectsPage from '@/pages/student/BrowseProjectsPage';
+import WhatToDoPage from '@/pages/student/WhatToDoPage';
 import MyTeamPage from '@/pages/student/MyTeamPage';
 import IdeasPage from '@/pages/student/IdeasPage';
 
@@ -56,7 +51,7 @@ import NotificationsPage from '@/pages/NotificationsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import ChangePasswordPage from '@/pages/ChangePasswordPage';
 
-// 🔐 Protected Route
+// Protected Route
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
   roles?: string[];
@@ -64,17 +59,14 @@ const ProtectedRoute: React.FC<{
   const { isAuthenticated, user } = useAuthStore();
   const location = useLocation();
 
-  // User is not logged in
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // User does not have the required role
   if (roles && user && !roles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Force password change when required
   if (
     user?.mustResetPwd &&
     location.pathname !== '/change-password'
@@ -85,7 +77,7 @@ const ProtectedRoute: React.FC<{
   return <>{children}</>;
 };
 
-// 🔁 Role-based Dashboard Redirect
+// Role-based Dashboard Redirect
 const DashboardRedirect: React.FC = () => {
   const { user } = useAuthStore();
 
@@ -115,6 +107,7 @@ const App: React.FC = () => (
     />
 
     <Routes>
+
       {/* ==================== PUBLIC ==================== */}
 
       <Route element={<PublicLayout />}>
@@ -139,6 +132,7 @@ const App: React.FC = () => (
           </ProtectedRoute>
         }
       >
+
         {/* ==================== DASHBOARD ==================== */}
 
         <Route
@@ -323,6 +317,17 @@ const App: React.FC = () => (
             </ProtectedRoute>
           }
         />
+
+        {/* PR #3 */}
+        <Route
+          path="/what-to-do"
+          element={
+            <ProtectedRoute roles={['STUDENT']}>
+              <WhatToDoPage />
+            </ProtectedRoute>
+          }
+        />
+
       </Route>
 
       {/* ==================== 404 ==================== */}
@@ -333,6 +338,7 @@ const App: React.FC = () => (
           element={<NotFoundPage />}
         />
       </Route>
+
     </Routes>
   </BrowserRouter>
 );

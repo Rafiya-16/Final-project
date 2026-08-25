@@ -70,7 +70,7 @@ export const DashboardLayout: React.FC = () => {
   return (
     <div className="min-h-screen bg-cream-100 dark:bg-slate-900 transition-colors">
       <Sidebar />
-      <div className="ml-64">
+      <div className="md:ml-64">
         <header className="bg-cream-50 dark:bg-slate-800 border-b border-cream-300 dark:border-slate-700 sticky top-0 z-20 px-6 py-3 flex items-center justify-between transition-colors">
           <div>
             <p className="text-sm text-stone-500 dark:text-slate-400">Welcome back,</p>
