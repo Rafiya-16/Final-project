@@ -8,6 +8,7 @@ export const createUserSchema = z.object({
     lastName: z.string().min(1).trim(),
     role: z.enum(['STUDENT', 'FACULTY', 'SUBADMIN']),
     department: z.string().min(1).trim(),
+    facultyId: z.string().optional().transform(v => v?.trim().toUpperCase()),
     enrollmentNo: z.string().optional().transform(v => v?.trim().toUpperCase()),
     semester: z.number().int().min(1).max(12).optional(),
     section: z.string().optional().transform(v => v?.trim().toUpperCase()),

@@ -12,6 +12,7 @@ export interface User {
   firstName: string;
   lastName: string;
   enrollmentNo?: string;
+  facultyId?: string;
   department?: string;
   semester?: number;
   section?: string;
@@ -163,6 +164,7 @@ export interface CreateUserInput {
   email: string;
   role: UserRole;
   department?: string;
+  facultyId?: string;
   enrollmentNo?: string;
   semester?: number;
   section?: string;

@@ -1,6 +1,6 @@
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'SUBADMIN', 'FACULTY', 'STUDENT');
-
+  
 -- CreateEnum
 CREATE TYPE "PoolStatus" AS ENUM ('DRAFT', 'SUBMISSION_OPEN', 'UNDER_REVIEW', 'DECISION_PENDING', 'SELECTION_OPEN', 'TEAMS_FORMING', 'FROZEN', 'ARCHIVED');
 
@@ -40,6 +40,7 @@ CREATE TABLE "users" (
     "first_name" TEXT NOT NULL,
     "last_name" TEXT NOT NULL,
     "enrollment_no" TEXT,
+    "faculty_id" TEXT,
     "department" TEXT,
     "semester" INTEGER,
     "section" TEXT,

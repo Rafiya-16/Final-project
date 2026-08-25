@@ -34,7 +34,11 @@ export class UsersService {
       const dup = await prisma.user.findUnique({ where: { enrollmentNo: dto.enrollmentNo } });
       if (dup) throw new ConflictError(`Enrollment ${dto.enrollmentNo} already exists`);
     }
-
+    if (dto.facultyId) {
+      const dup = await prisma.user.findUnique({ where: { facultyId: dto.facultyId }, });
+    if (dup) { throw new ConflictError(`Faculty ID ${dto.facultyId} already exists`);
+    }
+  }
     const identifier = dto.enrollmentNo || dto.email.split('@')[0];
     const tempPassword = generateTempPassword(dto.firstName, identifier);
     const hashedPassword = await hashPassword(tempPassword);
@@ -47,6 +51,7 @@ export class UsersService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         department: dto.department,
+        facultyId: dto.role === 'FACULTY' || dto.role === 'SUBADMIN' ? dto.facultyId : null,
         enrollmentNo: dto.role === 'STUDENT' ? dto.enrollmentNo : null,
         semester: dto.role === 'STUDENT' ? dto.semester : null,
         section: dto.role === 'STUDENT' ? dto.section : null,
@@ -277,7 +282,7 @@ export class UsersService {
       prisma.user.findMany({
         where, skip: (params.page - 1) * params.limit, take: params.limit,
         orderBy: { [params.sortBy || 'createdAt']: params.sortOrder || 'desc' },
-        select: { id: true, email: true, role: true, firstName: true, lastName: true, enrollmentNo: true, department: true, semester: true, section: true, designation: true, phone: true, isActive: true, mustResetPwd: true, lastLoginAt: true, createdAt: true },
+        select: { id: true, email: true, role: true, firstName: true, lastName: true, enrollmentNo: true, facultyId: true, department: true, semester: true, section: true, designation: true, phone: true, isActive: true, mustResetPwd: true, lastLoginAt: true, createdAt: true },
       }),
       prisma.user.count({ where }),
     ]);

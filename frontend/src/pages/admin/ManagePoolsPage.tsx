@@ -133,7 +133,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   const userSections: { key: 'subadminIds' | 'facultyIds' | 'studentIds'; label: string; items: User[]; display: (u: User) => string }[] = [
     { key: 'subadminIds', label: 'Subadmins', items: users.subadmins, display: (u: User) => `${u.firstName} ${u.lastName} (${u.email})` },
-    { key: 'facultyIds', label: 'Faculty', items: users.faculty, display: (u: User) => `${u.firstName} ${u.lastName}` },
+    { key: 'facultyIds', label: 'Faculty', items: users.faculty, display: (u: User) => `${u.firstName} ${u.lastName} (${u.facultyId || ''})` },
     { key: 'studentIds', label: 'Students', items: users.students, display: (u: User) => `${u.firstName} ${u.lastName} (${u.enrollmentNo || ''})` },
   ];
 

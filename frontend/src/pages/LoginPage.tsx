@@ -18,8 +18,11 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { accessToken, user } = await authService.login(identifier, password);
-      setAuth(user, accessToken);
+      const result = await authService.login(identifier, password);
+
+const { accessToken, user } = result.data;
+
+setAuth(user, accessToken);
       toast.success(`Welcome, ${user.firstName}!`);
       navigate('/dashboard');
     } catch (err: unknown) {
