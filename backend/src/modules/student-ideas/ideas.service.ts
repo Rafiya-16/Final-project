@@ -1,441 +1,396 @@
-// frontend/src/types/index.ts
+import prisma from '../../config/database';
+import {
+  BadRequestError,
+  NotFoundError,
+  ForbiddenError,
+} from '../../shared/errors/AppError';
+import { logger } from '../../shared/utils/logger';
 
-export type UserRole =
-  | 'ADMIN'
-  | 'SUBADMIN'
-  | 'FACULTY'
-  | 'STUDENT';
-
-export type PoolStatus =
-  | 'DRAFT'
-  | 'SUBMISSION_OPEN'
-  | 'UNDER_REVIEW'
-  | 'DECISION_PENDING'
-  | 'SELECTION_OPEN'
-  | 'TEAMS_FORMING'
-  | 'FROZEN'
-  | 'ARCHIVED';
-
-export type ProjectStatus =
-  | 'DRAFT'
-  | 'SUBMITTED'
-  | 'LOCKED'
-  | 'ON_HOLD'
-  | 'APPROVED'
-  | 'REJECTED';
-
-export type TeamStatus =
-  | 'FORMING'
-  | 'COMPLETE'
-  | 'FROZEN'
-  | 'DISSOLVED';
-
-export type InviteStatus =
-  | 'PENDING'
-  | 'ACCEPTED'
-  | 'DECLINED'
-  | 'EXPIRED';
-
-export interface User {
-  id: string;
-  email: string;
-  role: UserRole;
-  firstName: string;
-  lastName: string;
-  enrollmentNo?: string;
-  facultyId?: string;
-  department?: string;
-  semester?: number;
-  section?: string;
-  designation?: string;
-  phone?: string;
-  isActive: boolean;
-  mustResetPwd: boolean;
-  lastLoginAt?: string;
-  createdAt: string;
-}
-
-export interface Pool {
-  id: string;
-  name: string;
-  academicYear: string;
-  semester: string;
-  department?: string;
-  status: PoolStatus;
-  submissionStart: string;
-  submissionEnd: string;
-  reviewStart: string;
-  reviewEnd: string;
-  decisionDeadline: string;
-  selectionStart: string;
-  selectionEnd: string;
-  teamFreezeDate: string;
-  minTeamSize: number;
-  defaultMaxTeamSize: number;
-  allowStudentIdeas: boolean;
-  createdAt: string;
-
-  creator?: {
-    firstName: string;
-    lastName: string;
-  };
-
-  subadmins?: {
-    subadmin: User;
-  }[];
-
-  faculty?: {
-    faculty: User;
-    hasSubmitted: boolean;
-  }[];
-
-  _count?: {
-    faculty: number;
-    students: number;
-    projects: number;
-    teams: number;
-  };
-}
-
-export interface Project {
-  id: string;
-  poolId: string;
-  facultyId: string;
-  title: string;
-  description: string;
-  domain?: string;
-  prerequisites?: string;
-  maxTeamSize: number;
-  expectedOutcome?: string;
-  status: ProjectStatus;
-  subadminNote?: string;
-  adminNote?: string;
-  createdAt: string;
-
-  faculty?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-
-  reviewedBy?: {
-    firstName: string;
-    lastName: string;
-  };
-
-  decidedBy?: {
-    firstName: string;
-    lastName: string;
-  };
-
-  team?: Team | null;
-}
-
-export interface Team {
-  id: string;
-  poolId: string;
-  projectId?: string;
-  name: string;
-  leaderId: string;
-  status: TeamStatus;
-  isFrozen: boolean;
-  createdAt: string;
-
-  project?: {
-    id: string;
-    title: string;
-    domain?: string;
-    faculty?: {
-      firstName: string;
-      lastName: string;
-    };
-  };
-
-  members?: TeamMember[];
-
-  leader?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-  };
-
-  invites?: TeamInvite[];
-
-  _count?: {
-    members: number;
-  };
-
-  allMembersInPool?: {
-    studentId: string;
-    teamId: string;
-  }[];
-}
-
-export interface TeamMember {
-  id: string;
-  teamId: string;
-  studentId: string;
-  role: 'LEADER' | 'MEMBER';
-  status: 'ACTIVE' | 'LEFT' | 'REMOVED';
-
-  student: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    enrollmentNo?: string;
-  };
-}
-
-export interface TeamInvite {
-  id: string;
-  teamId: string;
-  inviteeId: string;
-  status: InviteStatus;
-  message?: string;
-  expiresAt: string;
-
-  team?: {
-    id: string;
-    name: string;
-    leader?: {
-      firstName: string;
-      lastName: string;
-    };
-  };
-
-  invitedBy?: {
-    firstName: string;
-    lastName: string;
-  };
-
-  invitee?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-}
-
-export interface StudentIdea {
-  id: string;
-  poolId: string;
-  studentId: string;
-
-  title: string;
-  description: string;
-  domain?: string;
-
-  /**
-   * Student's optional preferred supervisor.
-   * This is a preference, not the final supervisor assignment.
-   */
-  preferredSupervisorId?: string | null;
-
-  preferredSupervisor?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    facultyId?: string;
-    designation?: string;
-  } | null;
-
-  status:
-    | 'SUBMITTED'
-    | 'UNDER_REVIEW'
-    | 'APPROVED'
-    | 'REJECTED';
-
-  adminFeedback?: string;
-
-  student?: {
-    firstName: string;
-    lastName: string;
-    enrollmentNo?: string;
-  };
-
-  assignedTeamId?: string | null;
-
-  assignedTeam?: {
-    id: string;
-    name: string;
-  } | null;
-
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  link?: string;
-  isRead: boolean;
-  createdAt: string;
-}
-
-export interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}
-
-export interface ImportResult {
-  jobId: string;
-  status: string;
-  totalRows: number;
-  successCount: number;
-  failureCount: number;
-  duplicateCount: number;
-
-  results: {
-    rowNumber: number;
-    status: string;
-    name?: string;
-    email?: string;
-    enrollment?: string;
-    role?: string;
-    error?: string;
-    tempPassword?: string;
-  }[];
-}
-
-// ── Input Types ──
-
-export interface CreateUserInput {
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: UserRole;
-  department?: string;
-  facultyId?: string;
-  enrollmentNo?: string;
-  semester?: number;
-  section?: string;
-  designation?: string;
-}
-
-export interface CreatePoolInput {
-  name: string;
-  academicYear: string;
-  semester: string;
-  department?: string;
-  submissionStart: string;
-  submissionEnd: string;
-  reviewStart: string;
-  reviewEnd: string;
-  decisionDeadline: string;
-  selectionStart: string;
-  selectionEnd: string;
-  teamFreezeDate: string;
-  subadminIds: string[];
-  facultyIds: string[];
-  studentIds: string[];
-  minTeamSize?: number;
-  defaultMaxTeamSize?: number;
-  allowStudentIdeas?: boolean;
-}
-
-export interface AssignUsersInput {
-  subadminIds?: string[];
-  facultyIds?: string[];
-  studentIds?: string[];
-}
-
-export interface ProjectInput {
-  title: string;
-  description: string;
-  domain?: string;
-  prerequisites?: string;
-  expectedOutcome?: string;
-  maxTeamSize?: number;
-}
-
-export interface ReviewDecision {
-  projectId: string;
-  action: 'LOCK' | 'HOLD';
-  note?: string;
-}
-
-export interface IdeaInput {
-  title: string;
-  description: string;
-  domain?: string;
-
-  /**
-   * Optional preferred supervisor selected from
-   * faculty assigned to the current pool.
-   */
-  preferredSupervisorId?: string | null;
-}
-
-// ── Stats & Display Types ──
-
-export interface UserStats {
-  total: number;
-  students: number;
-  faculty: number;
-  subadmins: number;
-  admins: number;
-  active: number;
-  inactive: number;
-}
-
-export interface PoolStats {
-  facultyCount: number;
-  studentCount: number;
-  projectCount: number;
-  approvedCount: number;
-  teamCount: number;
-}
-
-export interface FacultyStatus {
-  facultyId: string;
-  hasSubmitted: boolean;
-  submittedAt?: string;
-
-  faculty: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-}
-
-export interface CreatedUserResult {
-  user: User;
-  tempPassword: string;
-}
-
-// ── Error helper ──
-
-export function getErrorMessage(
-  err: unknown
-): string {
-  if (
-    err &&
-    typeof err === 'object' &&
-    'response' in err
+export class IdeasService {
+  async submitIdea(
+    poolId: string,
+    studentId: string,
+    data: {
+      title: string;
+      description: string;
+      domain?: string;
+      preferredSupervisorId?: string;
+    }
   ) {
-    const axiosErr = err as {
-      response?: {
-        data?: {
-          message?: string;
-        };
-      };
-    };
+    const pool = await prisma.pool.findUnique({
+      where: { id: poolId },
+    });
 
-    return (
-      axiosErr.response?.data?.message ||
-      'Something went wrong'
-    );
+    if (!pool) {
+      throw new NotFoundError('Pool not found');
+    }
+
+    if (!pool.allowStudentIdeas) {
+      throw new BadRequestError(
+        'Student ideas not allowed in this pool'
+      );
+    }
+
+    if (
+      !['SELECTION_OPEN', 'TEAMS_FORMING'].includes(
+        pool.status
+      )
+    ) {
+      throw new BadRequestError(
+        'Idea submission not open'
+      );
+    }
+
+    // Check student has a team
+    const membership = await prisma.teamMember.findFirst({
+      where: {
+        studentId,
+        status: 'ACTIVE',
+        team: {
+          poolId,
+        },
+      },
+    });
+
+    if (!membership) {
+      throw new BadRequestError(
+        'You must be in a team to submit an idea'
+      );
+    }
+
+    // Check team doesn't already have a project
+    const team = await prisma.team.findUnique({
+      where: {
+        id: membership.teamId,
+      },
+    });
+
+    if (team?.projectId) {
+      throw new BadRequestError(
+        'Your team already has a project'
+      );
+    }
+
+    // Check no existing pending idea from this student
+    const existing = await prisma.studentIdea.findFirst({
+      where: {
+        poolId,
+        studentId,
+        status: {
+          in: ['SUBMITTED', 'UNDER_REVIEW'],
+        },
+      },
+    });
+
+    if (existing) {
+      throw new BadRequestError(
+        'You already have a pending idea'
+      );
+    }
+
+    /*
+     * Validate preferred supervisor if the student selected one.
+     */
+    if (data.preferredSupervisorId) {
+      const supervisor = await prisma.user.findUnique({
+        where: {
+          id: data.preferredSupervisorId,
+        },
+      });
+
+      if (!supervisor) {
+        throw new NotFoundError(
+          'Preferred supervisor not found'
+        );
+      }
+
+      if (supervisor.role !== 'FACULTY') {
+        throw new BadRequestError(
+          'Selected supervisor must be a faculty member'
+        );
+      }
+
+      /*
+       * Make sure the selected faculty is assigned
+       * to this pool.
+       */
+      const poolFaculty =
+        await prisma.poolFaculty.findFirst({
+          where: {
+            poolId,
+            facultyId: data.preferredSupervisorId,
+          },
+        });
+
+      if (!poolFaculty) {
+        throw new BadRequestError(
+          'Selected supervisor is not assigned to this pool'
+        );
+      }
+    }
+
+    return prisma.studentIdea.create({
+      data: {
+        poolId,
+        studentId,
+        title: data.title,
+        description: data.description,
+        domain: data.domain,
+        preferredSupervisorId:
+          data.preferredSupervisorId,
+        status: 'SUBMITTED',
+      },
+      include: {
+        preferredSupervisor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            facultyId: true,
+          },
+        },
+      },
+    });
   }
 
-  return 'Something went wrong';
+  async approveIdea(
+    ideaId: string,
+    adminFeedback?: string
+  ) {
+    const idea = await prisma.studentIdea.findUnique({
+      where: {
+        id: ideaId,
+      },
+    });
+
+    if (!idea) {
+      throw new NotFoundError('Idea not found');
+    }
+
+    if (
+      idea.status !== 'SUBMITTED' &&
+      idea.status !== 'UNDER_REVIEW'
+    ) {
+      throw new BadRequestError(
+        'Idea not pending'
+      );
+    }
+
+    // Find student's team
+    const membership =
+      await prisma.teamMember.findFirst({
+        where: {
+          studentId: idea.studentId,
+          status: 'ACTIVE',
+          team: {
+            poolId: idea.poolId,
+          },
+        },
+      });
+
+    if (!membership) {
+      throw new BadRequestError(
+        'Student no longer in a team'
+      );
+    }
+
+    const team = await prisma.team.findUnique({
+      where: {
+        id: membership.teamId,
+      },
+    });
+
+    if (team?.projectId) {
+      throw new BadRequestError(
+        'Team already has a project'
+      );
+    }
+
+    const pool = await prisma.pool.findUnique({
+      where: {
+        id: idea.poolId,
+      },
+    });
+
+    if (!pool) {
+      throw new NotFoundError('Pool not found');
+    }
+
+    /*
+     * Create project from idea and assign it to team.
+     */
+    await prisma.$transaction(async (tx) => {
+      /*
+       * Keep the original behaviour:
+       * the project created from a student idea is
+       * initially associated with the ADMIN user.
+       */
+      const admin = await tx.user.findFirst({
+        where: {
+          role: 'ADMIN',
+        },
+      });
+
+      if (!admin) {
+        throw new NotFoundError(
+          'Admin user not found'
+        );
+      }
+
+      const project = await tx.project.create({
+        data: {
+          poolId: idea.poolId,
+          facultyId: admin.id,
+          title: idea.title,
+          description: idea.description,
+          domain: idea.domain,
+          maxTeamSize:
+            pool.defaultMaxTeamSize || 3,
+          status: 'APPROVED',
+        },
+      });
+
+      await tx.team.update({
+        where: {
+          id: membership!.teamId,
+        },
+        data: {
+          projectId: project.id,
+        },
+      });
+
+      await tx.studentIdea.update({
+        where: {
+          id: ideaId,
+        },
+        data: {
+          status: 'APPROVED',
+          adminFeedback,
+          assignedTeamId: membership!.teamId,
+        },
+      });
+    });
+
+    logger.info(
+      `Student idea approved: ${idea.title} (${ideaId})`
+    );
+
+    return {
+      message:
+        'Idea approved and assigned to team',
+    };
+  }
+
+  async rejectIdea(
+    ideaId: string,
+    adminFeedback?: string
+  ) {
+    const idea = await prisma.studentIdea.findUnique({
+      where: {
+        id: ideaId,
+      },
+    });
+
+    if (!idea) {
+      throw new NotFoundError('Idea not found');
+    }
+
+    return prisma.studentIdea.update({
+      where: {
+        id: ideaId,
+      },
+      data: {
+        status: 'REJECTED',
+        adminFeedback,
+      },
+    });
+  }
+
+  async getIdeasByPool(poolId: string) {
+    const pool = await prisma.pool.findUnique({
+      where: {
+        id: poolId,
+      },
+    });
+
+    if (!pool) {
+      throw new NotFoundError('Pool not found');
+    }
+
+    return prisma.studentIdea.findMany({
+      where: {
+        poolId,
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            enrollmentNo: true,
+          },
+        },
+
+        assignedTeam: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+
+        preferredSupervisor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            facultyId: true,
+            designation: true,
+            department: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async getMyIdeas(
+    poolId: string,
+    studentId: string
+  ) {
+    return prisma.studentIdea.findMany({
+      where: {
+        poolId,
+        studentId,
+      },
+      include: {
+        preferredSupervisor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            facultyId: true,
+            designation: true,
+            department: true,
+          },
+        },
+
+        assignedTeam: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
 }
+
+export const ideasService = new IdeasService();
