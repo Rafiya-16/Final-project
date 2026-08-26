@@ -400,7 +400,6 @@ body {
   animation: hero-gradient 6s ease infinite;
 }
 
-/* Existing aliases */
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out;
 }

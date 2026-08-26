@@ -251,7 +251,7 @@ const App: React.FC = () => (
           }
         />
 
-        {/* ==================== FACULTY ==================== */}
+               {/* ==================== FACULTY ==================== */}
 
         <Route
           path="/proposals"
@@ -318,7 +318,6 @@ const App: React.FC = () => (
           }
         />
 
-        {/* PR #3 */}
         <Route
           path="/what-to-do"
           element={
@@ -327,7 +326,6 @@ const App: React.FC = () => (
             </ProtectedRoute>
           }
         />
-
       </Route>
 
       {/* ==================== 404 ==================== */}
