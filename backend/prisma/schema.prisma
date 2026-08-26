@@ -113,46 +113,47 @@ enum NotificationType {
 // ═══════════════════════════════════════
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  password      String
-  role          UserRole
-  firstName     String    @map("first_name")
-  lastName      String    @map("last_name")
-  enrollmentNo  String?   @unique @map("enrollment_no")
-  facultyId     String?   @unique @map("faculty_id")
-  department    String?
-  semester      Int?
-  section       String?
-  designation   String?
-  phone         String?
-  isActive      Boolean   @default(true) @map("is_active")
-  mustResetPwd  Boolean   @default(true) @map("must_reset_pwd")
-  lastLoginAt   DateTime? @map("last_login_at")
-  createdBy     String?   @map("created_by")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id           String    @id @default(uuid())
+  email        String    @unique
+  password     String
+  role         UserRole
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  enrollmentNo String?   @unique @map("enrollment_no")
+  facultyId    String?   @unique @map("faculty_id")
+  department   String?
+  semester     Int?
+  section      String?
+  designation  String?
+  phone        String?
+  isActive     Boolean   @default(true) @map("is_active")
+  mustResetPwd Boolean   @default(true) @map("must_reset_pwd")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdBy    String?   @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  creator       User?     @relation("UserCreator", fields: [createdBy], references: [id])
-  createdUsers  User[]    @relation("UserCreator")
+  creator      User?  @relation("UserCreator", fields: [createdBy], references: [id])
+  createdUsers User[] @relation("UserCreator")
 
-  refreshTokens   RefreshToken[]
-  createdPools     Pool[]           @relation("PoolCreator")
-  poolSubadmins    PoolSubadmin[]
-  poolFaculty      PoolFaculty[]
-  poolStudents     PoolStudent[]
-  facultyProjects  Project[]        @relation("FacultyProjects")
-  reviewedProjects Project[]        @relation("ProjectReviewer")
-  decidedProjects  Project[]        @relation("ProjectDecider")
-  ledTeams         Team[]           @relation("TeamLeader")
-  teamMemberships  TeamMember[]
-  sentInvites      TeamInvite[]     @relation("InviteSender")
-  receivedInvites  TeamInvite[]     @relation("InviteReceiver")
-  studentIdeas     StudentIdea[]
-  importJobs       BulkImportJob[]  @relation("ImportCreator")
-  importRows       ImportRow[]
-  notifications    Notification[]
-  auditLogs        AuditLog[]       @relation("AuditUser")
+  refreshTokens            RefreshToken[]
+  createdPools             Pool[]          @relation("PoolCreator")
+  poolSubadmins            PoolSubadmin[]
+  poolFaculty              PoolFaculty[]
+  poolStudents             PoolStudent[]
+  facultyProjects          Project[]       @relation("FacultyProjects")
+  reviewedProjects         Project[]       @relation("ProjectReviewer")
+  decidedProjects          Project[]       @relation("ProjectDecider")
+  ledTeams                 Team[]          @relation("TeamLeader")
+  teamMemberships          TeamMember[]
+  sentInvites              TeamInvite[]    @relation("InviteSender")
+  receivedInvites          TeamInvite[]    @relation("InviteReceiver")
+  studentIdeas             StudentIdea[]
+  preferredSupervisorIdeas StudentIdea[]   @relation("StudentIdeaPreferredSupervisor")
+  importJobs               BulkImportJob[] @relation("ImportCreator")
+  importRows               ImportRow[]
+  notifications            Notification[]
+  auditLogs                AuditLog[]      @relation("AuditUser")
 
   @@map("users")
 }
@@ -273,10 +274,10 @@ model Project {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  pool       Pool    @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  faculty    User    @relation("FacultyProjects", fields: [facultyId], references: [id])
-  reviewedBy User?   @relation("ProjectReviewer", fields: [reviewedById], references: [id])
-  decidedBy  User?   @relation("ProjectDecider", fields: [decidedById], references: [id])
+  pool       Pool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  faculty    User  @relation("FacultyProjects", fields: [facultyId], references: [id])
+  reviewedBy User? @relation("ProjectReviewer", fields: [reviewedById], references: [id])
+  decidedBy  User? @relation("ProjectDecider", fields: [decidedById], references: [id])
   team       Team?
 
   @@map("projects")
@@ -297,12 +298,12 @@ model Team {
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
 
-  pool        Pool          @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  project     Project?      @relation(fields: [projectId], references: [id])
-  leader      User          @relation("TeamLeader", fields: [leaderId], references: [id])
+  pool        Pool         @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  project     Project?     @relation(fields: [projectId], references: [id])
+  leader      User         @relation("TeamLeader", fields: [leaderId], references: [id])
   members     TeamMember[]
   invites     TeamInvite[]
-  studentIdea StudentIdea?  @relation("IdeaTeam")
+  studentIdea StudentIdea? @relation("IdeaTeam")
 
   @@map("teams")
 }
@@ -346,22 +347,25 @@ model TeamInvite {
 // ═══════════════════════════════════════
 
 model StudentIdea {
-  id             String            @id @default(uuid())
-  poolId         String            @map("pool_id")
-  studentId      String            @map("student_id")
-  title          String
-  description    String
-  domain         String?
-  status         StudentIdeaStatus @default(SUBMITTED)
-  adminFeedback  String?           @map("admin_feedback")
-  assignedTeamId String?           @unique @map("assigned_team_id")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  id                    String            @id @default(uuid())
+  poolId                String            @map("pool_id")
+  studentId             String            @map("student_id")
+  preferredSupervisorId String?           @map("preferred_supervisor_id")
+  title                 String
+  description           String
+  domain                String?
+  status                StudentIdeaStatus @default(SUBMITTED)
+  adminFeedback         String?           @map("admin_feedback")
+  assignedTeamId        String?           @unique @map("assigned_team_id")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
 
-  pool         Pool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  student      User  @relation(fields: [studentId], references: [id])
-  assignedTeam Team? @relation("IdeaTeam", fields: [assignedTeamId], references: [id])
+  pool                Pool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  student             User  @relation(fields: [studentId], references: [id])
+  preferredSupervisor User? @relation("StudentIdeaPreferredSupervisor", fields: [preferredSupervisorId], references: [id])
+  assignedTeam        Team? @relation("IdeaTeam", fields: [assignedTeamId], references: [id])
 
+  @@index([preferredSupervisorId])
   @@map("student_ideas")
 }
 

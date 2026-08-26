@@ -5,11 +5,11 @@ import { teamService } from '@/services/teamService';
 import { Badge } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
-  GraduationCap, Users, Lightbulb, Mail, ArrowRight,
+  GraduationCap, Users, Lightbulb, ArrowRight,
   Sparkles, BookOpen, Clock, CheckCircle2, Zap, TrendingUp,
   Target, Award, Star, Crown, Shield, Gem, Rocket, 
   Palette, Compass, Trophy, Coffee, Brain, Activity, 
-  Leaf, Flower2, Trees, Droplets, Sun, Wind,
+  Leaf, Flower2, ListChecks, Trees, Droplets, Sun, Wind,
   Bell
 } from 'lucide-react';
 import type { Pool, Team } from '@/types';
@@ -275,9 +275,9 @@ const StudentDashboard: React.FC = () => {
                     style={{ background: 'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)', color: 'white' }}
                   >
                     <span className="relative z-10 flex items-center gap-2">
-                      <Bell className="w-4 h-4 animate-pulse" />
-                      ⚠️ DON'T KNOW WHAT TO DO?
-                      <Bell className="w-4 h-4 animate-pulse" />
+                      <ListChecks className="w-4 h-4 animate-pulse" />
+                      DON'T KNOW WHAT TO DO?
+                      <ListChecks className="w-4 h-4 animate-pulse" />
                     </span>
                     <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                   </button>

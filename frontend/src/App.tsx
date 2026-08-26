@@ -254,15 +254,6 @@ const App: React.FC = () => (
                {/* ==================== FACULTY ==================== */}
 
         <Route
-          path="/proposals"
-          element={
-            <ProtectedRoute roles={['FACULTY']}>
-              <FacultyDashboard />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/faculty/proposals"
           element={
             <ProtectedRoute roles={['FACULTY']}>

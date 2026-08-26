@@ -4,7 +4,7 @@ import { authService } from '@/services/authService';
 import { useAuthStore } from '@/stores/authStore';
 import { Badge } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { User as UserIcon, Mail, Phone, Building2, GraduationCap, Calendar, Lock, Edit2, Sparkles, Award, Clock } from 'lucide-react';
+import { User as UserIcon, Mail, Phone, Building2, GraduationCap, Calendar, Lock, Sparkles, Award, Clock, IdCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ProfilePage: React.FC = () => {
@@ -28,6 +28,7 @@ const ProfilePage: React.FC = () => {
     { icon: <Mail className="w-4 h-4" />, label: 'Email', value: profile.email },
     { icon: <Building2 className="w-4 h-4" />, label: 'Department', value: profile.department || '—' },
     { icon: <GraduationCap className="w-4 h-4" />, label: 'Enrollment', value: profile.enrollmentNo || '—', show: profile.role === 'STUDENT' },
+    { icon: <IdCard className="w-4 h-4" />, label: 'Faculty ID', value: profile.facultyId || '—', show: profile.role === 'FACULTY' },
     { icon: <Phone className="w-4 h-4" />, label: 'Phone', value: profile.phone || '—' },
     { icon: <Calendar className="w-4 h-4" />, label: 'Joined', value: new Date(profile.createdAt).toLocaleDateString() },
     { icon: <Clock className="w-4 h-4" />, label: 'Last Login', value: profile.lastLoginAt ? new Date(profile.lastLoginAt).toLocaleString() : 'Never' },

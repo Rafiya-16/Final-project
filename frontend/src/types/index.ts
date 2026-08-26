@@ -1,9 +1,40 @@
 // frontend/src/types/index.ts
-export type UserRole = 'ADMIN' | 'SUBADMIN' | 'FACULTY' | 'STUDENT';
-export type PoolStatus = 'DRAFT' | 'SUBMISSION_OPEN' | 'UNDER_REVIEW' | 'DECISION_PENDING' | 'SELECTION_OPEN' | 'TEAMS_FORMING' | 'FROZEN' | 'ARCHIVED';
-export type ProjectStatus = 'DRAFT' | 'SUBMITTED' | 'LOCKED' | 'ON_HOLD' | 'APPROVED' | 'REJECTED';
-export type TeamStatus = 'FORMING' | 'COMPLETE' | 'FROZEN' | 'DISSOLVED';
-export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+
+export type UserRole =
+  | 'ADMIN'
+  | 'SUBADMIN'
+  | 'FACULTY'
+  | 'STUDENT';
+
+export type PoolStatus =
+  | 'DRAFT'
+  | 'SUBMISSION_OPEN'
+  | 'UNDER_REVIEW'
+  | 'DECISION_PENDING'
+  | 'SELECTION_OPEN'
+  | 'TEAMS_FORMING'
+  | 'FROZEN'
+  | 'ARCHIVED';
+
+export type ProjectStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'LOCKED'
+  | 'ON_HOLD'
+  | 'APPROVED'
+  | 'REJECTED';
+
+export type TeamStatus =
+  | 'FORMING'
+  | 'COMPLETE'
+  | 'FROZEN'
+  | 'DISSOLVED';
+
+export type InviteStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'DECLINED'
+  | 'EXPIRED';
 
 export interface User {
   id: string;
@@ -43,10 +74,27 @@ export interface Pool {
   defaultMaxTeamSize: number;
   allowStudentIdeas: boolean;
   createdAt: string;
-  creator?: { firstName: string; lastName: string };
-  subadmins?: { subadmin: User }[];
-  faculty?: { faculty: User; hasSubmitted: boolean }[];
-  _count?: { faculty: number; students: number; projects: number; teams: number };
+
+  creator?: {
+    firstName: string;
+    lastName: string;
+  };
+
+  subadmins?: {
+    subadmin: User;
+  }[];
+
+  faculty?: {
+    faculty: User;
+    hasSubmitted: boolean;
+  }[];
+
+  _count?: {
+    faculty: number;
+    students: number;
+    projects: number;
+    teams: number;
+  };
 }
 
 export interface Project {
@@ -63,9 +111,24 @@ export interface Project {
   subadminNote?: string;
   adminNote?: string;
   createdAt: string;
-  faculty?: { id: string; firstName: string; lastName: string; email: string };
-  reviewedBy?: { firstName: string; lastName: string };
-  decidedBy?: { firstName: string; lastName: string };
+
+  faculty?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+
+  reviewedBy?: {
+    firstName: string;
+    lastName: string;
+  };
+
+  decidedBy?: {
+    firstName: string;
+    lastName: string;
+  };
+
   team?: Team | null;
 }
 
@@ -78,15 +141,35 @@ export interface Team {
   status: TeamStatus;
   isFrozen: boolean;
   createdAt: string;
-  project?: { id: string; title: string; domain?: string; faculty?: { firstName: string; lastName: string } };
+
+  project?: {
+    id: string;
+    title: string;
+    domain?: string;
+    faculty?: {
+      firstName: string;
+      lastName: string;
+    };
+  };
+
   members?: TeamMember[];
-  leader?: { id: string; firstName: string; lastName: string };
+
+  leader?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+
   invites?: TeamInvite[];
-  _count?: { members: number };
+
+  _count?: {
+    members: number;
+  };
+
   allMembersInPool?: {
-  studentId: string;
-  teamId: string;
-}[];
+    studentId: string;
+    teamId: string;
+  }[];
 }
 
 export interface TeamMember {
@@ -95,7 +178,14 @@ export interface TeamMember {
   studentId: string;
   role: 'LEADER' | 'MEMBER';
   status: 'ACTIVE' | 'LEFT' | 'REMOVED';
-  student: { id: string; firstName: string; lastName: string; email: string; enrollmentNo?: string };
+
+  student: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    enrollmentNo?: string;
+  };
 }
 
 export interface TeamInvite {
@@ -105,21 +195,76 @@ export interface TeamInvite {
   status: InviteStatus;
   message?: string;
   expiresAt: string;
-  team?: { id: string; name: string; leader?: { firstName: string; lastName: string } };
-  invitedBy?: { firstName: string; lastName: string };
-  invitee?: { id: string; firstName: string; lastName: string; email: string };
+
+  team?: {
+    id: string;
+    name: string;
+    leader?: {
+      firstName: string;
+      lastName: string;
+    };
+  };
+
+  invitedBy?: {
+    firstName: string;
+    lastName: string;
+  };
+
+  invitee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
 }
 
 export interface StudentIdea {
   id: string;
   poolId: string;
   studentId: string;
+
   title: string;
   description: string;
   domain?: string;
-  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
+
+  /**
+   * Student's optional preferred supervisor.
+   * This is a preference, not the final supervisor assignment.
+   */
+  preferredSupervisorId?: string | null;
+
+  preferredSupervisor?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    facultyId?: string;
+    designation?: string;
+  } | null;
+
+  status:
+    | 'SUBMITTED'
+    | 'UNDER_REVIEW'
+    | 'APPROVED'
+    | 'REJECTED';
+
   adminFeedback?: string;
-  student?: { firstName: string; lastName: string; enrollmentNo?: string };
+
+  student?: {
+    firstName: string;
+    lastName: string;
+    enrollmentNo?: string;
+  };
+
+  assignedTeamId?: string | null;
+
+  assignedTeam?: {
+    id: string;
+    name: string;
+  } | null;
+
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Notification {
@@ -148,6 +293,7 @@ export interface ImportResult {
   successCount: number;
   failureCount: number;
   duplicateCount: number;
+
   results: {
     rowNumber: number;
     status: string;
@@ -160,7 +306,7 @@ export interface ImportResult {
   }[];
 }
 
-// ── Input Types (for service method parameters) ──
+// ── Input Types ──
 
 export interface CreateUserInput {
   firstName: string;
@@ -221,6 +367,12 @@ export interface IdeaInput {
   title: string;
   description: string;
   domain?: string;
+
+  /**
+   * Optional preferred supervisor selected from
+   * faculty assigned to the current pool.
+   */
+  preferredSupervisorId?: string | null;
 }
 
 // ── Stats & Display Types ──
@@ -247,7 +399,13 @@ export interface FacultyStatus {
   facultyId: string;
   hasSubmitted: boolean;
   submittedAt?: string;
-  faculty: { id: string; firstName: string; lastName: string; email: string };
+
+  faculty: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
 }
 
 export interface CreatedUserResult {
@@ -257,10 +415,27 @@ export interface CreatedUserResult {
 
 // ── Error helper ──
 
-export function getErrorMessage(err: unknown): string {
-  if (err && typeof err === 'object' && 'response' in err) {
-    const axiosErr = err as { response?: { data?: { message?: string } } };
-    return axiosErr.response?.data?.message || 'Something went wrong';
+export function getErrorMessage(
+  err: unknown
+): string {
+  if (
+    err &&
+    typeof err === 'object' &&
+    'response' in err
+  ) {
+    const axiosErr = err as {
+      response?: {
+        data?: {
+          message?: string;
+        };
+      };
+    };
+
+    return (
+      axiosErr.response?.data?.message ||
+      'Something went wrong'
+    );
   }
+
   return 'Something went wrong';
 }

@@ -319,7 +319,7 @@ const BrowseProjectsPage: React.FC = () => {
           <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="max-w-xl">
               <div className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1 rounded-full bg-accent text-accent-foreground border border-border">
-                <TrendingUp className="h-3 w-3" style={{ color: '#11998e' }} /> Spring 2026 cohort · Allocation open
+                <TrendingUp className="h-3 w-3" style={{ color: '#11998e' }} /> Allocation open
               </div>
               <h1 className="mt-4 text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.05] text-gray-900">
                 Discover your{" "}
@@ -441,8 +441,6 @@ const BrowseProjectsPage: React.FC = () => {
                         <Users className="h-3.5 w-3.5" />
                         <span className="font-medium text-gray-600">{project.maxTeamSize || 3}</span> members
                       </div>
-                      <span className="h-1 w-1 rounded-full bg-gray-300" />
-                      <span>Lead · Faculty</span>
                     </div>
                   </div>
                   

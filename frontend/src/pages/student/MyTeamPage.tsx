@@ -124,7 +124,7 @@ const MyTeamPage: React.FC = () => {
   const takenMap = new Map(team?.allMembersInPool?.map((m: any) => [m.studentId, m.teamId]));
 
   const activeMemberCount = team?.members?.filter((m: TeamMember) => m.status === 'ACTIVE').length || 0;
-  const maxTeamSize = (team?.project as any)?.maxTeamSize || 5;
+  const maxTeamSize = (team?.project as any)?.maxTeamSize || 3;
 
   const teamStats = [
     { label: 'Members', value: activeMemberCount, icon: <Users className="w-4 h-4" /> },

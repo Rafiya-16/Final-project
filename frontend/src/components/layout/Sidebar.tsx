@@ -2,25 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-import {
-  LayoutDashboard,
-  Users,
-  FolderKanban,
-  FileText,
-  Bell,
-  GraduationCap,
-  BookOpen,
-  ClipboardList,
-  Lightbulb,
-  UserCheck,
-  BarChart3,
-  Shield,
-  LogOut,
-  User,
-  Menu,
-  X,
-  Sparkles,
-} from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, FileText, Bell, GraduationCap, BookOpen, ClipboardList, Lightbulb, UserCheck, BarChart3, ListChecks, Shield, LogOut, User, Menu, X, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -147,9 +129,9 @@ const navItems: Record<string, NavItem[]> = {
       icon: <Lightbulb className="w-5 h-5" />,
     },
     {
-      label: '⚠️ What To Do',
+      label: 'What To Do',
       path: '/what-to-do',
-      icon: <Bell className="w-5 h-5" />,
+      icon: <ListChecks className="w-5 h-5" />,
       notice: true,
     },
     {
@@ -344,18 +326,18 @@ export const Sidebar: React.FC = () => {
                     setIsMobileMenuOpen(false)
                   }
                   className={({ isActive }) =>
-                    cn(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 relative overflow-hidden group',
-                      'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 hover:shadow-xl hover:scale-105',
-                      isActive &&
-                        'ring-2 ring-white/50 shadow-xl'
-                    )
+                   cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 group',
+                    isActive
+                      ? `${theme.activeLink} ${theme.activeLinkText} shadow-md`
+                      : theme.accent
+                  )
                   }
                 >
                   {/* Shine effect */}
                   <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                  <Bell className="w-5 h-5 animate-pulse" />
+                  <ListChecks className="w-5 h-5 animate-pulse" />
 
                   <span className="flex-1 text-left">
                     {item.label}
