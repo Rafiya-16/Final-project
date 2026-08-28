@@ -46,7 +46,7 @@ export interface User {
   facultyId?: string;
   department?: string;
   semester?: number;
-  section?: string;
+  section?: string | null;
   designation?: string;
   phone?: string;
   isActive: boolean;

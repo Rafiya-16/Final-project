@@ -262,21 +262,66 @@ export class TeamsService {
       );
     }
 
-    const inPool =
-      await prisma.poolStudent.findUnique({
-        where: {
-          poolId_studentId: {
-            poolId: team.poolId,
-            studentId: inviteeId,
-          },
-        },
-      });
-
-    if (!inPool) {
-      throw new BadRequestError(
-        'Student is not in this pool'
-      );
+    // Check invitee in pool
+const inPool = await prisma.poolStudent.findUnique({
+  where: {
+    poolId_studentId: {
+      poolId: team.poolId,
+      studentId: inviteeId
     }
+  }
+});
+
+if (!inPool) {
+  throw new BadRequestError('Student is not in this pool');
+}
+
+// Check inviter and invitee sections
+const [inviter, invitee] = await Promise.all([
+  prisma.user.findUnique({
+    where: { id: inviterId },
+    select: {
+      id: true,
+      section: true,
+    },
+  }),
+  prisma.user.findUnique({
+    where: { id: inviteeId },
+    select: {
+      id: true,
+      section: true,
+    },
+  }),
+]);
+
+if (!inviter) {
+  throw new NotFoundError('Inviter not found');
+}
+
+if (!invitee) {
+  throw new NotFoundError('Invitee not found');
+}
+
+// Inviter must have a section assigned
+if (!inviter.section) {
+  throw new BadRequestError(
+    'Your section is not assigned. You cannot invite students until your section is assigned.'
+  );
+}
+
+// Invitee must have a section assigned
+if (!invitee.section) {
+  throw new BadRequestError(
+    'The selected student does not have a section assigned.'
+  );
+}
+
+// Students can only invite students from the same section
+if (inviter.section !== invitee.section) {
+  throw new ForbiddenError(
+    `You can only invite students from your section (${inviter.section}).`
+  );
+}
 
     const pending =
       await prisma.teamInvite.findFirst({

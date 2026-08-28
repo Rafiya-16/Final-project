@@ -77,11 +77,51 @@ const MyTeamPage: React.FC = () => {
     }
   };
 
-  const loadStudents = async () => {
-    const res = await userService.list({ role: 'STUDENT', isActive: 'true', limit: '200' });
-    setStudents(res.data || []); 
+ const loadStudents = async () => {
+  try {
+    if (!user?.id) {
+      toast.error('Unable to identify your account');
+      return;
+    }
+
+    // Get the latest logged-in user data from the backend.
+    // This ensures we have the student's current section.
+    const currentUser = await userService.getById(user.id);
+
+    if (!currentUser) {
+      toast.error('Unable to load your student profile');
+      return;
+    }
+
+    if (!currentUser.section) {
+      toast.error(
+        'Your section is not assigned. Please contact the administrator.'
+      );
+      return;
+    }
+
+    const res = await userService.list({
+      role: 'STUDENT',
+      isActive: 'true',
+      limit: '200',
+    });
+
+    const allStudents = res.data || [];
+
+    // Only students from the same section are eligible for invitation.
+    const sameSectionStudents = allStudents.filter(
+      (student: User) =>
+        student.id !== currentUser.id &&
+        student.section &&
+        student.section === currentUser.section
+    );
+
+    setStudents(sameSectionStudents);
     setShowInvite(true);
-  };
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e));
+  }
+};
 
   const sendInvite = async (studentId: string) => {
     if (!team) return;

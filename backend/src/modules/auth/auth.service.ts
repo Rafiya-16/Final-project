@@ -42,7 +42,7 @@ async login(identifier: string, password: string) {
       user: {
         id: user.id, email: user.email, role: user.role,
         firstName: user.firstName, lastName: user.lastName,
-        department: user.department, mustResetPwd: user.mustResetPwd,
+        department: user.department, enrollmentNo: user.enrollmentNo, facultyId: user.facultyId, semester: user.semester, section: user.section, phone: user.phone, mustResetPwd: user.mustResetPwd, lastLoginAt: user.lastLoginAt, createdAt: user.createdAt,
       },
     };
   }
@@ -78,7 +78,8 @@ async login(identifier: string, password: string) {
       where: { id: userId },
       select: {
         id: true, email: true, role: true, firstName: true, lastName: true,
-        department: true, enrollmentNo: true, facultyId: true, phone: true,
+        department: true, enrollmentNo: true,  semester: true,
+  section: true, facultyId: true, phone: true,
         mustResetPwd: true, lastLoginAt: true, createdAt: true,
       },
     });
