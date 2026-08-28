@@ -7,7 +7,7 @@ export const ROLES = {
 
 export const TEAM_DEFAULTS = {
   MIN_SIZE: 3,
-  MAX_SIZE: 3,
+  MAX_SIZE: 4,
   ABSOLUTE_MAX: 4,
 } as const;
 
