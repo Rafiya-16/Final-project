@@ -5,16 +5,18 @@ import { reportService } from '@/services/reportService';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/lib/utils';
-import { Printer, Download, BarChart3, Users, FileText, UserX } from 'lucide-react';
+import { Printer, Download, BarChart3, ChevronDown, ChevronRight, Users, FileText, UserX } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Pool } from '@/types';
 
 const ReportsPage: React.FC = () => {
   const [pools, setPools] = useState<Pool[]>([]);
   const [selectedPool, setSelectedPool] = useState('');
-  const [tab, setTab] = useState<'summary' | 'teams' | 'unassigned'>('summary');
+  const [tab, setTab] = useState<'summary' | 'teams' | 'faculty' | 'unassigned'>('summary');
   const [summary, setSummary] = useState<any>(null);
   const [teamReport, setTeamReport] = useState<any>(null);
+  const [facultyReport, setFacultyReport] = useState<any>(null);
+  const [expandedFaculty, setExpandedFaculty] = useState<string | null>(null);
   const [unassigned, setUnassigned] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
@@ -33,9 +35,10 @@ const ReportsPage: React.FC = () => {
     Promise.all([
       reportService.summary(selectedPool),
       reportService.teamReport(selectedPool),
+      reportService.facultyReport(selectedPool), 
       reportService.unassigned(selectedPool),
-    ]).then(([s, t, u]) => {
-      setSummary(s); setTeamReport(t); setUnassigned(u || []);
+    ]).then(([s, t, f, u]) => {
+      setSummary(s); setTeamReport(t); setFacultyReport(f); setUnassigned(u || []);
     }).catch(() => toast.error('Failed to load reports'))
       .finally(() => setLoading(false));
   }, [selectedPool]);
@@ -127,6 +130,7 @@ const ReportsPage: React.FC = () => {
         {[
           { key: 'summary', label: 'Summary', icon: <BarChart3 className="w-4 h-4" /> },
           { key: 'teams', label: 'Team Report', icon: <Users className="w-4 h-4" /> },
+          { key: 'faculty', label: 'Faculty Report', icon: <FileText className="w-4 h-4" /> },
           { key: 'unassigned', label: `Unassigned (${unassigned.length})`, icon: <UserX className="w-4 h-4" /> },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key as any)}
@@ -219,6 +223,479 @@ const ReportsPage: React.FC = () => {
             ))}
         </div>
       )}
+
+{/* Faculty Report Tab */}
+{tab === 'faculty' && (
+  <div className="space-y-6">
+
+    {/* Faculty Report Summary */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+      <div className="bg-white rounded-xl border p-5">
+        <p className="text-sm text-gray-500">
+          Total Faculty
+        </p>
+
+        <p className="text-3xl font-bold text-purple-600 mt-1">
+          {facultyReport?.totalFaculty || 0}
+        </p>
+      </div>
+
+      <div className="bg-white rounded-xl border p-5">
+        <p className="text-sm text-gray-500">
+          Total Topics Proposed
+        </p>
+
+        <p className="text-3xl font-bold text-blue-600 mt-1">
+          {facultyReport?.totalProposals || 0}
+        </p>
+      </div>
+
+      <div className="bg-white rounded-xl border p-5">
+        <p className="text-sm text-gray-500">
+          Approved Projects
+        </p>
+
+        <p className="text-3xl font-bold text-green-600 mt-1">
+          {facultyReport?.faculty?.reduce(
+            (total: number, item: any) =>
+              total +
+              (item.proposals?.filter(
+                (project: any) =>
+                  project.status === 'APPROVED'
+              ).length || 0),
+            0
+          ) || 0}
+        </p>
+      </div>
+
+    </div>
+
+    {/* Faculty List */}
+    <div className="bg-white rounded-xl border overflow-hidden">
+
+      {/* Header */}
+      <div className="px-6 py-4 border-b bg-gray-50">
+        <h3 className="font-semibold text-gray-900">
+          Faculty Project Report
+        </h3>
+
+        <p className="text-sm text-gray-500 mt-1">
+          Click on a faculty member to view their proposed
+          project topics.
+        </p>
+      </div>
+
+      {!facultyReport?.faculty?.length ? (
+        <div className="p-10 text-center">
+          <FileText className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+
+          <p className="text-gray-500">
+            No faculty found for this pool.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y">
+
+          {facultyReport.faculty.map((item: any) => {
+            const faculty = item.faculty;
+
+            const isExpanded =
+              expandedFaculty === faculty.id;
+
+            const approvedProjects =
+              item.proposals?.filter(
+                (project: any) =>
+                  project.status === 'APPROVED'
+              ).length || 0;
+
+            return (
+              <div key={faculty.id}>
+
+                {/* Faculty Row */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedFaculty(
+                      isExpanded ? null : faculty.id
+                    )
+                  }
+                  className="w-full text-left px-6 py-5 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+
+                    {/* Expand Icon */}
+                    <div className="md:col-span-1">
+                      {isExpanded ? (
+                        <ChevronDown className="w-5 h-5 text-gray-500" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-500" />
+                      )}
+                    </div>
+
+                    {/* Faculty ID */}
+                    <div className="md:col-span-3">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">
+                        Faculty ID
+                      </p>
+
+                      <p className="font-semibold text-gray-900 mt-1">
+                        {faculty.facultyId || '—'}
+                      </p>
+                    </div>
+
+                    {/* Faculty Name */}
+                    <div className="md:col-span-4">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">
+                        Faculty Name
+                      </p>
+
+                      <p className="font-semibold text-gray-900 mt-1">
+                        {faculty.firstName}{' '}
+                        {faculty.lastName}
+                      </p>
+
+                      <p className="text-sm text-gray-500 mt-1">
+                        {faculty.designation || 'Faculty'}
+                      </p>
+                    </div>
+
+                    {/* Approved Projects */}
+                    <div className="md:col-span-2">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">
+                        Approved Projects
+                      </p>
+
+                      <div className="mt-1">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-semibold">
+                          {approvedProjects}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div className="md:col-span-2 flex justify-end">
+                      <span className="text-sm font-medium text-blue-600">
+                        {isExpanded
+                          ? 'Hide Details'
+                          : 'View Details'}
+                      </span>
+                    </div>
+
+                  </div>
+                </button>
+
+                {/* Expanded Faculty Details */}
+                {isExpanded && (
+                  <div className="px-6 pb-6 bg-gray-50 border-t">
+
+                    {/* Faculty Information */}
+                    <div className="bg-white rounded-lg border p-5 mt-5">
+
+                      <div className="flex items-start justify-between mb-5">
+
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900">
+                            {faculty.firstName}{' '}
+                            {faculty.lastName}
+                          </h4>
+
+                          <p className="text-sm text-gray-500 mt-1">
+                            Faculty Information
+                          </p>
+                        </div>
+
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            faculty.isActive
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
+                        >
+                          {faculty.isActive
+                            ? 'Active'
+                            : 'Inactive'}
+                        </span>
+
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+
+                        <div>
+                          <p className="text-xs text-gray-400 uppercase">
+                            Faculty ID
+                          </p>
+
+                          <p className="text-sm font-medium text-gray-800 mt-1">
+                            {faculty.facultyId || '—'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-400 uppercase">
+                            Email
+                          </p>
+
+                          <p className="text-sm text-gray-800 mt-1 break-all">
+                            {faculty.email || '—'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-400 uppercase">
+                            Department
+                          </p>
+
+                          <p className="text-sm text-gray-800 mt-1">
+                            {faculty.department || '—'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-400 uppercase">
+                            Designation
+                          </p>
+
+                          <p className="text-sm text-gray-800 mt-1">
+                            {faculty.designation || '—'}
+                          </p>
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                    {/* Project Details */}
+                    <div className="mt-5">
+
+                      <div className="flex items-center justify-between mb-4">
+
+                        <div>
+                          <h4 className="font-semibold text-gray-900">
+                            Project Topics
+                          </h4>
+
+                          <p className="text-sm text-gray-500 mt-1">
+                            {item.proposalCount || 0}{' '}
+                            {item.proposalCount === 1
+                              ? 'topic'
+                              : 'topics'}{' '}
+                            proposed
+                          </p>
+                        </div>
+
+                        <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-semibold">
+                          {approvedProjects} Approved
+                        </span>
+
+                      </div>
+
+                      {!item.proposals?.length ? (
+                        <div className="bg-white border border-dashed rounded-lg p-8 text-center">
+
+                          <FileText className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+
+                          <p className="text-sm text-gray-500">
+                            No project topics proposed by this
+                            faculty member.
+                          </p>
+
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+
+                          {item.proposals.map(
+                            (
+                              project: any,
+                              index: number
+                            ) => (
+                              <div
+                                key={project.id}
+                                className="bg-white rounded-lg border p-5"
+                              >
+
+                                {/* Project Header */}
+                                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+
+                                  <div className="flex gap-3">
+
+                                    <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold">
+                                      {index + 1}
+                                    </div>
+
+                                    <div>
+                                      <h5 className="font-semibold text-gray-900">
+                                        {project.title}
+                                      </h5>
+
+                                      <p className="text-xs text-gray-400 mt-1">
+                                        Proposed on{' '}
+                                        {project.createdAt
+                                          ? new Date(
+                                              project.createdAt
+                                            ).toLocaleDateString()
+                                          : '—'}
+                                      </p>
+                                    </div>
+
+                                  </div>
+
+                                  <Badge
+                                    text={
+                                      project.status
+                                    }
+                                  />
+
+                                </div>
+
+                                {/* Description */}
+                                <div className="mt-5">
+
+                                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                                    Description
+                                  </p>
+
+                                  <p className="text-sm text-gray-700 leading-relaxed">
+                                    {project.description ||
+                                      'No description provided.'}
+                                  </p>
+
+                                </div>
+
+                                {/* Project Information */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-5">
+
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase">
+                                      Domain
+                                    </p>
+
+                                    <p className="text-sm text-gray-700 mt-1">
+                                      {project.domain ||
+                                        '—'}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase">
+                                      Maximum Team Size
+                                    </p>
+
+                                    <p className="text-sm text-gray-700 mt-1">
+                                      {project.maxTeamSize ||
+                                        '—'}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase">
+                                      Status
+                                    </p>
+
+                                    <div className="mt-1">
+                                      <Badge
+                                        text={
+                                          project.status
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+
+                                </div>
+
+                                {/* Prerequisites */}
+                                {project.prerequisites && (
+                                  <div className="mt-5">
+
+                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                                      Prerequisites
+                                    </p>
+
+                                    <p className="text-sm text-gray-700">
+                                      {project.prerequisites}
+                                    </p>
+
+                                  </div>
+                                )}
+
+                                {/* Expected Outcome */}
+                                {project.expectedOutcome && (
+                                  <div className="mt-5">
+
+                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                                      Expected Outcome
+                                    </p>
+
+                                    <p className="text-sm text-gray-700">
+                                      {project.expectedOutcome}
+                                    </p>
+
+                                  </div>
+                                )}
+
+                                {/* Review Notes */}
+                                {(project.subadminNote ||
+                                  project.adminNote) && (
+                                  <div className="mt-5 pt-5 border-t">
+
+                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-3">
+                                      Review Notes
+                                    </p>
+
+                                    {project.subadminNote && (
+                                      <div className="mb-3">
+                                        <p className="text-xs font-medium text-purple-600">
+                                          SubAdmin
+                                        </p>
+
+                                        <p className="text-sm text-gray-700 mt-1">
+                                          {
+                                            project.subadminNote
+                                          }
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {project.adminNote && (
+                                      <div>
+                                        <p className="text-xs font-medium text-blue-600">
+                                          Admin
+                                        </p>
+
+                                        <p className="text-sm text-gray-700 mt-1">
+                                          {
+                                            project.adminNote
+                                          }
+                                        </p>
+                                      </div>
+                                    )}
+
+                                  </div>
+                                )}
+
+                              </div>
+                            )
+                          )}
+
+                        </div>
+                      )}
+
+                    </div>
+
+                  </div>
+                )}
+
+              </div>
+            );
+          })}
+
+        </div>
+      )}
+
+    </div>
+
+  </div>
+)}
 
       {/* Unassigned Tab */}
       {tab === 'unassigned' && (
