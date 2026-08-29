@@ -6,9 +6,304 @@ datasource db {
   provider = "postgresql"
 }
 
-// ═══════════════════════════════════════
-//  ENUMS
-// ═══════════════════════════════════════
+model User {
+  id                       String          @id @default(uuid())
+  email                    String          @unique
+  password                 String
+  role                     UserRole
+  firstName                String          @map("first_name")
+  lastName                 String          @map("last_name")
+  enrollmentNo             String?         @unique @map("enrollment_no")
+  department               String?
+  semester                 Int?
+  section                  String?
+  designation              String?
+  phone                    String?
+  isActive                 Boolean         @default(true) @map("is_active")
+  mustResetPwd             Boolean         @default(true) @map("must_reset_pwd")
+  lastLoginAt              DateTime?       @map("last_login_at")
+  createdBy                String?         @map("created_by")
+  createdAt                DateTime        @default(now()) @map("created_at")
+  updatedAt                DateTime        @updatedAt @map("updated_at")
+  facultyId                String?         @unique @map("faculty_id")
+  auditLogs                AuditLog[]      @relation("AuditUser")
+  importJobs               BulkImportJob[] @relation("ImportCreator")
+  importRows               ImportRow[]
+  notifications            Notification[]
+  poolFaculty              PoolFaculty[]
+  poolStudents             PoolStudent[]
+  poolSubadmins            PoolSubadmin[]
+  createdPools             Pool[]          @relation("PoolCreator")
+  decidedProjects          Project[]       @relation("ProjectDecider")
+  facultyProjects          Project[]       @relation("FacultyProjects")
+  reviewedProjects         Project[]       @relation("ProjectReviewer")
+  refreshTokens            RefreshToken[]
+  preferredSupervisorIdeas StudentIdea[]   @relation("StudentIdeaPreferredSupervisor")
+  studentIdeas             StudentIdea[]
+  sentInvites              TeamInvite[]    @relation("InviteSender")
+  receivedInvites          TeamInvite[]    @relation("InviteReceiver")
+  teamMemberships          TeamMember[]
+  ledTeams                 Team[]          @relation("TeamLeader")
+  creator                  User?           @relation("UserCreator", fields: [createdBy], references: [id])
+  createdUsers             User[]          @relation("UserCreator")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Pool {
+  id                 String         @id @default(uuid())
+  name               String
+  academicYear       String         @map("academic_year")
+  semester           String
+  department         String?
+  status             PoolStatus     @default(DRAFT)
+  submissionStart    DateTime       @map("submission_start")
+  submissionEnd      DateTime       @map("submission_end")
+  reviewStart        DateTime       @map("review_start")
+  reviewEnd          DateTime       @map("review_end")
+  decisionDeadline   DateTime       @map("decision_deadline")
+  selectionStart     DateTime       @map("selection_start")
+  selectionEnd       DateTime       @map("selection_end")
+  teamFreezeDate     DateTime       @map("team_freeze_date")
+  minTeamSize        Int            @default(3) @map("min_team_size")
+  defaultMaxTeamSize Int            @default(3) @map("default_max_team_size")
+  allowStudentIdeas  Boolean        @default(true) @map("allow_student_ideas")
+  createdById        String         @map("created_by_id")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  faculty            PoolFaculty[]
+  students           PoolStudent[]
+  subadmins          PoolSubadmin[]
+  creator            User           @relation("PoolCreator", fields: [createdById], references: [id])
+  projects           Project[]
+  studentIdeas       StudentIdea[]
+  teams              Team[]
+
+  @@map("pools")
+}
+
+model PoolSubadmin {
+  id         String   @id @default(uuid())
+  poolId     String   @map("pool_id")
+  subadminId String   @map("subadmin_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  pool       Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  subadmin   User     @relation(fields: [subadminId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, subadminId])
+  @@map("pool_subadmins")
+}
+
+model PoolFaculty {
+  id           String    @id @default(uuid())
+  poolId       String    @map("pool_id")
+  facultyId    String    @map("faculty_id")
+  hasSubmitted Boolean   @default(false) @map("has_submitted")
+  submittedAt  DateTime? @map("submitted_at")
+  assignedAt   DateTime  @default(now()) @map("assigned_at")
+  faculty      User      @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  pool         Pool      @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, facultyId])
+  @@map("pool_faculty")
+}
+
+model PoolStudent {
+  id         String   @id @default(uuid())
+  poolId     String   @map("pool_id")
+  studentId  String   @map("student_id")
+  batch      String?
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  pool       Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, studentId])
+  @@map("pool_students")
+}
+
+model Project {
+  id              String        @id @default(uuid())
+  poolId          String        @map("pool_id")
+  facultyId       String        @map("faculty_id")
+  title           String
+  description     String
+  domain          String?
+  prerequisites   String?
+  maxTeamSize     Int           @default(3) @map("max_team_size")
+  expectedOutcome String?       @map("expected_outcome")
+  status          ProjectStatus @default(DRAFT)
+  subadminNote    String?       @map("subadmin_note")
+  adminNote       String?       @map("admin_note")
+  reviewedById    String?       @map("reviewed_by_id")
+  decidedById     String?       @map("decided_by_id")
+  reviewedAt      DateTime?     @map("reviewed_at")
+  decidedAt       DateTime?     @map("decided_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  decidedBy       User?         @relation("ProjectDecider", fields: [decidedById], references: [id])
+  faculty         User          @relation("FacultyProjects", fields: [facultyId], references: [id])
+  pool            Pool          @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  reviewedBy      User?         @relation("ProjectReviewer", fields: [reviewedById], references: [id])
+  team            Team?
+
+  @@map("projects")
+}
+
+model Team {
+  id          String       @id @default(uuid())
+  poolId      String       @map("pool_id")
+  projectId   String?      @unique @map("project_id")
+  name        String
+  leaderId    String       @map("leader_id")
+  status      TeamStatus   @default(FORMING)
+  isFrozen    Boolean      @default(false) @map("is_frozen")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  studentIdea StudentIdea? @relation("IdeaTeam")
+  invites     TeamInvite[]
+  members     TeamMember[]
+  leader      User         @relation("TeamLeader", fields: [leaderId], references: [id])
+  pool        Pool         @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  project     Project?     @relation(fields: [projectId], references: [id])
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String           @id @default(uuid())
+  teamId    String           @map("team_id")
+  studentId String           @map("student_id")
+  role      TeamMemberRole   @default(MEMBER)
+  status    TeamMemberStatus @default(ACTIVE)
+  joinedAt  DateTime         @default(now()) @map("joined_at")
+  leftAt    DateTime?        @map("left_at")
+  student   User             @relation(fields: [studentId], references: [id])
+  team      Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, studentId])
+  @@map("team_members")
+}
+
+model TeamInvite {
+  id          String       @id @default(uuid())
+  teamId      String       @map("team_id")
+  invitedById String       @map("invited_by_id")
+  inviteeId   String       @map("invitee_id")
+  status      InviteStatus @default(PENDING)
+  message     String?
+  expiresAt   DateTime     @map("expires_at")
+  respondedAt DateTime?    @map("responded_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  invitedBy   User         @relation("InviteSender", fields: [invitedById], references: [id])
+  invitee     User         @relation("InviteReceiver", fields: [inviteeId], references: [id])
+  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("team_invites")
+}
+
+model StudentIdea {
+  id                    String            @id @default(uuid())
+  poolId                String            @map("pool_id")
+  studentId             String            @map("student_id")
+  title                 String
+  description           String
+  domain                String?
+  status                StudentIdeaStatus @default(SUBMITTED)
+  adminFeedback         String?           @map("admin_feedback")
+  assignedTeamId        String?           @unique @map("assigned_team_id")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+  preferredSupervisorId String?           @map("preferred_supervisor_id")
+  assignedTeam          Team?             @relation("IdeaTeam", fields: [assignedTeamId], references: [id])
+  pool                  Pool              @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  preferredSupervisor   User?             @relation("StudentIdeaPreferredSupervisor", fields: [preferredSupervisorId], references: [id])
+  student               User              @relation(fields: [studentId], references: [id])
+
+  @@index([preferredSupervisorId])
+  @@map("student_ideas")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean          @default(false) @map("is_read")
+  emailSent Boolean          @default(false) @map("email_sent")
+  createdAt DateTime         @default(now()) @map("created_at")
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model BulkImportJob {
+  id             String       @id @default(uuid())
+  fileName       String       @map("file_name")
+  originalName   String       @map("original_name")
+  importType     String       @map("import_type")
+  status         ImportStatus @default(PENDING)
+  totalRows      Int          @default(0) @map("total_rows")
+  successCount   Int          @default(0) @map("success_count")
+  failureCount   Int          @default(0) @map("failure_count")
+  duplicateCount Int          @default(0) @map("duplicate_count")
+  errorSummary   Json?        @map("error_summary")
+  createdById    String       @map("created_by_id")
+  startedAt      DateTime?    @map("started_at")
+  completedAt    DateTime?    @map("completed_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  creator        User         @relation("ImportCreator", fields: [createdById], references: [id])
+  rows           ImportRow[]
+
+  @@map("bulk_import_jobs")
+}
+
+model ImportRow {
+  id        String          @id @default(uuid())
+  jobId     String          @map("job_id")
+  rowNumber Int             @map("row_number")
+  rawData   Json            @map("raw_data")
+  status    ImportRowStatus
+  errorMsg  String?         @map("error_msg")
+  userId    String?         @map("user_id")
+  createdAt DateTime        @default(now()) @map("created_at")
+  job       BulkImportJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user      User?           @relation(fields: [userId], references: [id])
+
+  @@map("import_rows")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation("AuditUser", fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@map("audit_logs")
+}
 
 enum UserRole {
   ADMIN
@@ -106,351 +401,4 @@ enum NotificationType {
   IDEA_REJECTED
   DEADLINE_REMINDER
   GENERAL
-}
-
-// ═══════════════════════════════════════
-//  USER
-// ═══════════════════════════════════════
-
-model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
-  password     String
-  role         UserRole
-  firstName    String    @map("first_name")
-  lastName     String    @map("last_name")
-  enrollmentNo String?   @unique @map("enrollment_no")
-  facultyId    String?   @unique @map("faculty_id")
-  department   String?
-  semester     Int?
-  section      String?
-  designation  String?
-  phone        String?
-  isActive     Boolean   @default(true) @map("is_active")
-  mustResetPwd Boolean   @default(true) @map("must_reset_pwd")
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdBy    String?   @map("created_by")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  creator      User?  @relation("UserCreator", fields: [createdBy], references: [id])
-  createdUsers User[] @relation("UserCreator")
-
-  refreshTokens            RefreshToken[]
-  createdPools             Pool[]          @relation("PoolCreator")
-  poolSubadmins            PoolSubadmin[]
-  poolFaculty              PoolFaculty[]
-  poolStudents             PoolStudent[]
-  facultyProjects          Project[]       @relation("FacultyProjects")
-  reviewedProjects         Project[]       @relation("ProjectReviewer")
-  decidedProjects          Project[]       @relation("ProjectDecider")
-  ledTeams                 Team[]          @relation("TeamLeader")
-  teamMemberships          TeamMember[]
-  sentInvites              TeamInvite[]    @relation("InviteSender")
-  receivedInvites          TeamInvite[]    @relation("InviteReceiver")
-  studentIdeas             StudentIdea[]
-  preferredSupervisorIdeas StudentIdea[]   @relation("StudentIdeaPreferredSupervisor")
-  importJobs               BulkImportJob[] @relation("ImportCreator")
-  importRows               ImportRow[]
-  notifications            Notification[]
-  auditLogs                AuditLog[]      @relation("AuditUser")
-
-  @@map("users")
-}
-
-model RefreshToken {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  userId    String   @map("user_id")
-  expiresAt DateTime @map("expires_at")
-  isRevoked Boolean  @default(false) @map("is_revoked")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("refresh_tokens")
-}
-
-// ═══════════════════════════════════════
-//  POOL (Allocation Cycle)
-// ═══════════════════════════════════════
-
-model Pool {
-  id                 String     @id @default(uuid())
-  name               String
-  academicYear       String     @map("academic_year")
-  semester           String
-  department         String?
-  status             PoolStatus @default(DRAFT)
-  submissionStart    DateTime   @map("submission_start")
-  submissionEnd      DateTime   @map("submission_end")
-  reviewStart        DateTime   @map("review_start")
-  reviewEnd          DateTime   @map("review_end")
-  decisionDeadline   DateTime   @map("decision_deadline")
-  selectionStart     DateTime   @map("selection_start")
-  selectionEnd       DateTime   @map("selection_end")
-  teamFreezeDate     DateTime   @map("team_freeze_date")
-  minTeamSize        Int        @default(3) @map("min_team_size")
-  defaultMaxTeamSize Int        @default(3) @map("default_max_team_size")
-  allowStudentIdeas  Boolean    @default(true) @map("allow_student_ideas")
-  createdById        String     @map("created_by_id")
-  createdAt          DateTime   @default(now()) @map("created_at")
-  updatedAt          DateTime   @updatedAt @map("updated_at")
-
-  creator      User           @relation("PoolCreator", fields: [createdById], references: [id])
-  subadmins    PoolSubadmin[]
-  faculty      PoolFaculty[]
-  students     PoolStudent[]
-  projects     Project[]
-  teams        Team[]
-  studentIdeas StudentIdea[]
-
-  @@map("pools")
-}
-
-model PoolSubadmin {
-  id         String   @id @default(uuid())
-  poolId     String   @map("pool_id")
-  subadminId String   @map("subadmin_id")
-  assignedAt DateTime @default(now()) @map("assigned_at")
-
-  pool     Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  subadmin User @relation(fields: [subadminId], references: [id], onDelete: Cascade)
-
-  @@unique([poolId, subadminId])
-  @@map("pool_subadmins")
-}
-
-model PoolFaculty {
-  id           String    @id @default(uuid())
-  poolId       String    @map("pool_id")
-  facultyId    String    @map("faculty_id")
-  hasSubmitted Boolean   @default(false) @map("has_submitted")
-  submittedAt  DateTime? @map("submitted_at")
-  assignedAt   DateTime  @default(now()) @map("assigned_at")
-
-  pool    Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  faculty User @relation(fields: [facultyId], references: [id], onDelete: Cascade)
-
-  @@unique([poolId, facultyId])
-  @@map("pool_faculty")
-}
-
-model PoolStudent {
-  id         String   @id @default(uuid())
-  poolId     String   @map("pool_id")
-  studentId  String   @map("student_id")
-  batch      String?
-  assignedAt DateTime @default(now()) @map("assigned_at")
-
-  pool    Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
-
-  @@unique([poolId, studentId])
-  @@map("pool_students")
-}
-
-// ═══════════════════════════════════════
-//  PROJECT
-// ═══════════════════════════════════════
-
-model Project {
-  id              String        @id @default(uuid())
-  poolId          String        @map("pool_id")
-  facultyId       String        @map("faculty_id")
-  title           String
-  description     String
-  domain          String?
-  prerequisites   String?
-  maxTeamSize     Int           @default(3) @map("max_team_size")
-  expectedOutcome String?       @map("expected_outcome")
-  status          ProjectStatus @default(DRAFT)
-  subadminNote    String?       @map("subadmin_note")
-  adminNote       String?       @map("admin_note")
-  reviewedById    String?       @map("reviewed_by_id")
-  decidedById     String?       @map("decided_by_id")
-  reviewedAt      DateTime?     @map("reviewed_at")
-  decidedAt       DateTime?     @map("decided_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-
-  pool       Pool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  faculty    User  @relation("FacultyProjects", fields: [facultyId], references: [id])
-  reviewedBy User? @relation("ProjectReviewer", fields: [reviewedById], references: [id])
-  decidedBy  User? @relation("ProjectDecider", fields: [decidedById], references: [id])
-  team       Team?
-
-  @@map("projects")
-}
-
-// ═══════════════════════════════════════
-//  TEAM
-// ═══════════════════════════════════════
-
-model Team {
-  id        String     @id @default(uuid())
-  poolId    String     @map("pool_id")
-  projectId String?    @unique @map("project_id")
-  name      String
-  leaderId  String     @map("leader_id")
-  status    TeamStatus @default(FORMING)
-  isFrozen  Boolean    @default(false) @map("is_frozen")
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-
-  pool        Pool         @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  project     Project?     @relation(fields: [projectId], references: [id])
-  leader      User         @relation("TeamLeader", fields: [leaderId], references: [id])
-  members     TeamMember[]
-  invites     TeamInvite[]
-  studentIdea StudentIdea? @relation("IdeaTeam")
-
-  @@map("teams")
-}
-
-model TeamMember {
-  id        String           @id @default(uuid())
-  teamId    String           @map("team_id")
-  studentId String           @map("student_id")
-  role      TeamMemberRole   @default(MEMBER)
-  status    TeamMemberStatus @default(ACTIVE)
-  joinedAt  DateTime         @default(now()) @map("joined_at")
-  leftAt    DateTime?        @map("left_at")
-
-  team    Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  student User @relation(fields: [studentId], references: [id])
-
-  @@unique([teamId, studentId])
-  @@map("team_members")
-}
-
-model TeamInvite {
-  id          String       @id @default(uuid())
-  teamId      String       @map("team_id")
-  invitedById String       @map("invited_by_id")
-  inviteeId   String       @map("invitee_id")
-  status      InviteStatus @default(PENDING)
-  message     String?
-  expiresAt   DateTime     @map("expires_at")
-  respondedAt DateTime?    @map("responded_at")
-  createdAt   DateTime     @default(now()) @map("created_at")
-
-  team      Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  invitedBy User @relation("InviteSender", fields: [invitedById], references: [id])
-  invitee   User @relation("InviteReceiver", fields: [inviteeId], references: [id])
-
-  @@map("team_invites")
-}
-
-// ═══════════════════════════════════════
-//  STUDENT IDEAS (reserved for team)
-// ═══════════════════════════════════════
-
-model StudentIdea {
-  id                    String            @id @default(uuid())
-  poolId                String            @map("pool_id")
-  studentId             String            @map("student_id")
-  preferredSupervisorId String?           @map("preferred_supervisor_id")
-  title                 String
-  description           String
-  domain                String?
-  status                StudentIdeaStatus @default(SUBMITTED)
-  adminFeedback         String?           @map("admin_feedback")
-  assignedTeamId        String?           @unique @map("assigned_team_id")
-  createdAt             DateTime          @default(now()) @map("created_at")
-  updatedAt             DateTime          @updatedAt @map("updated_at")
-
-  pool                Pool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  student             User  @relation(fields: [studentId], references: [id])
-  preferredSupervisor User? @relation("StudentIdeaPreferredSupervisor", fields: [preferredSupervisorId], references: [id])
-  assignedTeam        Team? @relation("IdeaTeam", fields: [assignedTeamId], references: [id])
-
-  @@index([preferredSupervisorId])
-  @@map("student_ideas")
-}
-
-// ═══════════════════════════════════════
-//  NOTIFICATIONS
-// ═══════════════════════════════════════
-
-model Notification {
-  id        String           @id @default(uuid())
-  userId    String           @map("user_id")
-  type      NotificationType
-  title     String
-  message   String
-  link      String?
-  isRead    Boolean          @default(false) @map("is_read")
-  emailSent Boolean          @default(false) @map("email_sent")
-  createdAt DateTime         @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, isRead])
-  @@map("notifications")
-}
-
-// ═══════════════════════════════════════
-//  BULK IMPORT
-// ═══════════════════════════════════════
-
-model BulkImportJob {
-  id             String       @id @default(uuid())
-  fileName       String       @map("file_name")
-  originalName   String       @map("original_name")
-  importType     String       @map("import_type")
-  status         ImportStatus @default(PENDING)
-  totalRows      Int          @default(0) @map("total_rows")
-  successCount   Int          @default(0) @map("success_count")
-  failureCount   Int          @default(0) @map("failure_count")
-  duplicateCount Int          @default(0) @map("duplicate_count")
-  errorSummary   Json?        @map("error_summary")
-  createdById    String       @map("created_by_id")
-  startedAt      DateTime?    @map("started_at")
-  completedAt    DateTime?    @map("completed_at")
-  createdAt      DateTime     @default(now()) @map("created_at")
-
-  creator User        @relation("ImportCreator", fields: [createdById], references: [id])
-  rows    ImportRow[]
-
-  @@map("bulk_import_jobs")
-}
-
-model ImportRow {
-  id        String          @id @default(uuid())
-  jobId     String          @map("job_id")
-  rowNumber Int             @map("row_number")
-  rawData   Json            @map("raw_data")
-  status    ImportRowStatus
-  errorMsg  String?         @map("error_msg")
-  userId    String?         @map("user_id")
-  createdAt DateTime        @default(now()) @map("created_at")
-
-  job  BulkImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  user User?         @relation(fields: [userId], references: [id])
-
-  @@map("import_rows")
-}
-
-// ═══════════════════════════════════════
-//  AUDIT LOG
-// ═══════════════════════════════════════
-
-model AuditLog {
-  id         String   @id @default(uuid())
-  userId     String   @map("user_id")
-  action     String
-  entityType String   @map("entity_type")
-  entityId   String?  @map("entity_id")
-  oldValue   Json?    @map("old_value")
-  newValue   Json?    @map("new_value")
-  ipAddress  String?  @map("ip_address")
-  userAgent  String?  @map("user_agent")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  user User @relation("AuditUser", fields: [userId], references: [id])
-
-  @@index([entityType, entityId])
-  @@index([userId])
-  @@map("audit_logs")
 }

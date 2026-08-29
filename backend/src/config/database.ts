@@ -5,7 +5,6 @@ import { config } from './index';
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
-
 const adapter = new PrismaPg({ connectionString: config.db.url });
 
 export const prisma =
