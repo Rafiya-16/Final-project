@@ -827,7 +827,11 @@ const PoolDetailPage: React.FC = () => {
                   <p className="font-medium text-gray-900">
                     {p.title}
                   </p>
-
+  {p.projectCode && (
+        <p className="text-sm font-semibold text-gray-900 mt-1">
+          {p.projectCode}
+        </p>
+      )}
                   <p className="text-sm text-gray-500">
                     {p.domain || 'General'} •{' '}
                     {p.faculty?.firstName}{' '}

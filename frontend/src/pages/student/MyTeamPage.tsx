@@ -411,6 +411,7 @@ const MyTeamPage: React.FC = () => {
                         <div className="flex-1">
                           <p className="text-[10px] sm:text-xs font-bold text-emerald-700 uppercase tracking-wide flex items-center gap-1"><Sparkles className="w-3 h-3" />SELECTED PROJECT</p>
                           <p className="font-bold text-gray-900 mt-1 text-sm sm:text-base">{team.project.title}</p>
+                          <p className="mt-1 text-lg font-bold text-gray-900">{team.project.projectCode || 'Project code not assigned'}</p>
                           <p className="text-[10px] sm:text-xs text-emerald-600 mt-0.5">{team.project.domain || 'No domain specified'}</p>
                         </div>
                       </div>

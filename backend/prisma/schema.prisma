@@ -65,6 +65,7 @@ model RefreshToken {
 model Pool {
   id                 String         @id @default(uuid())
   name               String
+  nextProjectNumber  Int            @default(0)
   academicYear       String         @map("academic_year")
   semester           String
   department         String?
@@ -136,6 +137,7 @@ model PoolStudent {
 model Project {
   id              String        @id @default(uuid())
   poolId          String        @map("pool_id")
+  projectCode     String?       @unique
   facultyId       String        @map("faculty_id")
   title           String
   description     String
@@ -158,6 +160,7 @@ model Project {
   reviewedBy      User?         @relation("ProjectReviewer", fields: [reviewedById], references: [id])
   team            Team?
 
+  @@unique([poolId, projectCode])
   @@map("projects")
 }
 

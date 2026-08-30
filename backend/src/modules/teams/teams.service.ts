@@ -199,6 +199,7 @@ export class TeamsService {
           select: {
             id: true,
             maxTeamSize: true,
+            projectCode: true,
           },
         },
         pool: {
@@ -715,6 +716,7 @@ if (inviter.section !== invitee.section) {
                 title: true,
                 domain: true,
                 maxTeamSize: true,
+                projectCode: true
               },
             },
           },
@@ -1022,6 +1024,7 @@ if (inviter.section !== invitee.section) {
               description: true,
               domain: true,
               prerequisites: true,
+              projectCode: true,
               maxTeamSize: true,
             },
           },

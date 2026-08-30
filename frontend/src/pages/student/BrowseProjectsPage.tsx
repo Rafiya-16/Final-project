@@ -5,7 +5,7 @@ import { teamService } from '@/services/teamService';
 import { poolService } from '@/services/poolService';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Search, Eye, Users, Clock, Sparkles, ChevronRight, BookOpen, Code, Cpu, Network, Heart, Zap, TrendingUp, CheckCircle2} from 'lucide-react';
+import { Search, Eye, Users, Clock, BookOpen, Code, Cpu, Network, Heart, Zap, TrendingUp, CheckCircle2} from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import type { Project, Team } from '@/types';
@@ -142,77 +142,179 @@ const ProjectDetailsModal: React.FC<{
   onSelect: (projectId: string) => void;
   canSelect: boolean;
   isTaken: boolean;
-}> = ({ project, isOpen, onClose, onSelect, canSelect, isTaken }) => {
-  if (!project || !isOpen) return null;
+}> = ({
+  project,
+  isOpen,
+  onClose,
+  onSelect,
+  canSelect,
+  isTaken,
+}) => {
+  if (!project || !isOpen) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      
+      {/* Background overlay */}
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
+        {/* Header */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`p-2 rounded-xl ${getDomainColor(project.domain)}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <div
+              className={`p-2 rounded-xl flex-shrink-0 ${getDomainColor(
+                project.domain
+              )}`}
+            >
               {getDomainIcon(project.domain)}
             </div>
-            <h2 className="text-xl font-semibold text-gray-900">{project.title}</h2>
+
+            <h2 className="text-xl font-semibold text-gray-900 truncate">
+              {project.title}
+            </h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 ml-4"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
-        
-        <div className="p-6 space-y-4">
+
+        {/* Content */}
+        <div className="p-6 space-y-5">
+          {/* Project Code */}
+          {project.projectCode && (
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+              <div>
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Project Code
+                </h3>
+
+                <p className="mt-1 text-lg font-bold text-gray-900">
+                  {project.projectCode}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Description */}
           <div>
-            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Description</h3>
-            <p className="text-gray-700 leading-relaxed">{project.description}</p>
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">
+              Description
+            </h3>
+
+            <p className="text-gray-700 leading-relaxed">
+              {project.description}
+            </p>
           </div>
-          
+
+          {/* Project Information */}
           <div className="grid grid-cols-2 gap-4">
+            {/* Domain */}
             {project.domain && (
               <div>
-                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Domain</h3>
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full ${getDomainColor(project.domain)}`}>
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                  Domain
+                </h3>
+
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full ${getDomainColor(
+                    project.domain
+                  )}`}
+                >
                   {getDomainIcon(project.domain)}
                   {project.domain}
                 </span>
               </div>
             )}
+
+            {/* Team Size */}
             {project.maxTeamSize && (
               <div>
-                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Team Size</h3>
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                  Team Size
+                </h3>
+
                 <div className="flex items-center gap-1.5 text-sm text-gray-700">
                   <Users className="w-4 h-4 text-gray-400" />
-                  <span>Up to {project.maxTeamSize} members</span>
+
+                  <span>
+                    Up to {project.maxTeamSize} members
+                  </span>
                 </div>
               </div>
             )}
+
+            {/* Prerequisites */}
             {project.prerequisites && (
               <div className="col-span-2">
-                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Prerequisites</h3>
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                  Prerequisites
+                </h3>
+
                 <span className="inline-block px-3 py-1.5 text-xs bg-yellow-50 text-yellow-700 rounded-full border border-yellow-200">
                   {project.prerequisites}
                 </span>
               </div>
             )}
           </div>
-          
+
+          {/* Actions */}
           <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+            >
               Cancel
             </button>
+
             {isTaken ? (
-              <button disabled className="px-4 py-2 text-sm font-medium text-white bg-gray-400 rounded-xl cursor-not-allowed">
+              <button
+                type="button"
+                disabled
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-400 rounded-xl cursor-not-allowed"
+              >
                 Already Taken
               </button>
             ) : canSelect ? (
-              <button onClick={() => onSelect(project.id)} className="px-4 py-2 text-sm font-medium text-white rounded-xl transition-all shadow-lg" style={{ background: gradientBrand }}>
+              <button
+                type="button"
+                onClick={() => onSelect(project.id)}
+                className="px-4 py-2 text-sm font-medium text-white rounded-xl transition-all shadow-lg"
+                style={{
+                  background: gradientBrand,
+                }}
+              >
                 Select Project
               </button>
             ) : (
-              <button disabled className="px-4 py-2 text-sm font-medium text-white bg-gray-400 rounded-xl cursor-not-allowed">
+              <button
+                type="button"
+                disabled
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-400 rounded-xl cursor-not-allowed"
+              >
                 Cannot Select
               </button>
             )}
@@ -435,6 +537,11 @@ const BrowseProjectsPage: React.FC = () => {
                       )}
                     </div>
                     <h3 className="mt-5 text-lg font-semibold tracking-tight leading-snug text-gray-900 line-clamp-2">{project.title}</h3>
+                    {project.projectCode && (
+  <span className="text-xs font-semibold text-gray-500">
+    {project.projectCode}
+  </span>
+)}
                     <p className="mt-2 text-sm text-gray-500 leading-relaxed line-clamp-3">{project.description}</p>
                     <div className="mt-6 flex items-center gap-4 text-xs text-gray-400">
                       <div className="flex items-center gap-1.5">

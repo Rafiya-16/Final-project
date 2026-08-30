@@ -100,6 +100,7 @@ export interface Pool {
 export interface Project {
   id: string;
   poolId: string;
+  projectCode?: string | null;
   facultyId: string;
   title: string;
   description: string;
@@ -145,6 +146,7 @@ export interface Team {
   project?: {
     id: string;
     title: string;
+    projectCode?: string | null;
     domain?: string;
     faculty?: {
       firstName: string;
@@ -222,7 +224,6 @@ export interface StudentIdea {
   id: string;
   poolId: string;
   studentId: string;
-
   title: string;
   description: string;
   domain?: string;

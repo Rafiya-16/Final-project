@@ -180,49 +180,117 @@ const ReportsPage: React.FC = () => {
       )}
 
       {/* Teams Tab */}
-      {tab === 'teams' && (
-        <div className="space-y-4">
-          {!teamReport?.teams?.length ? <EmptyState title="No teams formed yet" /> :
-            teamReport.teams.map((team: any, idx: number) => (
-              <div key={team.id} className="bg-white rounded-xl border p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Team #{idx + 1}: {team.name}</h3>
-                    {team.project ? (
-                      <p className="text-sm text-gray-600 mt-1">
-                        Project: <span className="font-medium">{team.project.title}</span>
-                        {team.project.faculty && <span className="text-gray-400"> • Guide: {team.project.faculty.firstName} {team.project.faculty.lastName}</span>}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-red-500 mt-1">No project selected</p>
+     {tab === 'teams' && (
+  <div className="space-y-4">
+    {!teamReport?.teams?.length ? (
+      <EmptyState title="No teams formed yet" />
+    ) : (
+      teamReport.teams.map((team: any, idx: number) => (
+        <div
+          key={team.id}
+          className="bg-white rounded-xl border p-5"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-gray-900">
+                Team #{idx + 1}: {team.name}
+              </h3>
+
+              {team.project ? (
+                <div className="mt-1">
+                  <p className="text-sm text-gray-600">
+                    Project:{' '}
+                    <span className="font-medium text-gray-900">
+                      {team.project.title}
+                    </span>
+
+                    {team.project.projectCode && (
+                      <span className="ml-2 font-semibold text-gray-900">
+                        ({team.project.projectCode})
+                      </span>
                     )}
-                  </div>
-                  <Badge text={team.status} />
+
+                    {team.project.faculty && (
+                      <span className="text-gray-400">
+                        {' '}• Guide:{' '}
+                        {team.project.faculty.firstName}{' '}
+                        {team.project.faculty.lastName}
+                      </span>
+                    )}
+                  </p>
                 </div>
-                <table className="min-w-full text-sm">
-                  <thead><tr className="bg-gray-50">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">#</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Name</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Enrollment</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Email</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Role</th>
-                  </tr></thead>
-                  <tbody>
-                    {team.members?.map((m: any, mi: number) => (
-                      <tr key={m.id} className="border-t">
-                        <td className="px-3 py-2 text-gray-500">{mi + 1}</td>
-                        <td className="px-3 py-2 font-medium">{m.student.firstName} {m.student.lastName}</td>
-                        <td className="px-3 py-2 font-mono text-gray-600">{m.student.enrollmentNo || '—'}</td>
-                        <td className="px-3 py-2 text-gray-600">{m.student.email}</td>
-                        <td className="px-3 py-2">{m.role === 'LEADER' ? <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Leader</span> : 'Member'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
+              ) : (
+                <p className="text-sm text-red-500 mt-1">
+                  No project selected
+                </p>
+              )}
+            </div>
+
+            <Badge text={team.status} />
+          </div>
+
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                  #
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                  Name
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                  Enrollment
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                  Email
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                  Role
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {team.members?.map((m: any, mi: number) => (
+                <tr
+                  key={m.id}
+                  className="border-t"
+                >
+                  <td className="px-3 py-2 text-gray-500">
+                    {mi + 1}
+                  </td>
+
+                  <td className="px-3 py-2 font-medium">
+                    {m.student.firstName}{' '}
+                    {m.student.lastName}
+                  </td>
+
+                  <td className="px-3 py-2 font-mono text-gray-600">
+                    {m.student.enrollmentNo || '—'}
+                  </td>
+
+                  <td className="px-3 py-2 text-gray-600">
+                    {m.student.email}
+                  </td>
+
+                  <td className="px-3 py-2">
+                    {m.role === 'LEADER' ? (
+                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
+                        Leader
+                      </span>
+                    ) : (
+                      'Member'
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      ))
+    )}
+  </div>
+)}
 
 {/* Faculty Report Tab */}
 {tab === 'faculty' && (

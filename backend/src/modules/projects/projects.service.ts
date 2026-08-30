@@ -131,27 +131,81 @@ export class ProjectsService {
     return { message: '3 locked, 1 on hold' };
   }
 
-  // Admin approves held project
-  async approveProject(projectId: string, adminId: string, note?: string) {
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
-    if (!project) throw new NotFoundError('Project not found');
-    if (project.status !== 'ON_HOLD') throw new BadRequestError('Only ON_HOLD projects can be approved');
-
-    const updated = await prisma.project.update({
+ // Admin approves held project
+async approveProject(projectId: string, adminId: string, note?: string) {
+  const updated = await prisma.$transaction(async (tx) => {
+    const project = await tx.project.findUnique({
       where: { id: projectId },
-      data: { status: 'APPROVED', adminNote: note, decidedById: adminId, decidedAt: new Date() },
     });
 
-    // Audit + Notify
-    auditService.log(adminId, 'APPROVE_PROJECT', 'Project', projectId).catch(() => {});
-    notificationsService.create(
-      updated.facultyId, 'PROPOSAL_APPROVED', 'Project Approved',
+    if (!project) {
+      throw new NotFoundError('Project not found');
+    }
+
+    if (project.status !== 'ON_HOLD') {
+      throw new BadRequestError(
+        'Only ON_HOLD projects can be approved'
+      );
+    }
+
+    // Get current pool counter
+    const pool = await tx.pool.findUnique({
+      where: { id: project.poolId },
+      select: {
+        id: true,
+        name: true,
+        nextProjectNumber: true,
+      },
+    });
+
+    if (!pool) {
+      throw new NotFoundError('Pool not found');
+    }
+
+    const nextNumber = pool.nextProjectNumber + 1;
+
+    // Generate project code
+    const projectCode = `${pool.name}/${nextNumber}`;
+
+    // Update counter
+    await tx.pool.update({
+      where: { id: pool.id },
+      data: {
+        nextProjectNumber: nextNumber,
+      },
+    });
+
+    // Approve project + save project code
+    return tx.project.update({
+      where: { id: projectId },
+      data: {
+        projectCode,
+        status: 'APPROVED',
+        adminNote: note,
+        decidedById: adminId,
+        decidedAt: new Date(),
+      },
+    });
+  });
+
+  // Audit
+  auditService
+    .log(adminId, 'APPROVE_PROJECT', 'Project', projectId)
+    .catch(() => {});
+
+  // Notification
+  notificationsService
+    .create(
+      updated.facultyId,
+      'PROPOSAL_APPROVED',
+      'Project Approved',
       `Your project "${updated.title}" has been approved by the admin.`,
       `/pools/${updated.poolId}`
-    ).catch(() => {});
+    )
+    .catch(() => {});
 
-    return updated;
-  }
+  return updated;
+}
 
   // Admin rejects held project
   async rejectProject(projectId: string, adminId: string, note?: string) {
@@ -175,14 +229,77 @@ export class ProjectsService {
     return updated;
   }
 
-  // Admin approves all locked projects (batch)
-  async approveAllLocked(poolId: string, adminId: string) {
-    const result = await prisma.project.updateMany({
-      where: { poolId, status: 'LOCKED' },
-      data: { status: 'APPROVED', decidedById: adminId, decidedAt: new Date() },
+ // Admin approves all locked projects
+async approveAllLocked(poolId: string, adminId: string) {
+  const result = await prisma.$transaction(async (tx) => {
+    const pool = await tx.pool.findUnique({
+      where: { id: poolId },
+      select: {
+        id: true,
+        name: true,
+        nextProjectNumber: true,
+      },
     });
-    return { approved: result.count };
-  }
+
+    if (!pool) {
+      throw new NotFoundError('Pool not found');
+    }
+
+    const projects = await tx.project.findMany({
+      where: {
+        poolId,
+        status: 'LOCKED',
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (projects.length === 0) {
+      return {
+        approved: 0,
+      };
+    }
+
+    let nextNumber = pool.nextProjectNumber;
+
+    for (const project of projects) {
+      nextNumber += 1;
+
+      const projectCode = `${pool.name}/${nextNumber}`;
+
+      await tx.project.update({
+        where: {
+          id: project.id,
+        },
+        data: {
+          projectCode,
+          status: 'APPROVED',
+          decidedById: adminId,
+          decidedAt: new Date(),
+        },
+      });
+    }
+
+    await tx.pool.update({
+      where: {
+        id: poolId,
+      },
+      data: {
+        nextProjectNumber: nextNumber,
+      },
+    });
+
+    return {
+      approved: projects.length,
+    };
+  });
+
+  return result;
+}
 
   // Get projects by pool — role-aware
   async getProjectsByPool(poolId: string, userId: string, userRole: string) {
@@ -194,7 +311,7 @@ export class ProjectsService {
       return prisma.project.findMany({
         where: { poolId, status: 'APPROVED' },
         select: {
-          id: true, title: true, description: true, domain: true,
+          id: true, projectCode: true, title: true, description: true, domain: true,
           prerequisites: true, maxTeamSize: true, expectedOutcome: true,
           status: true,
           team: { select: { id: true, name: true, _count: { select: { members: true } } } },
