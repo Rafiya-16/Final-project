@@ -12,7 +12,8 @@ import {
   Filter, X, SlidersHorizontal, ChevronDown,
   ArrowLeft, Info, CalendarDays, Crown, Globe,
   AlertCircle, FileText, Send, Plus, LayoutGrid, List,
-  TrendingUp, Zap, Gift, Star, Eye
+  TrendingUp, Zap, Gift, Star, Eye,
+  Hash
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Project, TeamMember, Pool } from '@/types';
@@ -222,6 +223,10 @@ const MyProjects: React.FC = () => {
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/40 rounded-lg text-sm">
                     <Globe className="w-3.5 h-3.5" />
                     {selectedProject.domain || 'Not specified'}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/40 rounded-lg text-sm">
+                    <Hash className="w-3.5 h-3.5" />
+                    {selectedProject.projectCode || 'Not assigned'}
                   </span>
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/40 rounded-lg text-sm">
                     <Users2 className="w-3.5 h-3.5" />
