@@ -275,6 +275,7 @@ export class ReportsService {
                 prerequisites: true,
                 expectedOutcome: true,
                 maxTeamSize: true,
+                projectCode: true,
                 status: true,
                 subadminNote: true,
                 adminNote: true,

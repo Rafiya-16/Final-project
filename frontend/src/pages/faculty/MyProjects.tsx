@@ -13,7 +13,8 @@ import {
   ArrowLeft, Info, CalendarDays, Crown, Globe,
   AlertCircle, FileText, Send, Plus, LayoutGrid, List,
   TrendingUp, Zap, Gift, Star, Eye,
-  Hash
+  Hash,
+  Users2Icon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Project, TeamMember, Pool } from '@/types';
@@ -630,11 +631,11 @@ const ProjectCard: React.FC<{
           {project.status}
         </span>
       </div>
-      <h3 className="text-gray-800 font-semibold text-sm mt-2 line-clamp-2">{project.title}</h3>
+      <h3 className="text-black-900 font-semibold text-sm mt-2 line-clamp-2">{project.title} • ({project.projectCode})</h3>
     </div>
     <div className="p-4">
-      <p className="text-xs text-gray-500 line-clamp-2 mb-3">{project.description}</p>
-      <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+      <p className="text-xs text-black-500 line-clamp-2 mb-3">{project.description}</p>
+      <div className="flex items-center justify-between text-xs text-black-500 mb-3">
         <span className="flex items-center gap-1">
           <Target className="w-3 h-3" />
           {project.domain || 'No domain'}
@@ -644,7 +645,7 @@ const ProjectCard: React.FC<{
           {project.team?.members?.length || 0}/{project.maxTeamSize}
         </span>
       </div>
-      <button className="w-full py-1.5 bg-gradient-to-r from-[#C3BEF0]/50 to-[#CCA8E9]/50 text-gray-700 rounded-lg text-xs font-medium hover:from-[#C3BEF0] hover:to-[#CCA8E9] transition-all">
+      <button className="w-full py-1.5 bg-gradient-to-r from-[#C3BEF0]/50 to-[#CCA8E9]/50 text-black-700 rounded-lg text-xs font-medium hover:from-[#C3BEF0] hover:to-[#CCA8E9] transition-all">
         View Details
       </button>
     </div>

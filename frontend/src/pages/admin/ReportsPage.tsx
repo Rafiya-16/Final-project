@@ -402,6 +402,19 @@ const ReportsPage: React.FC = () => {
                     </div>
 
                     {/* Faculty ID */}
+                    <div>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            faculty.isActive
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
+                        >
+                          {faculty.isActive
+                            ? 'Active'
+                            : 'Inactive'}
+                        </span>
+</div>
                     <div className="md:col-span-3">
                       <p className="text-xs text-gray-400 uppercase tracking-wide">
                         Faculty ID
@@ -409,9 +422,8 @@ const ReportsPage: React.FC = () => {
 
                       <p className="font-semibold text-gray-900 mt-1">
                         {faculty.facultyId || '—'}
-                      </p>
-                    </div>
-
+                      </p>             
+                 </div>            
                     {/* Faculty Name */}
                     <div className="md:col-span-4">
                       <p className="text-xs text-gray-400 uppercase tracking-wide">
@@ -427,7 +439,14 @@ const ReportsPage: React.FC = () => {
                         {faculty.designation || 'Faculty'}
                       </p>
                     </div>
-
+                  <div>
+                          <p className="text-xs text-gray-400 uppercase">
+                            Email
+                          </p>
+                          <p className="text-sm text-gray-800 mt-1 break-all">
+                            {faculty.email || '—'}
+                          </p>
+                        </div>
                     {/* Approved Projects */}
                     <div className="md:col-span-2">
                       <p className="text-xs text-gray-400 uppercase tracking-wide">
@@ -456,83 +475,7 @@ const ReportsPage: React.FC = () => {
                 {/* Expanded Faculty Details */}
                 {isExpanded && (
                   <div className="px-6 pb-6 bg-gray-50 border-t">
-
-                    {/* Faculty Information */}
-                    <div className="bg-white rounded-lg border p-5 mt-5">
-
-                      <div className="flex items-start justify-between mb-5">
-
-                        <div>
-                          <h4 className="text-lg font-semibold text-gray-900">
-                            {faculty.firstName}{' '}
-                            {faculty.lastName}
-                          </h4>
-
-                          <p className="text-sm text-gray-500 mt-1">
-                            Faculty Information
-                          </p>
-                        </div>
-
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            faculty.isActive
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {faculty.isActive
-                            ? 'Active'
-                            : 'Inactive'}
-                        </span>
-
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-
-                        <div>
-                          <p className="text-xs text-gray-400 uppercase">
-                            Faculty ID
-                          </p>
-
-                          <p className="text-sm font-medium text-gray-800 mt-1">
-                            {faculty.facultyId || '—'}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-xs text-gray-400 uppercase">
-                            Email
-                          </p>
-
-                          <p className="text-sm text-gray-800 mt-1 break-all">
-                            {faculty.email || '—'}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-xs text-gray-400 uppercase">
-                            Department
-                          </p>
-
-                          <p className="text-sm text-gray-800 mt-1">
-                            {faculty.department || '—'}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-xs text-gray-400 uppercase">
-                            Designation
-                          </p>
-
-                          <p className="text-sm text-gray-800 mt-1">
-                            {faculty.designation || '—'}
-                          </p>
-                        </div>
-
-                      </div>
-
-                    </div>
-
+                    
                     {/* Project Details */}
                     <div className="mt-5">
 
@@ -593,8 +536,13 @@ const ReportsPage: React.FC = () => {
 
                                     <div>
                                       <h5 className="font-semibold text-gray-900">
-                                        {project.title}
-                                      </h5>
+  {project.title}
+  {project.projectCode && (
+    <span className="text-black-600 ml-1">
+      • ({project.projectCode})
+    </span>
+  )}
+</h5>
 
                                       <p className="text-xs text-gray-400 mt-1">
                                         Proposed on{' '}
@@ -605,15 +553,7 @@ const ReportsPage: React.FC = () => {
                                           : '—'}
                                       </p>
                                     </div>
-
                                   </div>
-
-                                  <Badge
-                                    text={
-                                      project.status
-                                    }
-                                  />
-
                                 </div>
 
                                 {/* Description */}

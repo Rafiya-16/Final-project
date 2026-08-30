@@ -493,7 +493,7 @@ const ProjectCard: React.FC<{
                 {project.title.charAt(0)}
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800">{project.title}</h3>
+                <h3 className="font-semibold text-gray-800">{project.title} • ({project.projectCode})</h3>
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <span>{project.domain || 'No domain'}</span>
                   <span>•</span>
@@ -542,7 +542,7 @@ const ProjectCard: React.FC<{
                   {project.title.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800 text-lg">{project.title}</h3>
+                  <h3 className="font-semibold text-gray-800 text-lg">{project.title} • ({project.projectCode})</h3>
                   <p className="text-xs text-gray-500">{project.pool?.academicYear} • {project.pool?.semester}</p>
                 </div>
               </div>
