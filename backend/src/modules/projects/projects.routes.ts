@@ -10,6 +10,7 @@ const router = Router();
 router.use(authenticate);
 
 // Faculty
+router.post('/:poolId/projects/check-similarity', authorize('FACULTY'), (q, s, n) => projectsController.checkSimilarity( q, s, n));
 router.post('/:poolId/projects', authorize('FACULTY'), timelineGuard('SUBMISSION'), validateRequest(submitProjectSchema), (q, s, n) => projectsController.submit(q, s, n));
 router.post('/:poolId/projects/finalize', authorize('FACULTY'), timelineGuard('SUBMISSION'), (q, s, n) => projectsController.finalize(q, s, n));
 router.put('/:poolId/projects/:projectId', authorize('FACULTY'), timelineGuard('SUBMISSION'), (q, s, n) => projectsController.edit(q, s, n));
