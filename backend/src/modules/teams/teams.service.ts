@@ -183,10 +183,25 @@ export class TeamsService {
       if (doubleCheck?.team) throw new ConflictError('Project was just taken');
 
       return tx.team.update({
-        where: { id: teamId },
-        data: { projectId },
-        include: { project: { select: { id: true, title: true, domain: true } } },
-      });
+  where: { id: teamId },
+  data: { projectId },
+  include: {
+    project: {
+      select: {
+        id: true,
+        title: true,
+        domain: true,
+        faculty: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    },
+  },
+});
     });
   }
 
@@ -288,7 +303,22 @@ export class TeamsService {
   const team = await prisma.team.findUnique({
     where: { id: membership.teamId },
     include: {
-      project: { select: { id: true, title: true, description: true, domain: true, prerequisites: true } },
+      project: {
+  select: {
+    id: true,
+    title: true,
+    description: true,
+    domain: true,
+    prerequisites: true,
+    faculty: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+    },
+  },
+},
       members: {
         where: { status: 'ACTIVE' },
         include: {

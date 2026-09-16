@@ -144,6 +144,7 @@ model User {
   facultyProjects  Project[]        @relation("FacultyProjects")
   reviewedProjects Project[]        @relation("ProjectReviewer")
   decidedProjects  Project[]        @relation("ProjectDecider")
+  supervisedIdeas  StudentIdea[]    @relation("IdeaSupervisor")
   ledTeams         Team[]           @relation("TeamLeader")
   teamMemberships  TeamMember[]
   sentInvites      TeamInvite[]     @relation("InviteSender")
@@ -355,12 +356,14 @@ model StudentIdea {
   status         StudentIdeaStatus @default(SUBMITTED)
   adminFeedback  String?           @map("admin_feedback")
   assignedTeamId String?           @unique @map("assigned_team_id")
+  supervisorId   String?           @map("supervisor_id")
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
 
   pool         Pool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
   student      User  @relation(fields: [studentId], references: [id])
   assignedTeam Team? @relation("IdeaTeam", fields: [assignedTeamId], references: [id])
+  supervisor User?   @relation("IdeaSupervisor", fields: [supervisorId], references: [id])
 
   @@map("student_ideas")
 }

@@ -58,7 +58,41 @@ export class IdeasService {
     logger.info(`Student idea approved: ${idea.title} (${ideaId})`);
     return { message: 'Idea approved and assigned to team' };
   }
+  
+  async assignSupervisor(ideaId: string, supervisorId: string) {
+  const idea = await prisma.studentIdea.findUnique({
+    where: { id: ideaId },
+  });
 
+  if (!idea) throw new NotFoundError('Idea not found');
+
+  const supervisor = await prisma.user.findUnique({
+    where: { id: supervisorId },
+  });
+
+  if (!supervisor) throw new NotFoundError('Supervisor not found');
+
+  if (supervisor.role !== 'FACULTY') {
+    throw new BadRequestError('Selected user is not a faculty member');
+  }
+
+  return prisma.studentIdea.update({
+    where: { id: ideaId },
+    data: {
+      supervisorId,
+    },
+    include: {
+      supervisor: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+  });
+}
   async rejectIdea(ideaId: string, adminFeedback?: string) {
     const idea = await prisma.studentIdea.findUnique({ where: { id: ideaId } });
     if (!idea) throw new NotFoundError('Idea not found');

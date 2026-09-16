@@ -6,18 +6,15 @@ import { auditService } from '../audit/audit.service';
 import { notificationsService } from '../notifications/notifications.service';
 
 export class AuthService {
-async login(identifier: string, password: string) {
-  const normalizedIdentifier = identifier.trim();
+  async login(identifier: string, password: string) {
+    const normalizedIdentifier = identifier.trim();
 
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { email: normalizedIdentifier.toLowerCase(), },
-        { enrollmentNo: normalizedIdentifier, },
-        { facultyId: normalizedIdentifier, },
-      ],
-    },
-  });
+    const user = await prisma.user.findUnique({
+      where: {
+        email: normalizedIdentifier.toLowerCase(),
+      },
+    });
+
     if (!user || !user.isActive) throw new UnauthorizedError('Invalid credentials');
 
     const isMatch = await comparePassword(password, user.password);
@@ -34,7 +31,7 @@ async login(identifier: string, password: string) {
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
     // Audit: track login
-    auditService.log(user.id, 'LOGIN', 'User', user.id).catch(() => {});
+    auditService.log(user.id, 'LOGIN', 'User', user.id).catch(() => { });
 
     return {
       accessToken,
@@ -42,7 +39,7 @@ async login(identifier: string, password: string) {
       user: {
         id: user.id, email: user.email, role: user.role,
         firstName: user.firstName, lastName: user.lastName,
-        department: user.department, mustResetPwd: user.mustResetPwd,
+        department: user.department,facultyId: user.facultyId, mustResetPwd: user.mustResetPwd,
       },
     };
   }
@@ -98,7 +95,7 @@ async login(identifier: string, password: string) {
     await prisma.refreshToken.updateMany({ where: { userId }, data: { isRevoked: true } });
 
     // Audit: track password change
-    auditService.log(userId, 'CHANGE_PASSWORD', 'User', userId).catch(() => {});
+    auditService.log(userId, 'CHANGE_PASSWORD', 'User', userId).catch(() => { });
   }
 }
 
