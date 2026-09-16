@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Plus, Trash2, CheckCircle, AlertCircle, 
   ChevronLeft, FileText, Tag, Users, Target,
-  BookOpen, Layers, Sparkles, ArrowRight, Shield,
+  BookOpen, ShieldAlert,
+AlertTriangle,
+Eye, Layers, Sparkles, ArrowRight, Shield,
   Info, Clock, Calendar as CalendarIcon, Gift, TrendingUp,
   Lightbulb, Crown, Edit3, Send, XCircle
 } from 'lucide-react';
@@ -50,12 +52,15 @@ const CreateProposal: React.FC = () => {
   const [editForm, setEditForm] = useState({ title: '', description: '', domain: '', prerequisites: '', expectedOutcome: '', maxTeamSize: 3 });
   
   // Confirmation modal state
-  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false); useEffect(() => {fetchActivePools();}, []);
 
-  useEffect(() => {
-    fetchActivePools();
-  }, []);
-
+  // Similarity checking states
+  const [checkingSimilarity, setCheckingSimilarity] = useState(false);
+  const [similarityResult, setSimilarityResult] = useState<any>(null);
+  const [showSimilarityModal, setShowSimilarityModal] = useState(false);
+  const [similarityProposalIndex, setSimilarityProposalIndex] = useState<number | null>(null);
+  const [similarityApprovedIndexes, setSimilarityApprovedIndexes] = useState<number[]>([]);
+  
   const fetchActivePools = async () => {
     setLoading(true);
     try {
@@ -251,80 +256,367 @@ const CreateProposal: React.FC = () => {
   };
 
   const handleFinalizeAll = async () => {
-    setShowFinalizeConfirm(false);
-    try {
-      await projectService.finalize(poolId!);
-      toast.success('All projects submitted for review!');
-      await refreshExistingProjects();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to finalize projects');
-    }
-  };
+  setShowFinalizeConfirm(false);
 
-  const handleSubmit = async () => {
+  try {
+    await projectService.finalize(poolId!);
+
+    toast.success('All projects submitted for review!');
+
+    await refreshExistingProjects();
+
+  } catch (error: any) {
+    console.error('Finalize error:', error);
+
+    const response = error.response?.data;
+
+    const blockedProjects =
+      response?.details?.blockedProjects ||
+      response?.data?.blockedProjects ||
+      [];
+
+    if (
+      Array.isArray(blockedProjects) &&
+      blockedProjects.length > 0
+    ) {
+      const blockedTitles = blockedProjects
+        .map(
+          (project: any) =>
+            `Project ${
+              existingProjects.findIndex(
+                (p) => p.id === project.projectId
+              ) + 1
+            }: ${project.title}`
+        )
+        .join('\n');
+
+      toast.error(
+        `Please modify these proposals:\n${blockedTitles}`,
+        {
+          duration: 6000,
+        }
+      );
+
+      /*
+       * Automatically open the first blocked
+       * proposal for editing.
+       */
+      const firstBlocked = blockedProjects[0];
+
+      const blockedIndex =
+        existingProjects.findIndex(
+          (p) => p.id === firstBlocked.projectId
+        );
+
+      if (blockedIndex !== -1) {
+        const blockedProject =
+          existingProjects[blockedIndex];
+
+        handleEditProject(blockedProject);
+      }
+
+      return;
+    }
+
+    toast.error(
+      response?.message ||
+        'Failed to finalize projects'
+    );
+  }
+};
+
+    /**
+   * Checks the proposal against existing projects in the selected pool.
+   *
+   * The backend response may contain different property names depending
+   * on the current implementation, so this helper normalizes the result.
+   */
+  const checkProposalSimilarity = async (
+  proposal: ProposalFormData,
+  index: number
+): Promise<boolean> => {
+  if (!poolId) {
+    toast.error('No pool selected');
+    return false;
+  }
+
+  try {
+    setCheckingSimilarity(true);
+    setSimilarityProposalIndex(index);
+
+    const result = await projectService.checkSimilarity(poolId, {
+      title: proposal.title.trim(),
+      description: proposal.description.trim(),
+      domain: proposal.domain.trim(),
+    });
+
+    console.log('Similarity result:', result);
+
+    setSimilarityResult(result);
+
+    const action =
+      result?.action ||
+      result?.similarityStatus ||
+      'ALLOW';
+
+    const rawScore =
+      result?.highestSimilarity ??
+      result?.similarityScore ??
+      result?.score ??
+      result?.similarity ??
+      result?.maxSimilarity ??
+      0;
+
+    const numericScore =
+      typeof rawScore === 'number'
+        ? rawScore
+        : Number(rawScore);
+
+    const score =
+      Number.isFinite(numericScore)
+        ? numericScore > 1
+          ? numericScore
+          : numericScore * 100
+        : 0;
+
+    /*
+     * ALLOW
+     * No warning is required.
+     */
+    if (action === 'ALLOW') {
+      setSimilarityResult({
+        ...result,
+        action: 'ALLOW',
+        highestSimilarity: score,
+      });
+
+      return true;
+    }
+
+    /*
+     * WARNING / REVIEW_REQUIRED / BLOCK
+     * Show the similarity modal so the faculty
+     * can see exactly what was detected.
+     */
+    setSimilarityResult({
+      ...result,
+      action,
+      highestSimilarity: score,
+    });
+
+    setShowSimilarityModal(true);
+
+    /*
+     * BLOCK should not be allowed to continue
+     * automatically.
+     *
+     * WARNING and REVIEW_REQUIRED can be
+     * acknowledged by the faculty.
+     */
+    if (action === 'BLOCK') {
+      return false;
+    }
+
+    return false;
+
+  } catch (error: any) {
+    console.error('Similarity check error:', error);
+
+    const message =
+      error.response?.data?.message ||
+      error.message ||
+      'Unable to check project similarity';
+
+    toast.error(message);
+
+    return false;
+  } finally {
+    setCheckingSimilarity(false);
+  }
+};
+
+    const handleSubmit = async () => {
     if (!poolId) {
       toast.error('No pool selected');
       return;
     }
 
-    const totalAfterCreation = existingProjectsCount + proposals.length;
+    const totalAfterCreation =
+      existingProjectsCount + proposals.length;
+
     if (totalAfterCreation > 4) {
-      toast.error(`Cannot create ${proposals.length} project(s). You already have ${existingProjectsCount}/4 projects. Maximum limit reached.`);
+      toast.error(
+        `Cannot create ${proposals.length} project(s). You already have ${existingProjectsCount}/4 projects. Maximum limit reached.`
+      );
       return;
     }
 
-    if (!validateAllProposals()) return;
-    
+    if (!validateAllProposals()) {
+      return;
+    }
+
     setIsSubmitting(true);
-    let successCount = 0;
-    let failCount = 0;
-    
-    for (let i = 0; i < proposals.length; i++) {
-      const proposal = proposals[i];
-      const formData = {
-        title: proposal.title.trim(),
-        description: proposal.description.trim(),
-        domain: proposal.domain.trim(),
-        prerequisites: proposal.prerequisites?.trim() || '',
-        expectedOutcome: proposal.expectedOutcome?.trim() || '',
-        maxTeamSize: proposal.maxTeamSize
-      };
-      
-      try {
-        await projectService.submit(poolId, formData);
-        successCount++;
-        toast.success(`Project "${proposal.title}" created!`);
-      } catch (error: any) {
-        const errorMessage = error.response?.data?.message || error.message || 'Creation failed';
-        failCount++;
-        
-        setErrors(prev => ({
-          ...prev,
-          [i]: { submit: errorMessage }
-        }));
-        
-        toast.error(`Failed: ${errorMessage}`);
+
+    try {
+      /*
+       * First check every proposal for similarity.
+       *
+       * We check all proposals before creating anything so that
+       * we do not end up with a partially-created submission.
+       */
+      for (let i = 0; i < proposals.length; i++) {
+        if (similarityApprovedIndexes.includes(i)) {
+          continue;
+        }
+
+        const isSafe = await checkProposalSimilarity(
+          proposals[i],
+          i
+        );
+
+        if (!isSafe) {
+          setIsSubmitting(false);
+          return;
+        }
       }
+
+      /*
+       * All proposals passed similarity checking.
+       * Now create them.
+       */
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < proposals.length; i++) {
+        const proposal = proposals[i];
+
+        const formData: ProposalFormData = {
+          title: proposal.title.trim(),
+          description: proposal.description.trim(),
+          domain: proposal.domain.trim(),
+          prerequisites:
+            proposal.prerequisites?.trim() || '',
+          expectedOutcome:
+            proposal.expectedOutcome?.trim() || '',
+          maxTeamSize: proposal.maxTeamSize,
+        };
+
+        try {
+          await projectService.submit(
+            poolId,
+            formData
+          );
+
+          successCount++;
+
+          toast.success(
+            `Project "${proposal.title}" created!`
+          );
+        } catch (error: any) {
+          const errorMessage =
+            error.response?.data?.message ||
+            error.message ||
+            'Creation failed';
+
+          failCount++;
+
+          setErrors((prev) => ({
+            ...prev,
+            [i]: {
+              ...(prev[i] || {}),
+              submit: errorMessage,
+            },
+          }));
+
+          toast.error(
+            `Failed: ${errorMessage}`
+          );
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          `✨ Created ${successCount} project(s)! Total: ${
+            existingProjectsCount + successCount
+          }/4`
+        );
+
+        await refreshExistingProjects();
+
+        setProposals([
+          {
+            title: '',
+            description: '',
+            domain: '',
+            prerequisites: '',
+            expectedOutcome: '',
+            maxTeamSize: 3,
+          },
+        ]);
+
+        setActiveTab(0);
+        setSimilarityApprovedIndexes([]);
+        setSimilarityResult(null);
+        setSimilarityProposalIndex(null);
+      } else if (
+        failCount === proposals.length
+      ) {
+        toast.error(
+          'Failed to create projects. Please try again.'
+        );
+      }
+    } catch (error: any) {
+      console.error(
+        'Project submission error:',
+        error
+      );
+
+      toast.error(
+        error.response?.data?.message ||
+          'Failed to create projects'
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    if (successCount > 0) {
-      toast.success(`✨ Created ${successCount} project(s)! Total: ${existingProjectsCount + successCount}/4`);
-      await refreshExistingProjects();
-      setProposals([{
-        title: '',
-        description: '',
-        domain: '',
-        prerequisites: '',
-        expectedOutcome: '',
-        maxTeamSize: 3
-      }]);
-      setActiveTab(0);
-    } else if (failCount === proposals.length) {
-      toast.error('Failed to create projects. Please try again.');
-    }
-    
-    setIsSubmitting(false);
   };
+ 
+    const handleProceedWithSimilarProject = () => {
+  if (similarityProposalIndex === null) {
+    setShowSimilarityModal(false);
+    return;
+  }
+
+  const action =
+    similarityResult?.action ||
+    similarityResult?.similarityStatus;
+
+  if (action === 'BLOCK') {
+    toast.error(
+      'This proposal is too similar to an existing proposal. Please modify it before continuing.'
+    );
+    return;
+  }
+
+  const index = similarityProposalIndex;
+
+  setSimilarityApprovedIndexes((prev) =>
+    prev.includes(index)
+      ? prev
+      : [...prev, index]
+  );
+
+  setShowSimilarityModal(false);
+
+  setSimilarityResult(null);
+  setSimilarityProposalIndex(null);
+
+  toast(
+    'Similarity warning acknowledged. Click Create Project(s) again to continue.',
+    {
+      icon: '⚠️',
+    }
+  );
+};
 
   const getOverallProgress = () => {
     const totalCompleted = existingProjectsCount + proposals.filter(p => p.title && p.description && p.domain).length;
@@ -846,17 +1138,21 @@ const CreateProposal: React.FC = () => {
               >
                 Cancel
               </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting || proposals.length === 0}
+             <button
+                onClick={handleSubmit} disabled={ isSubmitting || checkingSimilarity || proposals.length === 0 }
                 className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#C3BEF0] to-[#CCA8E9] text-gray-800 rounded-lg font-medium hover:from-[#CADEFC] hover:to-[#C3BEF0] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
               >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
-                    Creating...
-                  </>
-                ) : (
+               {checkingSimilarity ? (
+  <>
+    <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+    Checking Similarity...
+  </>
+) : isSubmitting ? (
+  <>
+    <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+    Creating...
+  </>
+) : (
                   <>
                     <Sparkles className="w-4 h-4" />
                     Create {proposals.length} Project(s)
@@ -954,6 +1250,310 @@ const CreateProposal: React.FC = () => {
           </div>
         )}
 
+                {/* Similarity Warning Modal */}
+        {showSimilarityModal && (
+  <div
+    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    onClick={() => {
+      if (!checkingSimilarity) {
+        setShowSimilarityModal(false);
+      }
+    }}
+  >
+    <div
+      className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {(() => {
+        const action =
+          similarityResult?.action ||
+          similarityResult?.similarityStatus ||
+          'ALLOW';
+
+        const rawScore =
+          similarityResult?.highestSimilarity ??
+          similarityResult?.similarityScore ??
+          0;
+
+        const numericScore =
+          typeof rawScore === 'number'
+            ? rawScore
+            : Number(rawScore);
+
+        const score =
+          Number.isFinite(numericScore)
+            ? numericScore > 1
+              ? numericScore
+              : numericScore * 100
+            : 0;
+
+        const isBlock = action === 'BLOCK';
+        const isReview = action === 'REVIEW_REQUIRED';
+        const isWarning = action === 'WARNING';
+
+        const title = isBlock
+          ? 'Proposal Must Be Changed'
+          : isReview
+          ? 'Proposal Requires Review'
+          : 'Similarity Warning';
+
+        const description = isBlock
+          ? 'This proposal is too similar to an existing proposal and cannot be finalized.'
+          : isReview
+          ? 'This proposal has a high level of similarity with an existing proposal. Please review it carefully.'
+          : 'This proposal has some similarity with an existing proposal.';
+
+        return (
+          <>
+            {/* Header */}
+            <div
+              className={`p-6 border-b ${
+                isBlock
+                  ? 'border-red-100 bg-red-50/70'
+                  : isReview
+                  ? 'border-orange-100 bg-orange-50/70'
+                  : 'border-amber-100 bg-amber-50/70'
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                <div
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    isBlock
+                      ? 'bg-red-100'
+                      : isReview
+                      ? 'bg-orange-100'
+                      : 'bg-amber-100'
+                  }`}
+                >
+                  {isBlock ? (
+                    <ShieldAlert className="w-6 h-6 text-red-600" />
+                  ) : isReview ? (
+                    <AlertTriangle className="w-6 h-6 text-orange-600" />
+                  ) : (
+                    <AlertTriangle className="w-6 h-6 text-amber-600" />
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-gray-800">
+                    {title}
+                  </h3>
+
+                  <p className="text-sm text-gray-600 mt-1">
+                    {description}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSimilarityModal(false);
+                    setSimilarityResult(null);
+                    setSimilarityProposalIndex(null);
+                  }}
+                  className="p-1.5 hover:bg-white rounded-lg transition-colors"
+                >
+                  <XCircle className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+
+              {/* Proposal that needs attention */}
+              {similarityProposalIndex !== null && (
+                <div
+                  className={`mb-4 p-4 rounded-xl border ${
+                    isBlock
+                      ? 'bg-red-50 border-red-200'
+                      : isReview
+                      ? 'bg-orange-50 border-orange-200'
+                      : 'bg-amber-50 border-amber-200'
+                  }`}
+                >
+                  <p className="text-xs text-gray-500 mb-1">
+                    Proposal that needs attention
+                  </p>
+
+                  <p className="text-sm font-semibold text-gray-800">
+                    Project {existingProjectsCount + similarityProposalIndex + 1}
+                  </p>
+
+                  <p className="font-semibold text-gray-900 mt-1">
+                    {proposals[similarityProposalIndex]?.title}
+                  </p>
+
+                  <p className="text-xs text-gray-500 mt-1">
+                    {proposals[similarityProposalIndex]?.domain}
+                  </p>
+                </div>
+              )}
+
+              {/* Similarity Score */}
+              <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    Similarity Score
+                  </span>
+
+                  <span
+                    className={`text-lg font-bold ${
+                      isBlock
+                        ? 'text-red-600'
+                        : isReview
+                        ? 'text-orange-600'
+                        : 'text-amber-600'
+                    }`}
+                  >
+                    {Math.round(score)}%
+                  </span>
+                </div>
+
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      isBlock
+                        ? 'bg-red-500'
+                        : isReview
+                        ? 'bg-orange-500'
+                        : 'bg-amber-500'
+                    }`}
+                    style={{
+                      width: `${Math.min(score, 100)}%`,
+                    }}
+                  />
+                </div>
+
+                <p className="text-xs text-gray-500 mt-2">
+                  Status:{' '}
+                  <span className="font-semibold">
+                    {action}
+                  </span>
+                </p>
+              </div>
+
+              {/* Matching Existing Project */}
+              {Array.isArray(similarityResult?.similarProjects) &&
+                similarityResult.similarProjects.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Eye className="w-4 h-4 text-purple-600" />
+
+                      <p className="text-sm font-semibold text-gray-700">
+                        Most Similar Existing Proposal
+                      </p>
+                    </div>
+
+                    {(() => {
+                      const matchingProject =
+                        similarityResult.similarProjects[0];
+
+                      return (
+                        <div className="p-4 bg-purple-50 rounded-xl border border-purple-200">
+                          <p className="text-xs text-purple-600 mb-1">
+                            Existing proposal
+                          </p>
+
+                          <p className="text-sm font-semibold text-gray-800">
+                            {matchingProject.title}
+                          </p>
+
+                          <p className="text-xs text-gray-600 mt-2">
+                            Similarity:{' '}
+                            <span className="font-semibold">
+                              {Math.round(
+                                matchingProject.similarityScore
+                              )}
+                              %
+                            </span>
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+              {/* Instruction */}
+              <div
+                className={`p-4 rounded-xl border ${
+                  isBlock
+                    ? 'bg-red-50 border-red-200'
+                    : 'bg-amber-50 border-amber-200'
+                }`}
+              >
+                <div className="flex gap-3">
+                  {isBlock ? (
+                    <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  )}
+
+                  <div>
+                    <p
+                      className={`text-sm font-semibold ${
+                        isBlock
+                          ? 'text-red-800'
+                          : 'text-amber-800'
+                      }`}
+                    >
+                      {isBlock
+                        ? 'Action required'
+                        : 'Before continuing'}
+                    </p>
+
+                    <p
+                      className={`text-xs mt-1 leading-relaxed ${
+                        isBlock
+                          ? 'text-red-700'
+                          : 'text-amber-700'
+                      }`}
+                    >
+                      {isBlock
+                        ? 'Please edit this proposal to make it sufficiently different from the existing proposal.'
+                        : 'Review the similarity and make changes if necessary before final submission.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="p-6 pt-0 flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSimilarityModal(false);
+                  setSimilarityResult(null);
+
+                  if (similarityProposalIndex !== null) {
+                    setActiveTab(similarityProposalIndex);
+                  }
+
+                  setSimilarityProposalIndex(null);
+                }}
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Edit This Proposal
+              </button>
+
+              {!isBlock && (
+                <button
+                  type="button"
+                  onClick={handleProceedWithSimilarProject}
+                  disabled={checkingSimilarity}
+                  className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
+                >
+                  Continue Anyway
+                </button>
+              )}
+            </div>
+          </>
+        );
+      })()}
+    </div>
+  </div>
+)}
         {/* Finalize Confirmation Modal */}
         {showFinalizeConfirm && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowFinalizeConfirm(false)}>

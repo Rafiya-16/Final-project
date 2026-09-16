@@ -127,7 +127,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const dateFields: { key: keyof CreatePoolFormState; label: string }[] = [
     { key: 'submissionStart', label: 'Submission Start (Faculty)' }, { key: 'submissionEnd', label: 'Submission End (Faculty)' },
     { key: 'reviewStart', label: 'Review Start (Subadmin)' }, { key: 'reviewEnd', label: 'Review End (Subadmin)' },
-    { key: 'decisionDeadline', label: 'Decision Deadline' }, { key: 'selectionStart', label: 'Selection Start (Student)' },
+    { key: 'decisionDeadline', label: 'Decision Deadline (Admin)' }, { key: 'selectionStart', label: 'Selection Start (Student)' },
     { key: 'selectionEnd', label: 'Selection End (Student)' }, { key: 'teamFreezeDate', label: 'Team Freeze (student)' },
   ];
 
