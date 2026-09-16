@@ -33,7 +33,7 @@ model User {
   poolFaculty              PoolFaculty[]
   poolStudents             PoolStudent[]
   poolSubadmins            PoolSubadmin[]
-  createdPools             Pool[]          @relation("PoolCreator")
+  createdPools              Pool[]          @relation("PoolCreator")
   decidedProjects          Project[]       @relation("ProjectDecider")
   facultyProjects          Project[]       @relation("FacultyProjects")
   reviewedProjects         Project[]       @relation("ProjectReviewer")
@@ -127,7 +127,7 @@ model PoolStudent {
   studentId  String   @map("student_id")
   batch      String?
   assignedAt DateTime @default(now()) @map("assigned_at")
-  pool       Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  pool       Pool    @relation(fields: [poolId], references: [id], onDelete: Cascade)
   student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([poolId, studentId])
@@ -135,34 +135,38 @@ model PoolStudent {
 }
 
 model Project {
-  id              String        @id @default(uuid())
-  poolId          String        @map("pool_id")
-  facultyId       String        @map("faculty_id")
-  title           String
-  description     String
-  domain          String?
-  prerequisites   String?
-  maxTeamSize     Int           @default(3) @map("max_team_size")
-  expectedOutcome String?       @map("expected_outcome")
-  status          ProjectStatus @default(DRAFT)
-  similarityStatus String?
-  similarityScore  Float?
-  subadminNote    String?       @map("subadmin_note")
-  adminNote       String?       @map("admin_note")
-  reviewedById    String?       @map("reviewed_by_id")
-  decidedById     String?       @map("decided_by_id")
-  reviewedAt      DateTime?     @map("reviewed_at")
-  decidedAt       DateTime?     @map("decided_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-  projectCode     String?       @unique
-  decidedBy       User?         @relation("ProjectDecider", fields: [decidedById], references: [id])
-  faculty         User          @relation("FacultyProjects", fields: [facultyId], references: [id])
-  pool            Pool          @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  reviewedBy      User?         @relation("ProjectReviewer", fields: [reviewedById], references: [id])
-  team            Team?
+  id                  String        @id @default(uuid())
+  poolId              String        @map("pool_id")
+  facultyId           String        @map("faculty_id")
+  title               String
+  description         String
+  domain              String?
+  prerequisites       String?
+  maxTeamSize         Int           @default(3) @map("max_team_size")
+  expectedOutcome     String?       @map("expected_outcome")
+  status              ProjectStatus @default(DRAFT)
+  similarityStatus    String?
+  similarityScore     Float?
+  subadminNote        String?       @map("subadmin_note")
+  adminNote           String?       @map("admin_note")
+  reviewedById        String?       @map("reviewed_by_id")
+  decidedById         String?       @map("decided_by_id")
+  reviewedAt          DateTime?     @map("reviewed_at")
+  decidedAt           DateTime?     @map("decided_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  projectCode         String?       @unique
+  projectCodeLocked   Boolean       @default(false) @map("project_code_locked")
+  projectCodeLockedAt DateTime?     @map("project_code_locked_at")
+  decidedBy           User?         @relation("ProjectDecider", fields: [decidedById], references: [id])
+  faculty             User          @relation("FacultyProjects", fields: [facultyId], references: [id])
+  pool                Pool          @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  reviewedBy          User?         @relation("ProjectReviewer", fields: [reviewedById], references: [id])
+  team                Team?
 
   @@unique([poolId, projectCode])
+  @@index([poolId, facultyId])
+  @@index([poolId, projectCodeLocked])
   @@map("projects")
 }
 
@@ -180,7 +184,7 @@ model Team {
   invites     TeamInvite[]
   members     TeamMember[]
   leader      User         @relation("TeamLeader", fields: [leaderId], references: [id])
-  pool        Pool         @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  pool        Pool          @relation(fields: [poolId], references: [id], onDelete: Cascade)
   project     Project?     @relation(fields: [projectId], references: [id])
 
   @@map("teams")
@@ -192,7 +196,7 @@ model TeamMember {
   studentId String           @map("student_id")
   role      TeamMemberRole   @default(MEMBER)
   status    TeamMemberStatus @default(ACTIVE)
-  joinedAt  DateTime         @default(now()) @map("joined_at")
+  joinedAt  DateTime         @default(now())
   leftAt    DateTime?        @map("left_at")
   student   User             @relation(fields: [studentId], references: [id])
   team      Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
