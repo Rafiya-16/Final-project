@@ -231,6 +231,11 @@ export class TeamsService {
       team.pool.defaultMaxTeamSize ||
       TEAM_DEFAULTS.MAX_SIZE;
 
+    /*
+     * Pending invitations occupy team slots.
+     * This prevents over-inviting while invitations
+     * are still awaiting a response.
+     */
     const pendingInviteCount =
       await prisma.teamInvite.count({
         where: {
@@ -263,66 +268,70 @@ export class TeamsService {
       );
     }
 
-    // Check invitee in pool
-const inPool = await prisma.poolStudent.findUnique({
-  where: {
-    poolId_studentId: {
-      poolId: team.poolId,
-      studentId: inviteeId
+    // Check invitee is in the pool.
+    const inPool = await prisma.poolStudent.findUnique({
+      where: {
+        poolId_studentId: {
+          poolId: team.poolId,
+          studentId: inviteeId,
+        },
+      },
+    });
+
+    if (!inPool) {
+      throw new BadRequestError(
+        'Student is not in this pool'
+      );
     }
-  }
-});
 
-if (!inPool) {
-  throw new BadRequestError('Student is not in this pool');
-}
+    // Check inviter and invitee sections.
+    const [inviter, invitee] = await Promise.all([
+      prisma.user.findUnique({
+        where: {
+          id: inviterId,
+        },
+        select: {
+          id: true,
+          section: true,
+        },
+      }),
+      prisma.user.findUnique({
+        where: {
+          id: inviteeId,
+        },
+        select: {
+          id: true,
+          section: true,
+        },
+      }),
+    ]);
 
-// Check inviter and invitee sections
-const [inviter, invitee] = await Promise.all([
-  prisma.user.findUnique({
-    where: { id: inviterId },
-    select: {
-      id: true,
-      section: true,
-    },
-  }),
-  prisma.user.findUnique({
-    where: { id: inviteeId },
-    select: {
-      id: true,
-      section: true,
-    },
-  }),
-]);
+    if (!inviter) {
+      throw new NotFoundError('Inviter not found');
+    }
 
-if (!inviter) {
-  throw new NotFoundError('Inviter not found');
-}
+    if (!invitee) {
+      throw new NotFoundError('Invitee not found');
+    }
 
-if (!invitee) {
-  throw new NotFoundError('Invitee not found');
-}
+    if (!inviter.section) {
+      throw new BadRequestError(
+        'Your section is not assigned. You cannot invite students until your section is assigned.'
+      );
+    }
 
-// Inviter must have a section assigned
-if (!inviter.section) {
-  throw new BadRequestError(
-    'Your section is not assigned. You cannot invite students until your section is assigned.'
-  );
-}
+    if (!invitee.section) {
+      throw new BadRequestError(
+        'The selected student does not have a section assigned.'
+      );
+    }
 
-// Invitee must have a section assigned
-if (!invitee.section) {
-  throw new BadRequestError(
-    'The selected student does not have a section assigned.'
-  );
-}
-
-// Students can only invite students from the same section
-if (inviter.section !== invitee.section) {
-  throw new ForbiddenError(
-    `You can only invite students from your section (${inviter.section}).`
-  );
-}
+    // Students can only invite students from the same section.
+    if (inviter.section !== invitee.section) {
+      throw new ForbiddenError(
+        `You can only invite students from your section (${inviter.section}).`
+      );
+    }
 
     const pending =
       await prisma.teamInvite.findFirst({
@@ -681,6 +690,11 @@ if (inviter.section !== invitee.section) {
 
     return prisma.$transaction(
       async (tx) => {
+        /*
+         * Re-check project ownership inside the
+         * transaction to prevent two teams selecting
+         * the same project concurrently.
+         */
         const doubleCheck =
           await tx.project.findUnique({
             where: {
@@ -691,7 +705,13 @@ if (inviter.section !== invitee.section) {
             },
           });
 
-        if (doubleCheck?.team) {
+        if (!doubleCheck) {
+          throw new NotFoundError(
+            'Project not found'
+          );
+        }
+
+        if (doubleCheck.team) {
           throw new ConflictError(
             'Project was just taken'
           );
@@ -714,9 +734,17 @@ if (inviter.section !== invitee.section) {
               select: {
                 id: true,
                 title: true,
+                description: true,
                 domain: true,
                 maxTeamSize: true,
-                projectCode: true
+                projectCode: true,
+                faculty: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
               },
             },
           },
@@ -997,6 +1025,11 @@ if (inviter.section !== invitee.section) {
       return null;
     }
 
+    /*
+     * Keep this pool-wide member information because
+     * the frontend uses it for student/team selection
+     * and availability information.
+     */
     const allMembersInPool =
       await prisma.teamMember.findMany({
         where: {
@@ -1026,6 +1059,13 @@ if (inviter.section !== invitee.section) {
               prerequisites: true,
               projectCode: true,
               maxTeamSize: true,
+              faculty: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                },
+              },
             },
           },
           pool: {

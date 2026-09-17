@@ -26,8 +26,8 @@ interface Student {
   firstName: string;
   lastName: string;
   email: string;
-  enrollmentNo: string;
-  department: string;
+  enrollmentNo?: string;
+  department?: string;
   role?: string;
 }
 
@@ -93,8 +93,8 @@ const TeamManagement: React.FC = () => {
                     firstName: member.student.firstName,
                     lastName: member.student.lastName,
                     email: member.student.email || '',
-                    enrollmentNo: member.student.enrollmentNo,
-                    department: member.student.department || 'CSE',
+                    enrollmentNo: member.student.enrollmentNo || '' ,
+                    department: 'CSE',
                     role: member.role
                   });
                 }
@@ -181,14 +181,14 @@ const TeamManagement: React.FC = () => {
   const getProjectStudents = (project: ProjectWithDetails): (Student & { role?: string })[] => {
     if (!project.team || !project.team.members) return [];
     return project.team.members.map(m => ({
-      id: m.student.id,
-      firstName: m.student.firstName,
-      lastName: m.student.lastName,
-      email: m.student.email || '',
-      enrollmentNo: m.student.enrollmentNo,
-      department: m.student.department || 'CSE',
-      role: m.role
-    }));
+  id: m.student.id,
+  firstName: m.student.firstName,
+  lastName: m.student.lastName,
+  email: m.student.email,
+  enrollmentNo: m.student.enrollmentNo || '',
+  department: 'CSE',
+  role: m.role,
+}));
   };
 
   const handleDeleteGroup = (groupId: string) => {
@@ -767,7 +767,7 @@ const CreateGroupModal: React.FC<{
   
   const filteredStudents = allStudents.filter(student =>
     `${student.firstName} ${student.lastName}`.toLowerCase().includes(searchStudent.toLowerCase()) ||
-    student.enrollmentNo.toLowerCase().includes(searchStudent.toLowerCase())
+    (student.enrollmentNo || '').toLowerCase().includes(searchStudent.toLowerCase())
   );
 
   return (

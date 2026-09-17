@@ -46,18 +46,18 @@ const MyTeamPage: React.FC = () => {
 
   // const createTeam = async () => {
   //   if (!teamName.trim()) return;
-  //   try { 
-  //     await teamService.create(poolId, teamName); 
-  //     toast.success('🎉 Team created successfully!'); 
-  //     setShowCreate(false); 
-  //     setTeamName(''); 
-  //     load(poolId); 
+  //   try {
+  //     await teamService.create(poolId, teamName);
+  //     toast.success('🎉 Team created successfully!');
+  //     setShowCreate(false);
+  //     setTeamName('');
+  //     load(poolId);
   //   }
   //   catch (e: unknown) { toast.error(getErrorMessage(e)); }
   // };
 
   const createTeam = async () => {
-  // 🚫 Block if pending invites exist
+    // 🚫 Block if pending invites exist
     if (hasPendingInvites) {
       toast.error('❌ Please respond to pending invites before creating a team');
       return;
@@ -65,80 +65,87 @@ const MyTeamPage: React.FC = () => {
 
     if (!teamName.trim()) return;
 
-    try { 
-      await teamService.create(poolId, teamName); 
-      toast.success('🎉 Team created successfully!'); 
-      setShowCreate(false); 
-      setTeamName(''); 
-      load(poolId); 
+    try {
+      await teamService.create(poolId, teamName);
+      toast.success('🎉 Team created successfully!');
+      setShowCreate(false);
+      setTeamName('');
+      load(poolId);
     }
-    catch (e: unknown) { 
-      toast.error(getErrorMessage(e)); 
+    catch (e: unknown) {
+      toast.error(getErrorMessage(e));
     }
   };
 
- const loadStudents = async () => {
-  try {
-    if (!user?.id) {
-      toast.error('Unable to identify your account');
-      return;
-    }
+  const loadStudents = async () => {
+    try {
+      if (!user?.id) {
+        toast.error('Unable to identify your account');
+        return;
+      }
 
-    // Get the latest logged-in user data from the backend.
-    // This ensures we have the student's current section.
-    const currentUser = await userService.getById(user.id);
+      // Get the latest logged-in user data from the backend.
+      // This ensures we use the student's current section.
+      const currentUser = await userService.getById(user.id);
 
-    if (!currentUser) {
-      toast.error('Unable to load your student profile');
-      return;
-    }
+      if (!currentUser) {
+        toast.error('Unable to load your student profile');
+        return;
+      }
 
-    if (!currentUser.section) {
-      toast.error(
-        'Your section is not assigned. Please contact the administrator.'
+      if (!currentUser.section) {
+        toast.error(
+          'Your section is not assigned. Please contact the administrator.'
+        );
+        return;
+      }
+
+      const res = await userService.list({
+        role: 'STUDENT',
+        isActive: 'true',
+        limit: '200',
+      });
+
+      const allStudents = res.data || [];
+
+      /*
+       * Only students from the same section are eligible
+       * for team invitations.
+       *
+       * The backend performs the same validation, but filtering
+       * here prevents students from other sections appearing
+       * as selectable invite candidates.
+       */
+      const sameSectionStudents = allStudents.filter(
+        (student: User) =>
+          student.id !== currentUser.id &&
+          student.section &&
+          student.section === currentUser.section
       );
-      return;
+
+      setStudents(sameSectionStudents);
+      setShowInvite(true);
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e));
     }
-
-    const res = await userService.list({
-      role: 'STUDENT',
-      isActive: 'true',
-      limit: '200',
-    });
-
-    const allStudents = res.data || [];
-
-    // Only students from the same section are eligible for invitation.
-    const sameSectionStudents = allStudents.filter(
-      (student: User) =>
-        student.id !== currentUser.id &&
-        student.section &&
-        student.section === currentUser.section
-    );
-
-    setStudents(sameSectionStudents);
-    setShowInvite(true);
-  } catch (e: unknown) {
-    toast.error(getErrorMessage(e));
-  }
-};
+  };
 
   const sendInvite = async (studentId: string) => {
     if (!team) return;
-    try { 
-      await teamService.invite(poolId, team.id, studentId); 
-      toast.success('✨ Invite sent successfully!'); 
-      load(poolId); 
-      setShowInvite(false); 
+    try {
+      await teamService.invite(poolId, team.id, studentId);
+      toast.success('✨ Invite sent successfully!');
+      load(poolId);
+      setShowInvite(false);
     }
     catch (e: unknown) { toast.error(getErrorMessage(e)); }
   };
 
   const respondInvite = async (inviteId: string, accept: boolean) => {
-    try { 
-      await teamService.respond(poolId, inviteId, accept); 
-      toast.success(accept ? '🎊 Joined team successfully!' : 'Invite declined'); 
-      load(poolId); 
+    try {
+      await teamService.respond(poolId, inviteId, accept);
+      toast.success(accept ? '🎊 Joined team successfully!' : 'Invite declined');
+      load(poolId);
     }
     catch (e: unknown) { toast.error(getErrorMessage(e)); }
   };
@@ -149,7 +156,7 @@ const MyTeamPage: React.FC = () => {
       if (confirm.action === 'leave') await teamService.leave(poolId, team.id);
       else if (confirm.action === 'remove') await teamService.removeMember(poolId, team.id, confirm.id);
       else if (confirm.action === 'dissolve') await teamService.dissolve(poolId, team.id);
-      toast.success('✅ Action completed successfully'); 
+      toast.success('✅ Action completed successfully');
       load(poolId);
     } catch (e: unknown) { toast.error(getErrorMessage(e)); }
     setConfirm(null);
@@ -176,7 +183,7 @@ const MyTeamPage: React.FC = () => {
   return (
     <div className="min-h-screen" style={{ background: 'radial-gradient(circle at 10% 20%, #e8f5e9 0%, #c8e6c9 50%, #a5d6a7 100%)' }}>
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
-        
+
         {/* Hero Section */}
         <div className="relative group">
           <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-green-500 rounded-2xl sm:rounded-3xl blur-2xl opacity-25 group-hover:opacity-40 transition duration-700" />
@@ -196,36 +203,35 @@ const MyTeamPage: React.FC = () => {
                 </h1>
                 <p className="mt-3 sm:mt-4 text-gray-600 text-sm sm:text-base lg:text-lg max-w-xl">Manage your team members, send invitations, and collaborate on your final year project.</p>
               </div>
-              
+
               {/* {!team && !showCreate && (
                 <button onClick={() => setShowCreate(true)} className="group relative inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden shadow-2xl" style={{ background: gradientBrand, color: 'white' }}>
                   <span className="relative z-10 flex items-center gap-2"><Plus className="w-5 h-5" />Create New Team<Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" /></span>
                   <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                 </button>
               )} */}
-             {!team && !showCreate && (
-              <button
-                onClick={() => {
-                  if (hasPendingInvites) {
-                    toast.error('⚠️ First respond to your team invite before creating a team');
-                    return;
-                  }
-                  setShowCreate(true);
-                }}
-                className={`group relative inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden shadow-2xl ${
-                  hasPendingInvites ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-                style={{ background: gradientBrand, color: 'white' }}
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  <Plus className="w-5 h-5" />
-                  Create New Team
-                  <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                </span>
+              {!team && !showCreate && (
+                <button
+                  onClick={() => {
+                    if (hasPendingInvites) {
+                      toast.error('⚠️ First respond to your team invite before creating a team');
+                      return;
+                    }
+                    setShowCreate(true);
+                  }}
+                  className={`group relative inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden shadow-2xl ${hasPendingInvites ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  style={{ background: gradientBrand, color: 'white' }}
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    <Plus className="w-5 h-5" />
+                    Create New Team
+                    <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                  </span>
 
-                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-              </button>
-            )}
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -274,7 +280,7 @@ const MyTeamPage: React.FC = () => {
               </div>
               <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">No Team Yet</h3>
               <p className="text-gray-500 mb-6 max-w-md mx-auto text-sm sm:text-base">You're not part of any team. Create a new team or accept an invite from someone.</p>
-              
+
               {/* {showCreate ? (
                 <div className="max-w-sm mx-auto space-y-4">
                   <input value={teamName} onChange={e => setTeamName(e.target.value)} placeholder="Enter your team name" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
@@ -304,9 +310,8 @@ const MyTeamPage: React.FC = () => {
                         }
                         createTeam();
                       }}
-                      className={`flex-1 py-3 rounded-xl font-semibold transition-all hover:scale-105 shadow-lg ${
-                        hasPendingInvites ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      className={`flex-1 py-3 rounded-xl font-semibold transition-all hover:scale-105 shadow-lg ${hasPendingInvites ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                       style={{ background: gradientBrand, color: 'white' }}
                     >
                       Create Team
@@ -335,9 +340,8 @@ const MyTeamPage: React.FC = () => {
                     }
                     setShowCreate(true);
                   }}
-                  className={`inline-flex items-center gap-2 px-8 py-3 rounded-xl font-semibold transition-all hover:scale-105 shadow-lg ${
-                    hasPendingInvites ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  className={`inline-flex items-center gap-2 px-8 py-3 rounded-xl font-semibold transition-all hover:scale-105 shadow-lg ${hasPendingInvites ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   style={{ background: gradientBrand, color: 'white' }}
                 >
                   <Plus className="w-5 h-5" />
@@ -357,7 +361,7 @@ const MyTeamPage: React.FC = () => {
               <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-green-500 rounded-2xl sm:rounded-3xl blur-xl opacity-0 group-hover:opacity-30 transition duration-700" />
               <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden transition-all duration-500 group-hover:shadow-2xl" style={{ background: gradientCard }}>
                 <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-                
+
                 <div className="p-5 sm:p-6 lg:p-8">
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div>
@@ -370,7 +374,7 @@ const MyTeamPage: React.FC = () => {
                         {team.isFrozen && <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border border-red-200"><Shield className="w-3 h-3" />FROZEN</span>}
                       </div>
                     </div>
-                    
+
                     {/* ACTION BUTTONS - ALL PRESENT AND WORKING */}
                     <div className="flex flex-wrap gap-3">
                       {isLeader && !team.isFrozen && (
@@ -413,6 +417,12 @@ const MyTeamPage: React.FC = () => {
                           <p className="font-bold text-gray-900 mt-1 text-sm sm:text-base">{team.project.title}</p>
                           <p className="mt-1 text-sm font-bold text-gray-900">{team.project.projectCode || 'Project code not assigned'}</p>
                           <p className="text-[10px] sm:text-xs text-emerald-600 mt-0.5">{team.project.domain || 'No domain specified'}</p>
+                          <p className="text-sm sm:text-base text-gray-700 mt-2">
+                            <span className="font-semibold text-gray-900">Supervisor:</span>{' '}
+                            {team.project.faculty
+                              ? `${team.project.faculty.firstName} ${team.project.faculty.lastName || ''}`.trim()
+                              : 'Not assigned'}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -430,7 +440,7 @@ const MyTeamPage: React.FC = () => {
                 </div>
                 <div className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs sm:text-sm font-bold">{activeMemberCount} / {maxTeamSize} Members</div>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {team.members?.filter((m: TeamMember) => m.status === 'ACTIVE').map((m: TeamMember) => (
                   <div key={m.id} className="group relative transition-all duration-300 hover:-translate-y-1">
@@ -457,7 +467,7 @@ const MyTeamPage: React.FC = () => {
                           <p className="text-[10px] sm:text-xs text-gray-500 font-mono mt-0.5 truncate">{m.student.enrollmentNo}</p>
                           <p className="text-[9px] sm:text-[10px] text-gray-400 truncate hidden sm:block">{m.student.email}</p>
                         </div>
-                        
+
                         {isLeader && m.studentId !== user?.id && !team.isFrozen && (
                           <button onClick={() => setConfirm({ action: 'remove', id: m.studentId, msg: `Remove ${m.student.firstName} from the team?` })} className="p-2 rounded-lg hover:bg-red-50 transition-all duration-300 group/remove">
                             <Trash2 className="w-4 h-4 text-gray-400 group-hover/remove:text-red-500 transition-colors" />
@@ -476,7 +486,7 @@ const MyTeamPage: React.FC = () => {
         {showInvite && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowInvite(false)} />
-            
+
             <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
               <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
               <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-100 px-5 sm:px-6 py-4 flex items-center justify-between">
@@ -486,14 +496,14 @@ const MyTeamPage: React.FC = () => {
                 </div>
                 <button onClick={() => setShowInvite(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X className="w-5 h-5" /></button>
               </div>
-              
+
               <div className="p-5 sm:p-6 space-y-4">
                 <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-3 border border-emerald-100">
                   <p className="text-xs text-emerald-700 flex items-center gap-1"><Sparkles className="w-3 h-3" />Invite students to join your team. They will receive a notification.</p>
                 </div>
-                
+
                 <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="🔍 Search by name or enrollment number" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-                
+
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {students.filter(s => (!inviteEmail || s.firstName.toLowerCase().includes(inviteEmail.toLowerCase()) || s.enrollmentNo?.includes(inviteEmail)) && s.id !== user?.id).map(s => {
                     let statusText = 'Invite', statusClass = 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:scale-105', disabled = false;

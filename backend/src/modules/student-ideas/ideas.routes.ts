@@ -11,5 +11,10 @@ router.get('/:poolId/ideas/mine', authorize('STUDENT'), (q, s, n) => ideasContro
 router.get('/:poolId/ideas', authorize('ADMIN', 'SUBADMIN'), (q, s, n) => ideasController.listByPool(q, s, n));
 router.post('/:poolId/ideas/:ideaId/approve', authorize('ADMIN'), (q, s, n) => ideasController.approve(q, s, n));
 router.post('/:poolId/ideas/:ideaId/reject', authorize('ADMIN'), (q, s, n) => ideasController.reject(q, s, n));
+router.post(
+  '/:poolId/ideas/:ideaId/supervisor',
+  authorize('ADMIN'),
+  (q, s, n) => ideasController.assignSupervisor(q, s, n)
+);
 
 export default router;
