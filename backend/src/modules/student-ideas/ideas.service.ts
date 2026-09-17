@@ -2,7 +2,6 @@ import prisma from '../../config/database';
 import {
   BadRequestError,
   NotFoundError,
-  ForbiddenError,
 } from '../../shared/errors/AppError';
 import { logger } from '../../shared/utils/logger';
 
@@ -154,6 +153,86 @@ export class IdeasService {
     });
   }
 
+  /**
+   * Assign the actual supervisor to a student idea.
+   *
+   * preferredSupervisorId = student's preference
+   * supervisorId = supervisor actually assigned by admin/subadmin
+   */
+  async assignSupervisor(
+    ideaId: string,
+    supervisorId: string
+  ) {
+    const idea = await prisma.studentIdea.findUnique({
+      where: { id: ideaId },
+    });
+
+    if (!idea) {
+      throw new NotFoundError('Idea not found');
+    }
+
+    const supervisor = await prisma.user.findUnique({
+      where: { id: supervisorId },
+    });
+
+    if (!supervisor) {
+      throw new NotFoundError('Supervisor not found');
+    }
+
+    if (supervisor.role !== 'FACULTY') {
+      throw new BadRequestError(
+        'Selected user is not a faculty member'
+      );
+    }
+
+    /*
+     * The assigned supervisor should belong to the
+     * same pool as the student idea.
+     */
+    const poolFaculty =
+      await prisma.poolFaculty.findFirst({
+        where: {
+          poolId: idea.poolId,
+          facultyId: supervisorId,
+        },
+      });
+
+    if (!poolFaculty) {
+      throw new BadRequestError(
+        'Selected supervisor is not assigned to this pool'
+      );
+    }
+
+    return prisma.studentIdea.update({
+      where: {
+        id: ideaId,
+      },
+      data: {
+        supervisorId,
+      },
+      include: {
+        supervisor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            facultyId: true,
+          },
+        },
+        preferredSupervisor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            facultyId: true,
+          },
+        },
+      },
+    });
+  }
+
   async approveIdea(
     ideaId: string,
     adminFeedback?: string
@@ -253,7 +332,7 @@ export class IdeasService {
 
       await tx.team.update({
         where: {
-          id: membership!.teamId,
+          id: membership.teamId,
         },
         data: {
           projectId: project.id,
@@ -267,7 +346,7 @@ export class IdeasService {
         data: {
           status: 'APPROVED',
           adminFeedback,
-          assignedTeamId: membership!.teamId,
+          assignedTeamId: membership.teamId,
         },
       });
     });
@@ -350,6 +429,18 @@ export class IdeasService {
             department: true,
           },
         },
+
+        supervisor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            facultyId: true,
+            designation: true,
+            department: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -368,6 +459,18 @@ export class IdeasService {
       },
       include: {
         preferredSupervisor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            facultyId: true,
+            designation: true,
+            department: true,
+          },
+        },
+
+        supervisor: {
           select: {
             id: true,
             firstName: true,

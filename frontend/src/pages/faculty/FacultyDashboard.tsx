@@ -197,7 +197,14 @@ const FacultyDashboard: React.FC = () => {
           todos: [
             { text: `Create ${remainingSlots} more proposal(s) to reach 4`, completed: projects.length === 4, action: projects.length < 4 ? 'Create Project' : null, actionHandler: handleCreateProposal },
             { text: `Review and finalize ${draftCount} draft(s)`, completed: draftCount === 0 },
-            { text: `Submit before ${new Date(fullPool?.submissionEnd).toLocaleDateString()}`, completed: submittedCount === 4 },
+            {
+  text: `Submit before ${
+    fullPool?.submissionEnd
+      ? new Date(fullPool.submissionEnd).toLocaleDateString()
+      : '—'
+  }`,
+  completed: submittedCount === 4,
+},
           ]
         };
       case 'review':
@@ -236,7 +243,14 @@ const FacultyDashboard: React.FC = () => {
           icon: <CalendarIcon className="w-6 h-6" />,
           gradient: 'from-[#CADEFC] to-[#DEFCF9]',
           todos: [
-            { text: `Phase starts on ${new Date(fullPool?.submissionStart).toLocaleDateString()}`, completed: false },
+            {
+  text: `Phase starts on ${
+    fullPool?.submissionStart
+      ? new Date(fullPool.submissionStart).toLocaleDateString()
+      : '—'
+  }`,
+  completed: false,
+},
             { text: 'Prepare proposals', completed: false },
           ]
         };
