@@ -26,8 +26,8 @@ interface Student {
   firstName: string;
   lastName: string;
   email: string;
-  enrollmentNo: string;
-  department: string;
+  enrollmentNo?: string;
+  department?: string;
   role?: string;
 }
 
@@ -93,8 +93,8 @@ const TeamManagement: React.FC = () => {
                     firstName: member.student.firstName,
                     lastName: member.student.lastName,
                     email: member.student.email || '',
-                    enrollmentNo: member.student.enrollmentNo,
-                    department: member.student.department || 'CSE',
+                    enrollmentNo: member.student.enrollmentNo || '' ,
+                    department: 'CSE',
                     role: member.role
                   });
                 }
@@ -181,14 +181,14 @@ const TeamManagement: React.FC = () => {
   const getProjectStudents = (project: ProjectWithDetails): (Student & { role?: string })[] => {
     if (!project.team || !project.team.members) return [];
     return project.team.members.map(m => ({
-      id: m.student.id,
-      firstName: m.student.firstName,
-      lastName: m.student.lastName,
-      email: m.student.email || '',
-      enrollmentNo: m.student.enrollmentNo,
-      department: m.student.department || 'CSE',
-      role: m.role
-    }));
+  id: m.student.id,
+  firstName: m.student.firstName,
+  lastName: m.student.lastName,
+  email: m.student.email,
+  enrollmentNo: m.student.enrollmentNo || '',
+  department: 'CSE',
+  role: m.role,
+}));
   };
 
   const handleDeleteGroup = (groupId: string) => {
@@ -493,7 +493,7 @@ const ProjectCard: React.FC<{
                 {project.title.charAt(0)}
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800">{project.title}</h3>
+                <h3 className="font-semibold text-gray-800">{project.title} • ({project.projectCode})</h3>
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <span>{project.domain || 'No domain'}</span>
                   <span>•</span>
@@ -542,7 +542,7 @@ const ProjectCard: React.FC<{
                   {project.title.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800 text-lg">{project.title}</h3>
+                  <h3 className="font-semibold text-gray-800 text-lg">{project.title} • ({project.projectCode})</h3>
                   <p className="text-xs text-gray-500">{project.pool?.academicYear} • {project.pool?.semester}</p>
                 </div>
               </div>
@@ -767,7 +767,7 @@ const CreateGroupModal: React.FC<{
   
   const filteredStudents = allStudents.filter(student =>
     `${student.firstName} ${student.lastName}`.toLowerCase().includes(searchStudent.toLowerCase()) ||
-    student.enrollmentNo.toLowerCase().includes(searchStudent.toLowerCase())
+    (student.enrollmentNo || '').toLowerCase().includes(searchStudent.toLowerCase())
   );
 
   return (
