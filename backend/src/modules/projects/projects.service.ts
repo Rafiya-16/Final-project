@@ -9,6 +9,7 @@ import { logger } from '../../shared/utils/logger';
 import { auditService } from '../audit/audit.service';
 import { notificationsService } from '../notifications/notifications.service';
 import { similarityService } from './similarity/similarity.service';
+import { projectCodeService } from './project-code.service';
 
 export class ProjectsService {
   /**
@@ -22,67 +23,73 @@ export class ProjectsService {
    * compare against itself.
    */
   async checkProjectSimilarity(
-  poolId: string,
-  data: {
-    title: string;
-    description: string;
-    domain?: string | null;
-  },
-  excludeProjectId?: string
-) {
-  if (!data.title?.trim()) {
-    throw new BadRequestError(
-      'Project title is required'
-    );
-  }
+    poolId: string,
+    data: {
+      title: string;
+      description: string;
+      domain?: string | null;
+    },
+    excludeProjectId?: string
+  ) {
+    if (!data.title?.trim()) {
+      throw new BadRequestError(
+        'Project title is required'
+      );
+    }
 
-  if (!data.description?.trim()) {
-    throw new BadRequestError(
-      'Project description is required'
-    );
-  }
+    if (!data.description?.trim()) {
+      throw new BadRequestError(
+        'Project description is required'
+      );
+    }
 
-  const existingProjects =
-    await prisma.project.findMany({
-      where: {
-        poolId,
+    const existingProjects =
+      await prisma.project.findMany({
+        where: {
+          poolId,
 
-        // Rejected projects should not affect
-        // future similarity checks.
-        status: {
-          not: 'REJECTED',
+          // Rejected projects should not affect
+          // future similarity checks.
+          status: {
+            not: 'REJECTED',
+          },
+
+          ...(excludeProjectId
+            ? {
+                id: {
+                  not: excludeProjectId,
+                },
+              }
+            : {}),
         },
 
-        ...(excludeProjectId
-          ? {
-              id: {
-                not: excludeProjectId,
-              },
-            }
-          : {}),
-      },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          domain: true,
+        },
+      });
 
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        domain: true,
+    return similarityService.checkSimilarity(
+      {
+        id: excludeProjectId,
+        title: data.title.trim(),
+        description: data.description.trim(),
+        domain: data.domain?.trim() || null,
       },
-    });
-
-  return similarityService.checkSimilarity(
-    {
-      id: excludeProjectId,
-      title: data.title.trim(),
-      description: data.description.trim(),
-      domain: data.domain?.trim() || null,
-    },
-    existingProjects
-  );
-}
+      existingProjects
+    );
+  }
 
   /**
    * Faculty creates a project proposal.
+   *
+   * IMPORTANT:
+   * Project codes are NOT assigned here.
+   *
+   * New proposals remain DRAFT until the faculty
+   * finalizes their submission.
    */
   async submitProposal(
     poolId: string,
@@ -90,14 +97,15 @@ export class ProjectsService {
     data: any
   ) {
     // Verify faculty is assigned to this pool.
-    const assignment = await prisma.poolFaculty.findUnique({
-      where: {
-        poolId_facultyId: {
-          poolId,
-          facultyId,
+    const assignment =
+      await prisma.poolFaculty.findUnique({
+        where: {
+          poolId_facultyId: {
+            poolId,
+            facultyId,
+          },
         },
-      },
-    });
+      });
 
     if (!assignment) {
       throw new ForbiddenError(
@@ -113,14 +121,17 @@ export class ProjectsService {
     }
 
     // Verify pool.
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
-    });
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found'
+      );
     }
 
     if (pool.status !== 'SUBMISSION_OPEN') {
@@ -130,12 +141,13 @@ export class ProjectsService {
     }
 
     // Count faculty's proposals in this pool.
-    const count = await prisma.project.count({
-      where: {
-        poolId,
-        facultyId,
-      },
-    });
+    const count =
+      await prisma.project.count({
+        where: {
+          poolId,
+          facultyId,
+        },
+      });
 
     if (count >= PROPOSALS_PER_FACULTY) {
       throw new BadRequestError(
@@ -151,14 +163,15 @@ export class ProjectsService {
      * similarity result so the faculty can see it
      * and finalization performs the final check.
      */
-    const similarity = await this.checkProjectSimilarity(
-      poolId,
-      {
-        title: data.title,
-        description: data.description,
-        domain: data.domain ?? null,
-      }
-    );
+    const similarity =
+      await this.checkProjectSimilarity(
+        poolId,
+        {
+          title: data.title,
+          description: data.description,
+          domain: data.domain ?? null,
+        }
+      );
 
     return prisma.project.create({
       data: {
@@ -168,18 +181,31 @@ export class ProjectsService {
         title: data.title,
         description: data.description,
         domain: data.domain ?? null,
-        prerequisites: data.prerequisites ?? null,
+        prerequisites:
+          data.prerequisites ?? null,
 
         maxTeamSize:
-          data.maxTeamSize || pool.defaultMaxTeamSize,
+          data.maxTeamSize ||
+          pool.defaultMaxTeamSize,
 
         expectedOutcome:
           data.expectedOutcome ?? null,
 
         status: 'DRAFT',
 
-        similarityStatus: similarity.action,
-        similarityScore: similarity.highestSimilarity,
+        /**
+         * Explicitly keep newly-created proposals
+         * without a project code.
+         */
+        projectCode: null,
+        projectCodeLocked: false,
+        projectCodeLockedAt: null,
+
+        similarityStatus:
+          similarity.action,
+
+        similarityScore:
+          similarity.highestSimilarity,
       },
     });
   }
@@ -192,20 +218,28 @@ export class ProjectsService {
    *
    * Every proposal is checked against the other
    * proposals in the same pool.
+   *
+   * IMPORTANT:
+   * Finalization changes DRAFT -> SUBMITTED.
+   *
+   * No project code is assigned here.
    */
   async finalizeSubmission(
     poolId: string,
     facultyId: string
   ) {
     // Verify pool.
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
-    });
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found'
+      );
     }
 
     if (pool.status !== 'SUBMISSION_OPEN') {
@@ -215,14 +249,15 @@ export class ProjectsService {
     }
 
     // Verify faculty assignment.
-    const assignment = await prisma.poolFaculty.findUnique({
-      where: {
-        poolId_facultyId: {
-          poolId,
-          facultyId,
+    const assignment =
+      await prisma.poolFaculty.findUnique({
+        where: {
+          poolId_facultyId: {
+            poolId,
+            facultyId,
+          },
         },
-      },
-    });
+      });
 
     if (!assignment) {
       throw new ForbiddenError(
@@ -242,18 +277,23 @@ export class ProjectsService {
      * This prevents already submitted/locked/approved
      * projects from being included again.
      */
-    const projects = await prisma.project.findMany({
-      where: {
-        poolId,
-        facultyId,
-        status: 'DRAFT',
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
+    const projects =
+      await prisma.project.findMany({
+        where: {
+          poolId,
+          facultyId,
+          status: 'DRAFT',
+        },
 
-    if (projects.length !== PROPOSALS_PER_FACULTY) {
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+
+    if (
+      projects.length !==
+      PROPOSALS_PER_FACULTY
+    ) {
       throw new BadRequestError(
         `You must have exactly ${PROPOSALS_PER_FACULTY} proposals. Current: ${projects.length}`
       );
@@ -295,84 +335,125 @@ export class ProjectsService {
      * If any proposal is blocked by similarity,
      * do not submit any proposal.
      */
-   const blockedProjects = similarityResults.filter(
-  (result) => result.action === 'BLOCK'
-);
+    const blockedProjects =
+      similarityResults.filter(
+        (result) =>
+          result.action === 'BLOCK'
+      );
 
-if (blockedProjects.length > 0) {
-  await prisma.$transaction(
-    similarityResults.map((result) =>
-      prisma.project.update({
-        where: { id: result.projectId },
-        data: {
-          similarityStatus: result.action,
-          similarityScore: result.highestSimilarity,
-        },
-      })
-    )
-  );
+    if (blockedProjects.length > 0) {
+      await prisma.$transaction(
+        similarityResults.map(
+          (result) =>
+            prisma.project.update({
+              where: {
+                id: result.projectId,
+              },
 
-  const blockedProjectDetails = blockedProjects.map((result) => {
-    const matchingProject = result.similarProjects?.[0];
+              data: {
+                similarityStatus:
+                  result.action,
 
-    return {
-      projectId: result.projectId,
-      title: result.title,
-      similarityScore: result.highestSimilarity,
-      similarityStatus: result.action,
-      similarProjectId: matchingProject?.projectId || null,
-      similarProjectTitle: matchingProject?.title || null,
-      similarProjectScore: matchingProject?.similarityScore || null,
-    };
-  });
+                similarityScore:
+                  result.highestSimilarity,
+              },
+            })
+        )
+      );
 
-  const error = new BadRequestError(
-    'Some proposals are too similar to existing proposals. Please modify the highlighted proposals before finalizing.'
-  );
+      const blockedProjectDetails =
+        blockedProjects.map(
+          (result) => {
+            const matchingProject =
+              result.similarProjects?.[0];
 
-  (error as any).details = {
-    blockedProjects: blockedProjectDetails,
-  };
+            return {
+              projectId:
+                result.projectId,
 
-  throw error;
-}
+              title:
+                result.title,
+
+              similarityScore:
+                result.highestSimilarity,
+
+              similarityStatus:
+                result.action,
+
+              similarProjectId:
+                matchingProject?.projectId ||
+                null,
+
+              similarProjectTitle:
+                matchingProject?.title ||
+                null,
+
+              similarProjectScore:
+                matchingProject?.similarityScore ||
+                null,
+            };
+          }
+        );
+
+      const error =
+        new BadRequestError(
+          'Some proposals are too similar to existing proposals. Please modify the highlighted proposals before finalizing.'
+        );
+
+      (error as any).details = {
+        blockedProjects:
+          blockedProjectDetails,
+      };
+
+      throw error;
+    }
 
     /**
      * Submit all proposals atomically.
+     *
+     * IMPORTANT:
+     * No project code is generated here.
      */
-    await prisma.$transaction(async (tx) => {
-      for (const result of similarityResults) {
-        await tx.project.update({
+    await prisma.$transaction(
+      async (tx) => {
+        for (
+          const result of similarityResults
+        ) {
+          await tx.project.update({
+            where: {
+              id: result.projectId,
+            },
+
+            data: {
+              status: 'SUBMITTED',
+              projectCode: null,
+              projectCodeLocked: false,
+              projectCodeLockedAt: null,
+
+              similarityStatus:
+                result.action,
+
+              similarityScore:
+                result.highestSimilarity,
+            },
+          });
+        }
+
+        await tx.poolFaculty.update({
           where: {
-            id: result.projectId,
+            poolId_facultyId: {
+              poolId,
+              facultyId,
+            },
           },
 
           data: {
-            status: 'SUBMITTED',
-
-            similarityStatus:
-              result.action,
-
-            similarityScore:
-              result.highestSimilarity,
+            hasSubmitted: true,
+            submittedAt: new Date(),
           },
         });
       }
-
-      await tx.poolFaculty.update({
-        where: {
-          poolId_facultyId: {
-            poolId,
-            facultyId,
-          },
-        },
-
-        data: {
-          hasSubmitted: true,
-          submittedAt: new Date(),
-        },
-      });
-    });
+    );
 
     logger.info(
       `Faculty ${facultyId} finalized proposals for pool ${poolId}`
@@ -441,7 +522,8 @@ if (blockedProjects.length > 0) {
       );
 
     /**
-     * Only update fields that belong to the project.
+     * Only update fields that belong to
+     * the project.
      *
      * This avoids accidentally trying to update
      * fields such as poolId/facultyId/status from
@@ -456,10 +538,13 @@ if (blockedProjects.length > 0) {
     };
 
     if (data.title !== undefined) {
-      updateData.title = data.title;
+      updateData.title =
+        data.title;
     }
 
-    if (data.description !== undefined) {
+    if (
+      data.description !== undefined
+    ) {
       updateData.description =
         data.description;
     }
@@ -469,17 +554,23 @@ if (blockedProjects.length > 0) {
         data.domain;
     }
 
-    if (data.prerequisites !== undefined) {
+    if (
+      data.prerequisites !== undefined
+    ) {
       updateData.prerequisites =
         data.prerequisites;
     }
 
-    if (data.maxTeamSize !== undefined) {
+    if (
+      data.maxTeamSize !== undefined
+    ) {
       updateData.maxTeamSize =
         data.maxTeamSize;
     }
 
-    if (data.expectedOutcome !== undefined) {
+    if (
+      data.expectedOutcome !== undefined
+    ) {
       updateData.expectedOutcome =
         data.expectedOutcome;
     }
@@ -532,12 +623,17 @@ if (blockedProjects.length > 0) {
     });
 
     return {
-      message: 'Proposal deleted',
+      message:
+        'Proposal deleted',
     };
   }
 
   /**
    * SubAdmin locks a proposal.
+   *
+   * SUBMITTED -> LOCKED
+   *
+   * No project code is assigned here.
    */
   async lockProject(
     projectId: string,
@@ -557,7 +653,10 @@ if (blockedProjects.length > 0) {
       );
     }
 
-    if (project.status !== 'SUBMITTED') {
+    if (
+      project.status !==
+      'SUBMITTED'
+    ) {
       throw new BadRequestError(
         'Only SUBMITTED projects can be locked'
       );
@@ -571,14 +670,21 @@ if (blockedProjects.length > 0) {
       data: {
         status: 'LOCKED',
         subadminNote: note,
-        reviewedById: subadminId,
-        reviewedAt: new Date(),
+        reviewedById:
+          subadminId,
+
+        reviewedAt:
+          new Date(),
       },
     });
   }
 
   /**
    * SubAdmin holds a proposal for Admin review.
+   *
+   * SUBMITTED -> ON_HOLD
+   *
+   * No project code is assigned here.
    */
   async holdProject(
     projectId: string,
@@ -598,7 +704,10 @@ if (blockedProjects.length > 0) {
       );
     }
 
-    if (project.status !== 'SUBMITTED') {
+    if (
+      project.status !==
+      'SUBMITTED'
+    ) {
       throw new BadRequestError(
         'Only SUBMITTED projects can be held'
       );
@@ -612,8 +721,10 @@ if (blockedProjects.length > 0) {
       data: {
         status: 'ON_HOLD',
         subadminNote: note,
-        reviewedById: subadminId,
-        reviewedAt: new Date(),
+        reviewedById:
+        subadminId,
+        reviewedAt:
+          new Date(),
       },
     });
   }
@@ -664,12 +775,14 @@ if (blockedProjects.length > 0) {
 
     const locks =
       decisions.filter(
-        (d) => d.action === 'LOCK'
+        (d) =>
+          d.action === 'LOCK'
       ).length;
 
     const holds =
       decisions.filter(
-        (d) => d.action === 'HOLD'
+        (d) =>
+          d.action === 'HOLD'
       ).length;
 
     if (locks !== 3 || holds !== 1) {
@@ -704,10 +817,14 @@ if (blockedProjects.length > 0) {
      */
     const projectIds =
       new Set(
-        projects.map((p) => p.id)
+        projects.map(
+          (p) => p.id
+        )
       );
 
-    for (const decision of decisions) {
+    for (
+      const decision of decisions
+    ) {
       if (
         !projectIds.has(
           decision.projectId
@@ -720,28 +837,27 @@ if (blockedProjects.length > 0) {
     }
 
     await prisma.$transaction(
-      decisions.map((decision) =>
-        prisma.project.update({
-          where: {
-            id: decision.projectId,
-          },
+      decisions.map(
+        (decision) =>
+          prisma.project.update({
+            where: {
+              id: decision.projectId,
+            },
 
-          data: {
-            status:
-              decision.action === 'LOCK'
-                ? 'LOCKED'
-                : 'ON_HOLD',
+            data: {
+              status:
+                decision.action ===
+                'LOCK' ? 'LOCKED' : 'ON_HOLD',
+           subadminNote:
+                decision.note,
 
-            subadminNote:
-              decision.note,
+              reviewedById:
+                subadminId,
 
-            reviewedById:
-              subadminId,
-
-            reviewedAt:
-              new Date(),
-          },
-        })
+              reviewedAt:
+                new Date(),
+            },
+          })
       )
     );
 
@@ -771,24 +887,17 @@ if (blockedProjects.length > 0) {
       .catch(() => {});
 
     return {
-      message: '3 locked, 1 on hold',
+      message:
+        '3 locked, 1 on hold',
     };
   }
 
-  /**
-   * Admin approves an ON_HOLD project.
-   *
-   * Generates:
-   *
-   * PoolName/1
-   * PoolName/2
-   * PoolName/3
-   */
   async approveProject(
     projectId: string,
     adminId: string,
     note?: string
   ) {
+
     const updated =
       await prisma.$transaction(
         async (tx) => {
@@ -796,6 +905,13 @@ if (blockedProjects.length > 0) {
             await tx.project.findUnique({
               where: {
                 id: projectId,
+              },
+              select: {
+                id: true,
+                status: true,
+                facultyId: true,
+                poolId: true,
+                title: true,
               },
             });
 
@@ -814,65 +930,62 @@ if (blockedProjects.length > 0) {
             );
           }
 
-          const pool =
-            await tx.pool.findUnique({
-              where: {
-                id: project.poolId,
-              },
-
-              select: {
-                id: true,
-                name: true,
-                nextProjectNumber: true,
-              },
-            });
-
-          if (!pool) {
-            throw new NotFoundError(
-              'Pool not found'
-            );
-          }
-
-          const nextNumber =
-            pool.nextProjectNumber + 1;
-
-          const projectCode =
-            `${pool.name}/${nextNumber}`;
-
-          await tx.pool.update({
-            where: {
-              id: pool.id,
-            },
-
-            data: {
-              nextProjectNumber:
-                nextNumber,
-            },
-          });
-
           return tx.project.update({
             where: {
               id: projectId,
             },
 
             data: {
-              projectCode,
-
               status: 'APPROVED',
-
+              projectCode: null,
+              projectCodeLocked: false,
+              projectCodeLockedAt: null,
               adminNote: note,
-
-              decidedById:
-                adminId,
-
-              decidedAt:
-                new Date(),
+              decidedById: adminId,
+              decidedAt: new Date(),
             },
+              select: {
+              id: true,
+              status: true,
+              facultyId: true,
+              poolId: true,
+              title: true,
+              projectCode: true,
+              projectCodeLocked: true,
+              projectCodeLockedAt: true,
+              }
           });
         }
       );
 
-    // Audit.
+   await projectCodeService.reorganizePool(
+      updated.poolId
+    );
+
+    const approvedProject =
+      await prisma.project.findUnique({
+        where: {
+          id: projectId,
+        },
+
+        select: {
+          id: true,
+          poolId: true,
+          facultyId: true,
+          title: true,
+          projectCode: true,
+          projectCodeLocked: true,
+          projectCodeLockedAt: true,
+          status: true,
+        },
+      });
+
+    if (!approvedProject) {
+      throw new NotFoundError(
+        'Project not found after approval'
+      );
+    }
+
     auditService
       .log(
         adminId,
@@ -882,10 +995,11 @@ if (blockedProjects.length > 0) {
       )
       .catch(() => {});
 
-    // Notification.
+  // Notification
+
     notificationsService
       .create(
-        updated.facultyId,
+        approvedProject.facultyId,
         'PROPOSAL_APPROVED',
         'Project Approved',
         `Your project "${updated.title}" has been approved by the admin.`,
@@ -893,12 +1007,9 @@ if (blockedProjects.length > 0) {
       )
       .catch(() => {});
 
-    return updated;
+    return approvedProject;
   }
 
-  /**
-   * Admin rejects an ON_HOLD project.
-   */
   async rejectProject(
     projectId: string,
     adminId: string,
@@ -909,6 +1020,15 @@ if (blockedProjects.length > 0) {
         where: {
           id: projectId,
         },
+
+        select: {
+          id: true,
+          status: true,
+          facultyId: true,
+          poolId: true,
+          title: true,
+          projectCodeLocked: true,
+        },
       });
 
     if (!project) {
@@ -918,7 +1038,8 @@ if (blockedProjects.length > 0) {
     }
 
     if (
-      project.status !== 'ON_HOLD'
+      project.status !==
+      'ON_HOLD'
     ) {
       throw new BadRequestError(
         'Only ON_HOLD projects can be rejected'
@@ -933,14 +1054,19 @@ if (blockedProjects.length > 0) {
 
         data: {
           status: 'REJECTED',
-
           adminNote: note,
-
           decidedById:
             adminId,
-
           decidedAt:
             new Date(),
+
+          ...(project.projectCodeLocked
+            ? {}
+            : {
+                projectCode: null,
+                projectCodeLocked: false,
+                projectCodeLockedAt: null,
+              }),
         },
       });
 
@@ -972,126 +1098,149 @@ if (blockedProjects.length > 0) {
     return updated;
   }
 
-  /**
-   * Admin approves every LOCKED project
-   * in a pool.
-   *
-   * Project codes are generated sequentially.
-   */
   async approveAllLocked(
     poolId: string,
     adminId: string
   ) {
-    const result =
-      await prisma.$transaction(
-        async (tx) => {
-          const pool =
-            await tx.pool.findUnique({
-              where: {
-                id: poolId,
-              },
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
 
-              select: {
-                id: true,
-                name: true,
-                nextProjectNumber: true,
-              },
-            });
+        select: {
+          id: true,
+          name: true,
+        },
+      });
 
-          if (!pool) {
-            throw new NotFoundError(
-              'Pool not found'
-            );
-          }
+    if (!pool) {
+      throw new NotFoundError(
+        'Pool not found'
+      );
+    }
+    const projects =
+      await prisma.project.findMany({
+        where: {
+          poolId,
+          status: 'LOCKED',
+        },
 
-          const projects =
-            await tx.project.findMany({
-              where: {
-                poolId,
-                status: 'LOCKED',
-              },
+        orderBy: [
+          {
+            createdAt: 'asc',
+          },
+          {
+            id: 'asc',
+          },
+        ],
 
-              orderBy: {
-                createdAt: 'asc',
-              },
+        select: {
+          id: true,
+          facultyId: true,
+          poolId: true,
+          title: true,
+        },
+      });
 
-              select: {
-                id: true,
-              },
-            });
+    if (
+      projects.length === 0
+    ) {
+      return {
+        approved: 0,
+        projects: [],
+      };
+    }
 
-          if (
-            projects.length === 0
-          ) {
-            return {
-              approved: 0,
-            };
-          }
-
-          let nextNumber =
-            pool.nextProjectNumber;
-
-          for (
-            const project of projects
-          ) {
-            nextNumber += 1;
-
-            const projectCode =
-              `${pool.name}/${nextNumber}`;
-
-            await tx.project.update({
-              where: {
-                id: project.id,
-              },
-
-              data: {
-                projectCode,
-
-                status: 'APPROVED',
-
-                decidedById:
-                  adminId,
-
-                decidedAt:
-                  new Date(),
-              },
-            });
-          }
-
-          await tx.pool.update({
+    await prisma.$transaction(
+      projects.map(
+        (project) =>
+          prisma.project.update({
             where: {
-              id: poolId,
+              id: project.id,
             },
 
             data: {
-              nextProjectNumber:
-                nextNumber,
+              status: 'APPROVED',
+              projectCode: null,
+              projectCodeLocked: false,
+              projectCodeLockedAt: null,
+              decidedById: adminId,
+              decidedAt: new Date(),
             },
-          });
+          })
+      )
+    );
 
-          return {
-            approved:
-              projects.length,
-          };
-        }
-      );
+     await projectCodeService.reorganizePool(
+      poolId
+    );
+    
+     const approvedProjects =
+      await prisma.project.findMany({
+        where: {
+          id: {
+            in: projects.map(
+              (project) => project.id
+            ),
+          },
+        },
 
-    return result;
+        select: {
+          id: true,
+          poolId: true,
+          facultyId: true,
+          title: true,
+          projectCode: true,
+          projectCodeLocked: true,
+          projectCodeLockedAt: true,
+          status: true,
+        },
+
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+
+      // Audit each approved project.
+        for (
+      const project of approvedProjects
+    ) {
+      auditService
+        .log(
+          adminId,
+          'APPROVE_PROJECT',
+          'Project',
+          project.id
+        )
+        .catch(() => {});
+
+      // Notify the faculty.
+       
+      notificationsService
+        .create(
+          project.facultyId,
+          'PROPOSAL_APPROVED',
+          'Project Approved',
+          `Your project "${project.title}" has been approved by the admin.`,
+          `/pools/${project.poolId}`
+        )
+        .catch(() => {});
+    }
+
+    logger.info(
+      `Admin ${adminId} approved ${approvedProjects.length} locked projects in pool ${poolId}`
+    );
+
+    return {
+      approved:
+        approvedProjects.length,
+
+      projects:
+        approvedProjects,
+    };
   }
 
-  /**
-   * Get projects by pool.
-   *
-   * STUDENT:
-   *   APPROVED only
-   *   No faculty information
-   *
-   * FACULTY:
-   *   Own projects only
-   *
-   * ADMIN/SUBADMIN:
-   *   All projects
-   */
   async getProjectsByPool(
     poolId: string,
     userId: string,
@@ -1110,10 +1259,11 @@ if (blockedProjects.length > 0) {
       );
     }
 
-    /**
-     * STUDENT
-     */
-    if (userRole === 'STUDENT') {
+    // STUDENT
+   
+    if (
+      userRole === 'STUDENT'
+    ) {
       return prisma.project.findMany({
         where: {
           poolId,
@@ -1154,7 +1304,9 @@ if (blockedProjects.length > 0) {
     /**
      * FACULTY
      */
-    if (userRole === 'FACULTY') {
+    if (
+      userRole === 'FACULTY'
+    ) {
       return prisma.project.findMany({
         where: {
           poolId,
@@ -1373,6 +1525,40 @@ if (blockedProjects.length > 0) {
 
     return project;
   }
+
+  async reorganizeProjectCodes(poolId: string, adminId: string) {
+  const pool = await prisma.pool.findUnique({
+    where: {
+      id: poolId,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  if (!pool) {
+    throw new NotFoundError('Pool not found');
+  }
+
+  const result =
+    await projectCodeService.reorganizePool(poolId);
+
+  await auditService.log(
+    adminId,
+    'PROJECT_CODES_REORGANIZED',
+    'POOL',
+    poolId,
+    undefined,
+    {
+      trigger: 'MANUAL',
+      poolId,
+      poolName: pool.name,
+    }
+  );
+
+  return result;
+}
 }
 
 export const projectsService =

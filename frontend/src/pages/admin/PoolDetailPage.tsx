@@ -5,17 +5,7 @@ import { projectService } from '@/services/projectService';
 import { Badge } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import {
-  Play,
-  FastForward,
-  Snowflake,
-  Archive,
-  CheckCircle2,
-  XCircle,
-  Pencil,
-  Save,
-  X,
-} from 'lucide-react';
+import { Play, FastForward, Snowflake, Archive, CheckCircle2, XCircle, Pencil, RefreshCw, Save, X, } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Pool, Project, PoolStats } from '@/types';
 import { getErrorMessage } from '@/types';
@@ -32,6 +22,7 @@ const PoolDetailPage: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reorganizingCodes, setReorganizingCodes] = useState(false);
 
   const [confirm, setConfirm] = useState<{
     action: string;
@@ -86,10 +77,25 @@ const PoolDetailPage: React.FC = () => {
     load();
   }, [id]);
 
-  /*
-   * Convert ISO date returned by backend into the format required
-   * by <input type="datetime-local">
-   */
+  const reorganizeProjectCodes = async () => {
+  if (!id || reorganizingCodes) return;
+
+  setReorganizingCodes(true);
+
+  try {
+    await projectService.reorganizeCodes(id);
+
+    toast.success(
+      'Project codes reorganized successfully'
+    );
+
+    await load();
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e));
+  } finally {
+    setReorganizingCodes(false);
+  }
+};
   const toDateTimeLocal = (value?: string | null) => {
     if (!value) return '';
 
@@ -215,37 +221,40 @@ const PoolDetailPage: React.FC = () => {
       setSaving(false);
     }
   };
+const doAction = async (action: string) => {
+  if (!id) return;
 
-  const doAction = async (action: string) => {
-    if (!id) return;
-
-    try {
-      if (action === 'activate') {
-        await poolService.activate(id);
-      } else if (action === 'advance') {
-        await poolService.advancePhase(id);
-      } else if (action === 'freeze') {
-        await poolService.freeze(id);
-      } else if (action === 'archive') {
-        await poolService.archive(id);
-      } else if (action === 'approveAllLocked') {
-        await projectService.approveAllLocked(id);
-      }
-
-      toast.success(
-        action === 'archive'
-          ? 'Pool archived successfully.'
-          : 'Done!'
-      );
-
+  try {
+    if (action === 'activate') {
+      await poolService.activate(id);
+    } else if (action === 'advance') {
+      await poolService.advancePhase(id);
+    } else if (action === 'freeze') {
+      await poolService.freeze(id);
+    } else if (action === 'archive') {
+      await poolService.archive(id);
+    } else if (action === 'approveAllLocked') {
+      await projectService.approveAllLocked(id);
+    } else if (action === 'reorganizeCodes') {
+      await reorganizeProjectCodes();
       setConfirm(null);
-
-      await load();
-    } catch (e: unknown) {
-      toast.error(getErrorMessage(e) || 'Action failed');
-      setConfirm(null);
+      return;
     }
-  };
+
+    toast.success(
+      action === 'archive'
+        ? 'Pool archived successfully.'
+        : 'Done!'
+    );
+
+    setConfirm(null);
+
+    await load();
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e) || 'Action failed');
+    setConfirm(null);
+  }
+};
 
   const decideProject = async (
     projectId: string,
@@ -780,33 +789,64 @@ const PoolDetailPage: React.FC = () => {
             ))}
           </div>
 
-          {isAdmin &&
-            projects.filter(
-              (p) => p.status === 'LOCKED'
-            ).length > 0 && (
-              <button
-                onClick={() =>
-                  setConfirm({
-                    action: 'approveAllLocked',
-                    title: 'Approve All Locked?',
-                    msg: `This will approve ${
-                      projects.filter(
-                        (p) => p.status === 'LOCKED'
-                      ).length
-                    } locked projects.`,
-                  })
-                }
-                className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                Approve All Locked (
-                {
-                  projects.filter(
-                    (p) => p.status === 'LOCKED'
-                  ).length
-                }
-                )
-              </button>
-            )}
+        <div className="mt-4 flex flex-wrap gap-3">
+  {isAdmin &&
+    projects.filter(
+      (p) => p.status === 'LOCKED'
+    ).length > 0 && (
+      <button
+        onClick={() =>
+          setConfirm({
+            action: 'approveAllLocked',
+            title: 'Approve All Locked?',
+            msg: `This will approve ${
+              projects.filter(
+                (p) => p.status === 'LOCKED'
+              ).length
+            } locked projects.`,
+          })
+        }
+        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+      >
+        <CheckCircle2 className="w-4 h-4" />
+
+        Approve All Locked (
+        {
+          projects.filter(
+            (p) => p.status === 'LOCKED'
+          ).length
+        }
+        )
+      </button>
+    )}
+
+  {isAdmin && (
+    <button
+      onClick={() =>
+        setConfirm({
+          action: 'reorganizeCodes',
+          title: 'Reorganize Project Codes?',
+          msg:
+            'This will reorganize all unlocked approved project codes according to the current allocation order. Locked project codes will not be changed. Continue?',
+        })
+      }
+      disabled={reorganizingCodes}
+      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <RefreshCw
+        className={`w-4 h-4 ${
+          reorganizingCodes
+            ? 'animate-spin'
+            : ''
+        }`}
+      />
+
+      {reorganizingCodes
+        ? 'Reorganizing...'
+        : 'Reorganize Project Codes'}
+    </button>
+  )}
+</div>
         </div>
       )}
 

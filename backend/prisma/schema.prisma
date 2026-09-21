@@ -39,11 +39,7 @@ model User {
   facultyProjects  Project[]       @relation("FacultyProjects")
   reviewedProjects Project[]       @relation("ProjectReviewer")
   refreshTokens    RefreshToken[]
-
-  // Existing preferred-supervisor relationship
   preferredSupervisorIdeas StudentIdea[] @relation("StudentIdeaPreferredSupervisor")
-
-  // PR supervisor relationship for assigned Student Idea supervisor
   supervisedIdeas StudentIdea[] @relation("IdeaSupervisor")
 
   studentIdeas    StudentIdea[]

@@ -330,6 +330,28 @@ export class ProjectsController {
       next(error);
     }
   }
+async reorganizeProjectCodes(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const result =
+      await projectsService.reorganizeProjectCodes(
+        req.params.poolId as string,
+        req.user!.userId
+      );
+
+    res.json({
+      success: true,
+      message:
+        'Project codes reorganized successfully',
+      data: result,
+    });
+  } catch (e) {
+    next(e);
+  }
+}
 }
 
 export const projectsController =

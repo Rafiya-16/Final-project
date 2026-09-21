@@ -5,49 +5,20 @@ import {
 } from '../../shared/errors/AppError';
 import { logger } from '../../shared/utils/logger';
 
-/**
- * Project-code lifecycle.
- *
- * Codes are provisional until explicitly locked during the final project
- * confirmation flow.
- *
- * Nightly reorganization keeps provisional codes ordered by:
- *
- * 1. Faculty assignment time
- * 2. Faculty ID
- * 3. Project creation time
- * 4. Project ID
- *
- * Locked codes are never moved.
- *
- * REJECTED projects:
- * - never participate in numbering
- * - never reserve a number
- * - have their stale projectCode cleared automatically
- */
 export class ProjectCodeService {
-  /**
-   * Only these statuses participate in project-code numbering.
-   *
-   * REJECTED is intentionally excluded.
-   */
+ 
   private readonly ACTIVE_STATUSES = [
-    'SUBMITTED',
-    'LOCKED',
-    'ON_HOLD',
     'APPROVED',
   ] as const;
+
 
   /**
    * Reorganize provisional project codes for one pool.
    */
   async reorganizePool(poolId: string) {
-    /**
-     * ---------------------------------------------------------------
-     * 1. Verify pool exists
-     * ---------------------------------------------------------------
-     */
-    const poolRows = await prisma.$queryRaw<
+  return prisma.$transaction(async (tx) => {
+ 
+    const poolRows = await tx.$queryRaw<
       Array<{
         id: string;
         name: string;
@@ -59,6 +30,7 @@ export class ProjectCodeService {
       FROM pools
       WHERE id = ${poolId}
       LIMIT 1
+      FOR UPDATE
     `;
 
     const pool = poolRows[0];
@@ -67,43 +39,22 @@ export class ProjectCodeService {
       throw new NotFoundError('Pool not found');
     }
 
-    /**
-     * ---------------------------------------------------------------
-     * 2. Clean stale codes from REJECTED projects
-     * ---------------------------------------------------------------
-     *
-     * A rejected project must never hold a projectCode.
-     *
-     * This also fixes old data created before the rejection behavior
-     * was corrected.
-     *
-     * IMPORTANT:
-     * Never clear a locked project here.
-     *
-     * A normally rejected project should never be locked, but the
-     * additional condition protects against accidental data damage.
-     */
-    await prisma.$executeRaw`
+    await tx.$executeRaw`
       UPDATE projects
       SET
         "projectCode" = NULL,
         project_code_locked_at = NULL
       WHERE pool_id = ${poolId}
-        AND status = 'REJECTED'
+        AND status IN ('REJECTED', 'SUBMITTED', 'ON_HOLD')
         AND project_code_locked = false
     `;
 
     /**
      * ---------------------------------------------------------------
-     * 3. Get active projects belonging to this pool
+     * 3. Get APPROVED projects
      * ---------------------------------------------------------------
-     *
-     * REJECTED projects are deliberately excluded.
-     *
-     * LEFT JOIN is used so an otherwise valid project does not
-     * disappear merely because its pool_faculty record is missing.
      */
-    const projects = await prisma.$queryRaw<
+    const projects = await tx.$queryRaw<
       Array<{
         id: string;
         facultyId: string | null;
@@ -125,12 +76,7 @@ export class ProjectCodeService {
         ON pf.pool_id = p.pool_id
        AND pf.faculty_id = p.faculty_id
       WHERE p.pool_id = ${poolId}
-        AND p.status IN (
-          ${this.ACTIVE_STATUSES[0]},
-          ${this.ACTIVE_STATUSES[1]},
-          ${this.ACTIVE_STATUSES[2]},
-          ${this.ACTIVE_STATUSES[3]}
-        )
+        AND p.status = ${this.ACTIVE_STATUSES[0]}
       ORDER BY
         pf.assigned_at ASC NULLS LAST,
         pf.faculty_id ASC NULLS LAST,
@@ -140,7 +86,7 @@ export class ProjectCodeService {
 
     /**
      * ---------------------------------------------------------------
-     * 4. No active projects
+     * 4. No approved projects
      * ---------------------------------------------------------------
      */
     if (projects.length === 0) {
@@ -152,13 +98,8 @@ export class ProjectCodeService {
       };
     }
 
-    /**
-     * ---------------------------------------------------------------
-     * 5. Identify locked projects
-     * ---------------------------------------------------------------
-     *
-     * Locked projects retain their current code.
-     */
+    // Locked project codes are permanent and must never be changed.
+     
     const locked = projects.filter(
       (project) =>
         project.project_code_locked &&
@@ -188,65 +129,44 @@ export class ProjectCodeService {
 
     /**
      * ---------------------------------------------------------------
-     * 7. Get unlocked projects
+     * 7. Get unlocked approved projects
      * ---------------------------------------------------------------
-     *
-     * These projects are eligible for nightly reorganization.
      */
     const unlocked = projects.filter(
       (project) => !project.project_code_locked
     );
 
-    /**
-     * ---------------------------------------------------------------
-     * 8. Generate new provisional codes
-     * ---------------------------------------------------------------
-     *
-     * The projects are already ordered by:
-     *
-     * 1. Faculty assignment time
-     * 2. Faculty ID
-     * 3. Project creation time
-     * 4. Project ID
-     */
     const assignments = new Map<string, string>();
 
     let nextNumber = 1;
 
     for (const project of unlocked) {
-      /**
-       * Skip numbers permanently occupied by locked projects.
-       */
       while (occupiedNumbers.has(nextNumber)) {
         nextNumber += 1;
       }
 
-      const projectCode = `${pool.name}/${nextNumber}`;
+      const projectCode =
+        `${pool.name}/${nextNumber}`;
 
-      assignments.set(project.id, projectCode);
+      assignments.set(
+        project.id,
+        projectCode
+      );
 
-      /**
-       * Reserve this number for this provisional project.
-       */
       occupiedNumbers.add(nextNumber);
 
       nextNumber += 1;
     }
 
-    /**
-     * ---------------------------------------------------------------
-     * 9. Find projects whose code actually changes
-     * ---------------------------------------------------------------
-     */
-    const changedProjects = unlocked.filter((project) => {
-      const nextCode = assignments.get(project.id) ?? null;
+    const changedProjects = unlocked.filter(
+      (project) => {
+        const nextCode =
+          assignments.get(project.id) ?? null;
 
-      return project.projectCode !== nextCode;
-    });
+        return project.projectCode !== nextCode;
+      }
+    );
 
-    /**
-     * Nothing needs to change.
-     */
     if (changedProjects.length === 0) {
       return {
         poolId,
@@ -256,75 +176,41 @@ export class ProjectCodeService {
       };
     }
 
-    /**
-     * ---------------------------------------------------------------
-     * 10. Update project codes safely
-     * ---------------------------------------------------------------
-     *
-     * projectCode has a UNIQUE constraint.
-     *
-     * A normal swap can therefore fail:
-     *
-     *     A -> Pool/1
-     *     B -> Pool/2
-     *
-     * becoming:
-     *
-     *     A -> Pool/2
-     *     B -> Pool/1
-     *
-     * To prevent this, we use a temporary unique value.
-     *
-     * Phase 1:
-     *   Move every changed provisional project to a temporary code.
-     *
-     * Phase 2:
-     *   Assign the real project codes.
-     *
-     * Locked projects are never modified.
-     */
-    await prisma.$transaction(async (tx) => {
-      /**
-       * -------------------------------------------------------------
-       * Phase 1: Move changed provisional codes to temporary values.
-       * -------------------------------------------------------------
-       *
-       * The temporary code contains the project ID, making it unique.
-       */
-      for (const project of changedProjects) {
-        const temporaryCode = `__TEMP_PROJECT_CODE__${project.id}`;
+    for (const project of unlocked) {
+  const temporaryCode =
+    `__TEMP_PROJECT_CODE__${project.id}`;
 
-        await tx.$executeRaw`
-          UPDATE projects
-          SET "projectCode" = ${temporaryCode}
-          WHERE id = ${project.id}
-            AND project_code_locked = false
-        `;
+  await tx.$executeRaw`
+    UPDATE projects
+    SET
+      "projectCode" = ${temporaryCode}
+    WHERE id = ${project.id}
+      AND project_code_locked = false
+      AND status = 'APPROVED'
+  `;
+}
+
+    for (const project of unlocked) {
+      const projectCode =
+        assignments.get(project.id);
+
+      if (!projectCode) {
+        continue;
       }
 
-      /**
-       * -------------------------------------------------------------
-       * Phase 2: Apply the final provisional codes.
-       * -------------------------------------------------------------
-       */
-      for (const project of changedProjects) {
-        const projectCode = assignments.get(project.id);
-
-        if (!projectCode) {
-          continue;
-        }
-
-        await tx.$executeRaw`
-          UPDATE projects
-          SET "projectCode" = ${projectCode}
-          WHERE id = ${project.id}
-            AND project_code_locked = false
-        `;
-      }
-    });
+      await tx.$executeRaw`
+        UPDATE projects
+        SET
+          "projectCode" = ${projectCode},
+          project_code_locked_at = NULL
+        WHERE id = ${project.id}
+          AND project_code_locked = false
+          AND status = 'APPROVED'
+      `;
+    }
 
     logger.info(
-      `Nightly project-code reorganization: pool=${poolId}, updated=${changedProjects.length}, locked=${locked.length}`
+      `Project-code reorganization completed: pool=${poolId}, updated=${changedProjects.length}, locked=${locked.length}`
     );
 
     return {
@@ -333,11 +219,9 @@ export class ProjectCodeService {
       updated: changedProjects.length,
       locked: locked.length,
     };
-  }
+  });
+}
 
-  /**
-   * Reorganize every non-archived pool.
-   */
   async reorganizeAllPools() {
     const pools = await prisma.$queryRaw<
       Array<{
@@ -466,6 +350,10 @@ export class ProjectCodeService {
         'Project code could not be locked'
       );
     }
+
+    logger.info(
+      `Project code locked: project=${projectId}, code=${updated[0].projectCode}`
+    );
 
     return updated[0];
   }
