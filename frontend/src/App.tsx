@@ -32,6 +32,7 @@ import FacultyDashboard from '@/pages/faculty/FacultyDashboard';
 import CreateProposal from '@/pages/faculty/CreateProposal';
 import MyProjects from '@/pages/faculty/MyProjects';
 import TeamManagement from '@/pages/faculty/TeamManagement';
+import SupervisionRequests from '@/pages/faculty/SupervisionRequests';
 
 // Student Pages
 import StudentDashboard from '@/pages/student/StudentDashboard';
@@ -280,6 +281,14 @@ const App: React.FC = () => (
           }
         />
 
+      <Route
+  path="/supervision-requests"
+  element={
+    <ProtectedRoute roles={['FACULTY']}>
+      <SupervisionRequests />
+    </ProtectedRoute>
+  }
+/>
         {/* ==================== STUDENT ==================== */}
 
         <Route

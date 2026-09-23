@@ -1,15 +1,39 @@
 // frontend/src/components/layout/Sidebar.tsx
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { LayoutDashboard, Users, FolderKanban, FileText, Bell, GraduationCap, BookOpen, ClipboardList, Lightbulb, UserCheck, BarChart3, ListChecks, Shield, LogOut, User, Menu, X, Sparkles } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  FolderKanban,
+  FileText,
+  Bell,
+  GraduationCap,
+  BookOpen,
+  ClipboardList,
+  Lightbulb,
+  UserCheck,
+  BarChart3,
+  ListChecks,
+  Shield,
+  LogOut,
+  User,
+  Menu,
+  X,
+  Sparkles,
+} from 'lucide-react';
+
 import { cn } from '@/lib/utils';
+import { poolService } from '@/services/poolService';
+import { ideaService } from '@/services/ideaService';
 
 type NavItem = {
   label: string;
   path: string;
   icon: React.ReactNode;
   notice?: boolean;
+  requestBadge?: boolean;
 };
 
 const navItems: Record<string, NavItem[]> = {
@@ -99,6 +123,12 @@ const navItems: Record<string, NavItem[]> = {
       label: 'Project Management',
       path: '/faculty/team-management',
       icon: <User className="w-5 h-5" />,
+    },
+    {
+      label: 'Student Proposals',
+      path: '/supervision-requests',
+      icon: <Lightbulb className="w-5 h-5" />,
+      requestBadge: true,
     },
     {
       label: 'Notifications',
@@ -223,6 +253,105 @@ export const Sidebar: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] =
     useState(false);
 
+  const [supervisionRequestCount, setSupervisionRequestCount] =
+    useState(0);
+
+  const loadSupervisionRequestCount =
+    useCallback(async () => {
+      if (user?.role !== 'FACULTY') {
+        setSupervisionRequestCount(0);
+        return;
+      }
+
+      try {
+        const poolResponse = await poolService.list();
+
+        const pools = poolResponse?.data || [];
+
+        if (!Array.isArray(pools) || pools.length === 0) {
+          setSupervisionRequestCount(0);
+          return;
+        }
+
+        let pendingCount = 0;
+
+        for (const pool of pools) {
+          try {
+            const requests =
+              await ideaService.getSupervisionRequests(
+                pool.id
+              );
+
+            if (!Array.isArray(requests)) {
+              continue;
+            }
+
+            pendingCount += requests.filter(
+              (request: any) =>
+                request?.responseStatus === 'PENDING' ||
+                request?.status === 'PENDING'
+            ).length;
+          } catch {
+          
+            continue;
+          }
+        }
+
+        setSupervisionRequestCount(pendingCount);
+      } catch {
+       
+        setSupervisionRequestCount(0);
+      }
+    }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== 'FACULTY') {
+      return;
+    }
+
+    loadSupervisionRequestCount();
+
+    const interval = window.setInterval(() => {
+      loadSupervisionRequestCount();
+    }, 30000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [
+    user?.role,
+    loadSupervisionRequestCount,
+  ]);
+
+  /**
+   * Refresh the count whenever the browser window
+   * becomes active again.
+   */
+  useEffect(() => {
+    if (user?.role !== 'FACULTY') {
+      return;
+    }
+
+    const handleFocus = () => {
+      loadSupervisionRequestCount();
+    };
+
+    window.addEventListener(
+      'focus',
+      handleFocus
+    );
+
+    return () => {
+      window.removeEventListener(
+        'focus',
+        handleFocus
+      );
+    };
+  }, [
+    user?.role,
+    loadSupervisionRequestCount,
+  ]);
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) {
@@ -230,10 +359,16 @@ export const Sidebar: React.FC = () => {
       }
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener(
+      'resize',
+      handleResize
+    );
 
     return () =>
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener(
+        'resize',
+        handleResize
+      );
   }, []);
 
   const items =
@@ -245,12 +380,17 @@ export const Sidebar: React.FC = () => {
   const isStudent =
     user?.role === 'STUDENT';
 
+  const isFaculty =
+    user?.role === 'FACULTY';
+
   return (
     <>
       {/* Mobile Hamburger Button */}
       <button
         onClick={() =>
-          setIsMobileMenuOpen(!isMobileMenuOpen)
+          setIsMobileMenuOpen(
+            !isMobileMenuOpen
+          )
         }
         className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg md:hidden"
         aria-label="Toggle navigation menu"
@@ -278,9 +418,11 @@ export const Sidebar: React.FC = () => {
           fixed left-0 top-0 h-screen flex flex-col z-40
           transition-transform duration-300
           w-64 ${theme.sidebarBg}
-          ${isMobileMenuOpen
-            ? 'translate-x-0'
-            : '-translate-x-full'}
+          ${
+            isMobileMenuOpen
+              ? 'translate-x-0'
+              : '-translate-x-full'
+          }
           md:translate-x-0
           shadow-2xl
         `}
@@ -313,7 +455,7 @@ export const Sidebar: React.FC = () => {
         {/* Navigation */}
         <nav className="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto">
           {items.map((item) => {
-            // Special What To Do notice
+            // Special What To Do notice for students
             if (
               isStudent &&
               item.notice
@@ -326,12 +468,12 @@ export const Sidebar: React.FC = () => {
                     setIsMobileMenuOpen(false)
                   }
                   className={({ isActive }) =>
-                   cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 group',
-                    isActive
-                      ? `${theme.activeLink} ${theme.activeLinkText} shadow-md`
-                      : theme.accent
-                  )
+                    cn(
+                      'relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 group',
+                      isActive
+                        ? `${theme.activeLink} ${theme.activeLinkText} shadow-md`
+                        : theme.accent
+                    )
                   }
                 >
                   {/* Shine effect */}
@@ -371,8 +513,44 @@ export const Sidebar: React.FC = () => {
                   {item.icon}
                 </div>
 
-                {item.label}
+                <span className="flex-1 text-left">
+                  {item.label}
+                </span>
 
+                {/* Faculty supervision request badge */}
+                {isFaculty &&
+                  item.requestBadge &&
+                  supervisionRequestCount > 0 && (
+                    <span
+                      className="
+                        min-w-[22px]
+                        h-[22px]
+                        px-1.5
+                        flex
+                        items-center
+                        justify-center
+                        rounded-full
+                        bg-red-500
+                        text-white
+                        text-[11px]
+                        font-bold
+                        shadow-lg
+                        shadow-red-500/30
+                        animate-pulse
+                      "
+                      title={`${supervisionRequestCount} pending supervision ${
+                        supervisionRequestCount === 1
+                          ? 'request'
+                          : 'requests'
+                      }`}
+                    >
+                      {supervisionRequestCount > 99
+                        ? '99+'
+                        : supervisionRequestCount}
+                    </span>
+                  )}
+
+                {/* Existing notification indicator */}
                 {item.label === 'Notifications' && (
                   <span className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                 )}

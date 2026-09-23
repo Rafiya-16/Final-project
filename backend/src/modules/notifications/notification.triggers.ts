@@ -58,11 +58,24 @@ export const notifyIdeaApproved = async (ideaId: string) => {
     where: { id: ideaId },
     include: { student: true },
   });
-  if (!idea) return;
 
-  await notificationsService.create(idea.studentId, 'IDEA_APPROVED', 'Idea Approved!', `Your idea "${idea.title}" has been approved and assigned to your team`, '/my-team');
+  if (!idea || !idea.student) return;
+
+  await notificationsService.create(
+    idea.studentId,
+    'IDEA_APPROVED',
+    'Idea Approved',
+    `Your idea "${idea.title}" has been approved. Your selected supervisors can now respond.`,
+    '/ideas'
+  );
+
   const tmpl = emailTemplates.ideaApproved(idea.title);
-  await sendEmail(idea.student.email, tmpl.subject, tmpl.html);
+
+  await sendEmail(
+    idea.student.email,
+    tmpl.subject,
+    tmpl.html
+  );
 };
 
 export const notifyIdeaRejected = async (ideaId: string, feedback?: string) => {

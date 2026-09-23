@@ -1,5 +1,3 @@
-// frontend/src/types/index.ts
-
 export type UserRole =
   | 'ADMIN'
   | 'SUBADMIN'
@@ -35,6 +33,13 @@ export type InviteStatus =
   | 'ACCEPTED'
   | 'DECLINED'
   | 'EXPIRED';
+
+export type SupervisorPreferenceStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'CLOSED';
 
 export interface User {
   id: string;
@@ -220,6 +225,38 @@ export interface TeamInvite {
   };
 }
 
+export interface SupervisorPreference {
+  id: string;
+  studentIdeaId: string;
+  facultyId: string;
+  preferenceOrder: number;
+  responseStatus: SupervisorPreferenceStatus;
+  respondedAt?: string | null;
+  responseNote?: string | null;
+
+  faculty: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    facultyId?: string;
+    designation?: string;
+  };
+}
+
+export interface AvailableSupervisor {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  facultyId?: string;
+  designation?: string;
+  approvedProjectCount: number;
+  assignedIdeaCount: number;
+  capacityUsed: number;
+  remainingCapacity: number;
+}
+
 export interface StudentIdea {
   id: string;
   poolId: string;
@@ -228,13 +265,19 @@ export interface StudentIdea {
   description: string;
   domain?: string;
 
-  /**
-   * Student's optional preferred supervisor.
-   * This is a preference, not the final supervisor assignment.
-   */
-  preferredSupervisorId?: string | null;
+  status:
+    | 'SUBMITTED'
+    | 'UNDER_REVIEW'
+    | 'APPROVED'
+    | 'REJECTED';
 
-  preferredSupervisor?: {
+  adminFeedback?: string | null;
+  similarityStatus?: string | null;
+  similarityScore?: number | null;
+  similarityCheckedAt?: string | null;
+  supervisorId?: string | null;
+
+  supervisor?: {
     id: string;
     firstName: string;
     lastName: string;
@@ -243,17 +286,24 @@ export interface StudentIdea {
     designation?: string;
   } | null;
 
-  status:
-    | 'SUBMITTED'
-    | 'UNDER_REVIEW'
-    | 'APPROVED'
-    | 'REJECTED';
+    preferredSupervisorId?: string | null;
 
-  adminFeedback?: string;
-
-  student?: {
+  preferredSupervisor?: {
+    id: string;
     firstName: string;
     lastName: string;
+    email?: string;
+    facultyId?: string;
+    designation?: string;
+  } | null;
+
+  supervisorPreferences: SupervisorPreference[];
+
+  student?: {
+    id?: string;
+    firstName: string;
+    lastName: string;
+    email?: string;
     enrollmentNo?: string;
   };
 
@@ -266,6 +316,65 @@ export interface StudentIdea {
 
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface SupervisionRequest {
+  id: string;
+  studentIdeaId: string;
+  facultyId: string;
+  preferenceOrder: number;
+  responseStatus: SupervisorPreferenceStatus;
+  respondedAt?: string | null;
+  responseNote?: string | null;
+
+  faculty: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    facultyId?: string;
+    designation?: string;
+  };
+
+  studentIdea: {
+    id: string;
+    poolId: string;
+    studentId: string;
+    title: string;
+    description: string;
+    domain?: string | null;
+
+    status:
+      | 'SUBMITTED'
+      | 'UNDER_REVIEW'
+      | 'APPROVED'
+      | 'REJECTED';
+
+    adminFeedback?: string | null;
+    supervisorId?: string | null;
+
+    createdAt?: string;
+    updatedAt?: string;
+
+    student?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email?: string;
+      enrollmentNo?: string;
+    };
+
+    supervisor?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      facultyId?: string;
+      designation?: string;
+    } | null;
+
+    supervisorPreferences: SupervisorPreference[];
+  };
 }
 
 export interface Notification {
@@ -368,12 +477,7 @@ export interface IdeaInput {
   title: string;
   description: string;
   domain?: string;
-
-  /**
-   * Optional preferred supervisor selected from
-   * faculty assigned to the current pool.
-   */
-  preferredSupervisorId?: string | null;
+  supervisorIds: string[];
 }
 
 // ── Stats & Display Types ──

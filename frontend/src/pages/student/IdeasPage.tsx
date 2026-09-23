@@ -22,7 +22,10 @@ import {
   UserRound,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { StudentIdea, User } from '@/types';
+import type {
+  AvailableSupervisor,
+  StudentIdea,
+} from '@/types';
 import { getErrorMessage } from '@/types';
 
 // Premium Nature-Inspired Gradient Colors
@@ -43,16 +46,11 @@ const gradients = {
     'linear-gradient(135deg, #f5af19 0%, #f12711 50%, #f5af19 100%)',
 };
 
-interface PoolFacultyMember {
-  id: string;
-  faculty: User;
-  hasSubmitted: boolean;
-}
-
 const IdeasPage: React.FC = () => {
   const [poolId, setPoolId] = useState('');
   const [ideas, setIdeas] = useState<StudentIdea[]>([]);
-  const [poolFaculty, setPoolFaculty] = useState<PoolFacultyMember[]>([]);
+  const [availableSupervisors, setAvailableSupervisors] =
+    useState<AvailableSupervisor[]>([]);
   const [loading, setLoading] = useState(true);
   const [facultyLoading, setFacultyLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -61,10 +59,12 @@ const IdeasPage: React.FC = () => {
     title: '',
     description: '',
     domain: '',
-    preferredSupervisorId: '',
+    supervisorIds: ['', '', ''],
   });
 
-  const [hoveredIdea, setHoveredIdea] = useState<string | null>(null);
+  const [hoveredIdea, setHoveredIdea] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     const loadPage = async () => {
@@ -79,14 +79,9 @@ const IdeasPage: React.FC = () => {
 
         setPoolId(pool.id);
 
-        const [myIdeas, fullPool] = await Promise.all([
-          ideaService.getMyIdeas(pool.id),
-          poolService.getById(pool.id),
-        ]);
+        const myIdeas = await ideaService.getMyIdeas(pool.id);
 
         setIdeas(myIdeas || []);
-
-        setPoolFaculty(fullPool?.faculty || []);
       } catch (error: unknown) {
         toast.error(getErrorMessage(error));
       } finally {
@@ -100,19 +95,22 @@ const IdeasPage: React.FC = () => {
   const openForm = async () => {
     setShowForm(true);
 
-    // If faculty has not already been loaded, load it now.
-    if (poolId && poolFaculty.length === 0) {
-      try {
-        setFacultyLoading(true);
+    if (!poolId) {
+      toast.error('No active pool found.');
+      return;
+    }
 
-        const pool = await poolService.getById(poolId);
+    try {
+      setFacultyLoading(true);
 
-        setPoolFaculty(pool?.faculty || []);
-      } catch (error: unknown) {
-        toast.error(getErrorMessage(error));
-      } finally {
-        setFacultyLoading(false);
-      }
+      const supervisors =
+        await ideaService.getAvailableSupervisors(poolId);
+
+      setAvailableSupervisors(supervisors || []);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setFacultyLoading(false);
     }
   };
 
@@ -121,8 +119,13 @@ const IdeasPage: React.FC = () => {
       title: '',
       description: '',
       domain: '',
-      preferredSupervisorId: '',
+      supervisorIds: ['', '', ''],
     });
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    resetForm();
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -133,19 +136,43 @@ const IdeasPage: React.FC = () => {
       return;
     }
 
+    const supervisorIds = form.supervisorIds;
+
+    if (supervisorIds.some(id => !id)) {
+      toast.error(
+        'Please select all 3 supervisor preferences.'
+      );
+      return;
+    }
+
+    if (new Set(supervisorIds).size !== 3) {
+      toast.error(
+        'Please select 3 different supervisors.'
+      );
+      return;
+    }
+
+    if (!form.title.trim()) {
+      toast.error('Project title is required.');
+      return;
+    }
+
+    if (!form.description.trim()) {
+      toast.error('Project description is required.');
+      return;
+    }
+
     try {
       await ideaService.submit(poolId, {
         title: form.title.trim(),
         description: form.description.trim(),
         domain: form.domain.trim() || undefined,
-        preferredSupervisorId:
-          form.preferredSupervisorId || null,
+        supervisorIds,
       });
 
       toast.success('✨ Idea submitted successfully!');
 
-      setShowForm(false);
-      resetForm();
+      closeForm();
 
       const updatedIdeas =
         await ideaService.getMyIdeas(poolId);
@@ -226,6 +253,47 @@ const IdeasPage: React.FC = () => {
     }
   };
 
+  const getPreferenceStatus = (
+    status: string
+  ) => {
+    switch (status) {
+      case 'ACCEPTED':
+        return {
+          text: 'Accepted',
+          className:
+            'bg-green-100 text-green-700',
+        };
+
+      case 'REJECTED':
+        return {
+          text: 'Declined',
+          className:
+            'bg-red-100 text-red-700',
+        };
+
+      case 'CLOSED':
+        return {
+          text: 'Closed',
+          className:
+            'bg-gray-100 text-gray-600',
+        };
+
+      case 'EXPIRED':
+        return {
+          text: 'Expired',
+          className:
+            'bg-gray-100 text-gray-600',
+        };
+
+      default:
+        return {
+          text: 'Pending',
+          className:
+            'bg-yellow-100 text-yellow-700',
+        };
+    }
+  };
+
   return (
     <div
       className="min-h-screen"
@@ -287,9 +355,12 @@ const IdeasPage: React.FC = () => {
                 </h1>
 
                 <p className="mt-3 sm:mt-4 text-gray-600 text-sm sm:text-base lg:text-lg max-w-2xl">
-                  Have a unique project idea? Submit it for review.
-                  If approved, it will be reserved exclusively for
-                  your team.
+                  Have a unique project idea? Submit it for
+                  review and choose three preferred faculty
+                  supervisors. If approved, the supervisors
+                  will review your request and one will be
+                  assigned before your project is finally
+                  confirmed.
                 </p>
               </div>
 
@@ -346,10 +417,7 @@ const IdeasPage: React.FC = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
               className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => {
-                setShowForm(false);
-                resetForm();
-              }}
+              onClick={closeForm}
             />
 
             <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
@@ -367,10 +435,7 @@ const IdeasPage: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={() => {
-                    setShowForm(false);
-                    resetForm();
-                  }}
+                  onClick={closeForm}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -381,13 +446,19 @@ const IdeasPage: React.FC = () => {
                 onSubmit={submit}
                 className="p-5 sm:p-6 space-y-5"
               >
+                {/* Workflow Information */}
                 <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
-                  <p className="text-sm text-emerald-700 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 flex-shrink-0" />
+                  <p className="text-sm text-emerald-700 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" />
 
-                    If your idea gets approved, it will be reserved
-                    for your team. Make sure to provide clear
-                    details!
+                    <span>
+                      After admin approval, your three selected
+                      supervisors will receive the complete idea
+                      details and can accept or decline the
+                      supervision request. One supervisor will
+                      be assigned before your project is finally
+                      confirmed.
+                    </span>
                   </p>
                 </div>
 
@@ -456,75 +527,163 @@ const IdeasPage: React.FC = () => {
                   />
                 </div>
 
-                {/* Supervisor Preference */}
+                {/* Supervisor Preferences */}
                 <div>
-                  <label className="text-sm font-bold text-gray-700 block mb-2">
-                    <span className="inline-flex items-center gap-2">
-                      <UserRound className="w-4 h-4 text-emerald-600" />
-                      Supervisor Preference
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-bold text-gray-700">
+                      <span className="inline-flex items-center gap-2">
+                        <UserRound className="w-4 h-4 text-emerald-600" />
+                        Supervisor Preferences
+                      </span>
+                    </label>
+
+                    <span className="text-xs font-semibold text-emerald-600">
+                      Choose exactly 3
                     </span>
+                  </div>
 
-                    <span className="text-gray-400 font-normal ml-1">
-                      (Optional)
-                    </span>
-                  </label>
-
-                  <select
-                    value={form.preferredSupervisorId}
-                    onChange={e =>
-                      setForm(f => ({
-                        ...f,
-                        preferredSupervisorId:
-                          e.target.value,
-                      }))
-                    }
-                    disabled={facultyLoading}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">
-                      {facultyLoading
-                        ? 'Loading available faculty...'
-                        : poolFaculty.length === 0
-                          ? 'No faculty available'
-                          : 'No preference'}
-                    </option>
-
-                    {poolFaculty.map(member => {
-                      const faculty = member.faculty;
-
-                      const fullName =
-                        `${faculty.firstName || ''} ${faculty.lastName || ''}`.trim();
-
-                      return (
-                        <option
-                          key={faculty.id}
-                          value={faculty.id}
-                        >
-                          {fullName || faculty.email}
-                          {faculty.facultyId
-                            ? ` (${faculty.facultyId})`
-                            : ''}
-                          {faculty.designation
-                            ? ` - ${faculty.designation}`
-                            : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-
-                  <p className="mt-2 text-xs text-gray-500">
-                    Select your preferred supervisor from the faculty
-                    available in this pool. This is only a preference;
-                    final supervisor assignment will be decided by
-                    the administration.
+                  <p className="text-xs text-gray-500 mb-3">
+                    Select three different faculty members in
+                    your order of preference. Only faculty with
+                    available supervision capacity are shown.
                   </p>
+
+                  <div className="space-y-3">
+                    {form.supervisorIds.map(
+                      (selectedId, index) => {
+                        const selectedByOthers =
+                          form.supervisorIds.filter(
+                            (_, selectedIndex) =>
+                              selectedIndex !== index
+                          );
+
+                        return (
+                          <div key={index}>
+                            <label className="text-xs font-bold text-gray-600 block mb-1.5">
+                              Preference {index + 1}
+                              <span className="text-emerald-500 ml-1">
+                                *
+                              </span>
+                            </label>
+
+                            <select
+                              value={selectedId}
+                              onChange={e => {
+                                const value = e.target.value;
+
+                                setForm(current => {
+                                  const supervisorIds = [
+                                    ...current.supervisorIds,
+                                  ];
+
+                                  supervisorIds[index] =
+                                    value;
+
+                                  return {
+                                    ...current,
+                                    supervisorIds,
+                                  };
+                                });
+                              }}
+                              disabled={
+                                facultyLoading ||
+                                availableSupervisors.length === 0
+                              }
+                              required
+                              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            >
+                              <option value="">
+                                {facultyLoading
+                                  ? 'Loading available supervisors...'
+                                  : availableSupervisors.length ===
+                                      0
+                                    ? 'No supervisors currently available'
+                                    : `Select preference ${index + 1}`}
+                              </option>
+
+                              {availableSupervisors.map(
+                                supervisor => {
+                                  const isAlreadySelected =
+                                    selectedByOthers.includes(
+                                      supervisor.id
+                                    );
+
+                                  const fullName =
+                                    `${supervisor.firstName || ''} ${supervisor.lastName || ''}`.trim();
+
+                                  return (
+                                    <option
+                                      key={supervisor.id}
+                                      value={supervisor.id}
+                                      disabled={
+                                        isAlreadySelected
+                                      }
+                                    >
+                                      {fullName ||
+                                        supervisor.email}
+                                      {supervisor.facultyId
+                                        ? ` (${supervisor.facultyId})`
+                                        : ''}
+                                      {supervisor.designation
+                                        ? ` - ${supervisor.designation}`
+                                        : ''}
+                                      {` — ${supervisor.remainingCapacity} slot${
+                                        supervisor.remainingCapacity !==
+                                        1
+                                          ? 's'
+                                          : ''
+                                      } available`}
+                                    </option>
+                                  );
+                                }
+                              )}
+                            </select>
+
+                            {selectedId && (
+                              <p className="mt-1 text-[11px] text-gray-500">
+                                {(() => {
+                                  const supervisor =
+                                    availableSupervisors.find(
+                                      item =>
+                                        item.id ===
+                                        selectedId
+                                    );
+
+                                  if (!supervisor) {
+                                    return null;
+                                  }
+
+                                  return `${supervisor.capacityUsed}/4 supervision slots used`;
+                                })()}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+
+                  <div className="mt-3 rounded-xl bg-emerald-50 border border-emerald-100 p-3">
+                    <p className="text-xs text-emerald-700">
+                      <strong>How it works:</strong> Your idea
+                      is first reviewed by the administrator.
+                      Once approved, all three selected
+                      supervisors receive the complete idea
+                      details. The first eligible supervisor to
+                      accept can become your supervisor.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Buttons */}
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all hover:scale-105 shadow-lg"
+                    disabled={
+                      facultyLoading ||
+                      form.supervisorIds.some(id => !id)
+                    }
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     style={{
                       background: gradients.brand,
                       color: 'white',
@@ -536,10 +695,7 @@ const IdeasPage: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowForm(false);
-                      resetForm();
-                    }}
+                    onClick={closeForm}
                     className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
                   >
                     Cancel
@@ -579,6 +735,25 @@ const IdeasPage: React.FC = () => {
               {ideas.map(idea => {
                 const statusBadge =
                   getStatusBadge(idea.status);
+
+                const preferences =
+                  idea.supervisorPreferences
+                    ? [...idea.supervisorPreferences].sort(
+                        (a, b) =>
+                          a.preferenceOrder -
+                          b.preferenceOrder
+                      )
+                    : [];
+
+                const allPreferencesClosed =
+                  preferences.length === 3 &&
+                  preferences.every(
+                    preference =>
+                      preference.responseStatus ===
+                        'REJECTED' ||
+                      preference.responseStatus ===
+                        'CLOSED'
+                  );
 
                 return (
                   <div
@@ -638,21 +813,109 @@ const IdeasPage: React.FC = () => {
                               </div>
                             )}
 
-                            {/* Selected Supervisor Preference */}
-                            {idea.preferredSupervisor && (
-                              <div className="mt-4 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100">
-                                <UserRound className="w-4 h-4 text-emerald-600" />
+                            {/* Supervisor Preferences / Assignment */}
+                            {preferences.length > 0 && (
+                              <div className="mt-4 rounded-xl bg-emerald-50 border border-emerald-100 p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <UserRound className="w-4 h-4 text-emerald-600" />
 
-                                <div>
                                   <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">
-                                    Supervisor Preference
-                                  </p>
-
-                                  <p className="text-sm font-semibold text-gray-800">
-                                    {idea.preferredSupervisor.firstName}{' '}
-                                    {idea.preferredSupervisor.lastName}
+                                    Supervisor Preferences
                                   </p>
                                 </div>
+
+                                <div className="space-y-2">
+                                  {preferences.map(
+                                    preference => {
+                                      const fullName =
+                                        `${preference.faculty.firstName || ''} ${preference.faculty.lastName || ''}`.trim();
+
+                                      const status =
+                                        getPreferenceStatus(
+                                          preference.responseStatus
+                                        );
+
+                                      return (
+                                        <div
+                                          key={
+                                            preference.id
+                                          }
+                                          className="flex items-center justify-between gap-3 bg-white/70 rounded-lg px-3 py-2"
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center">
+                                              {
+                                                preference.preferenceOrder
+                                              }
+                                            </span>
+
+                                            <div className="min-w-0">
+                                              <p className="text-sm font-semibold text-gray-800 truncate">
+                                                {fullName ||
+                                                  preference
+                                                    .faculty
+                                                    .email}
+                                              </p>
+
+                                              {preference
+                                                .faculty
+                                                .designation && (
+                                                <p className="text-[11px] text-gray-500">
+                                                  {
+                                                    preference
+                                                      .faculty
+                                                      .designation
+                                                  }
+                                                </p>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          <span
+                                            className={`flex-shrink-0 px-2 py-1 rounded-full text-[10px] font-bold ${status.className}`}
+                                          >
+                                            {status.text}
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+                                  )}
+                                </div>
+
+                                {/* Assigned Supervisor */}
+                                {idea.supervisor && (
+                                  <div className="mt-3 pt-3 border-t border-emerald-100">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">
+                                      Supervisor Assigned
+                                    </p>
+
+                                    <p className="text-sm font-semibold text-gray-800 mt-1">
+                                      {idea.supervisor.firstName}{' '}
+                                      {idea.supervisor.lastName}
+                                    </p>
+
+                                    {idea.supervisor.designation && (
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        {idea.supervisor.designation}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Manual Assignment Required */}
+                                {!idea.supervisor &&
+                                  allPreferencesClosed &&
+                                  idea.status !==
+                                    'REJECTED' && (
+                                    <div className="mt-3 pt-3 border-t border-emerald-100">
+                                      <p className="text-xs font-medium text-amber-700">
+                                        All preferred supervisors
+                                        declined. Waiting for an
+                                        administrator to assign a
+                                        supervisor.
+                                      </p>
+                                    </div>
+                                  )}
                               </div>
                             )}
                           </div>
@@ -665,6 +928,7 @@ const IdeasPage: React.FC = () => {
                           )}
                         </div>
 
+                        {/* Admin Feedback */}
                         {idea.adminFeedback && (
                           <div
                             className="mt-4 rounded-xl p-4 border border-teal-100"
