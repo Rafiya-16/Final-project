@@ -26,6 +26,7 @@ router.get('/:poolId/faculty-status', authorize('SUBADMIN', 'ADMIN'), (q, s, n) 
 router.post('/:poolId/projects/:projectId/approve', authorize('ADMIN'), (q, s, n) => projectsController.approve(q, s, n));
 router.post('/:poolId/projects/:projectId/reject', authorize('ADMIN'), (q, s, n) => projectsController.reject(q, s, n));
 router.post('/:poolId/projects/approve-all-locked', authorize('ADMIN'), (q, s, n) => projectsController.approveAllLocked(q, s, n));
+router.post('/:poolId/projects/reorganize-codes', authorize('ADMIN'), (q, s, n) => projectsController.reorganizeProjectCodes(q, s, n));
 router.get('/:poolId/projects/on-hold', authorize('ADMIN'), (q, s, n) => projectsController.getHeld(q, s, n));
 
 // Anyone (role-filtered response)

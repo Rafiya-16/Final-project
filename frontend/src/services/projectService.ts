@@ -136,6 +136,14 @@ export const projectService = {
     return data;
   },
 
+  reorganizeCodes: async (poolId: string) => {
+  const { data } = await api.post(
+    `/pools/${poolId}/projects/reorganize-codes`
+  );
+
+  return data;
+},
+
   getHeld: async (poolId: string) => {
     const { data } = await api.get(
       `/pools/${poolId}/projects/on-hold`

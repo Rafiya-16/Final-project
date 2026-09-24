@@ -78,15 +78,16 @@ export const emailTemplates = {
     `,
   }),
 
-  ideaApproved: (ideaTitle: string) => ({
-    subject: `Idea Approved: ${ideaTitle}`,
-    html: `
-      <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
-        <h2 style="color: #16a34a;">💡 Idea Approved</h2>
-        <p>Your project idea <strong>"${ideaTitle}"</strong> has been approved and assigned to your team!</p>
-      </div>
-    `,
-  }),
+ ideaApproved: (ideaTitle: string) => ({
+  subject: `Idea Approved: ${ideaTitle}`,
+  html: `
+    <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
+      <h2 style="color: #16a34a;">💡 Idea Approved</h2>
+      <p>Your project idea <strong>"${ideaTitle}"</strong> has been approved.</p>
+      <p>Your selected supervisors have received supervision requests and can now respond.</p>
+    </div>
+  `,
+}),
 
   credentials: (name: string, email: string, tempPassword: string) => ({
     subject: 'Your Project Allocation Account',
