@@ -958,9 +958,9 @@ export class ProjectsService {
         }
       );
 
-   await projectCodeService.reorganizePool(
+   /*await projectCodeService.reorganizePool(
       updated.poolId
-    );
+    );*/
 
     const approvedProject =
       await prisma.project.findUnique({
@@ -1059,14 +1059,6 @@ export class ProjectsService {
             adminId,
           decidedAt:
             new Date(),
-
-          ...(project.projectCodeLocked
-            ? {}
-            : {
-                projectCode: null,
-                projectCodeLocked: false,
-                projectCodeLockedAt: null,
-              }),
         },
       });
 
@@ -1172,9 +1164,9 @@ export class ProjectsService {
       )
     );
 
-     await projectCodeService.reorganizePool(
+   /*  await projectCodeService.reorganizePool(
       poolId
-    );
+    ); */
     
      const approvedProjects =
       await prisma.project.findMany({

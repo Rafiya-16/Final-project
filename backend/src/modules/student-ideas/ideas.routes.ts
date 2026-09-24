@@ -91,4 +91,11 @@ router.post(
     ideasController.assignSupervisor(q, s, n)
 );
 
+router.get(
+  '/:poolId/ideas/available-supervisors/admin',
+  authorize('ADMIN'),
+  (q, s, n) =>
+    ideasController.getAvailableSupervisors(q, s, n)
+);
+
 export default router;

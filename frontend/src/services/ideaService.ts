@@ -44,6 +44,16 @@ export const ideaService = {
     return data.data;
   },
 
+  getAvailableSupervisorsForAdmin: async (
+  poolId: string
+): Promise<AvailableSupervisor[]> => {
+  const { data } = await api.get(
+    `/pools/${poolId}/ideas/available-supervisors/admin`
+  );
+
+  return data.data;
+},
+
   approve: async (
     poolId: string,
     id: string,
