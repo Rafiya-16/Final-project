@@ -1,8 +1,9 @@
 // frontend/src/components/layout/Sidebar.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+
 import {
   LayoutDashboard,
   Users,
@@ -25,15 +26,12 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { poolService } from '@/services/poolService';
-import { ideaService } from '@/services/ideaService';
 
 type NavItem = {
   label: string;
   path: string;
   icon: React.ReactNode;
   notice?: boolean;
-  requestBadge?: boolean;
 };
 
 const navItems: Record<string, NavItem[]> = {
@@ -125,12 +123,6 @@ const navItems: Record<string, NavItem[]> = {
       icon: <User className="w-5 h-5" />,
     },
     {
-      label: 'Student Proposals',
-      path: '/supervision-requests',
-      icon: <Lightbulb className="w-5 h-5" />,
-      requestBadge: true,
-    },
-    {
       label: 'Notifications',
       path: '/notifications',
       icon: <Bell className="w-5 h-5" />,
@@ -172,185 +164,12 @@ const navItems: Record<string, NavItem[]> = {
   ],
 };
 
-// Role-specific color themes
-const roleTheme: Record<
-  string,
-  {
-    sidebarBg: string;
-    brand: string;
-    brandText: string;
-    brandSub: string;
-    activeLink: string;
-    activeLinkText: string;
-    avatarBg: string;
-    avatarText: string;
-    accent: string;
-    logoutHover: string;
-  }
-> = {
-  ADMIN: {
-    sidebarBg: 'bg-slate-900',
-    brand: 'text-white',
-    brandText: 'ProjectAlloc',
-    brandSub: 'text-slate-400',
-    activeLink: 'bg-blue-600/20',
-    activeLinkText: 'text-blue-400',
-    avatarBg: 'bg-blue-600/20',
-    avatarText: 'text-blue-400',
-    accent:
-      'text-slate-400 hover:bg-slate-800 hover:text-white',
-    logoutHover: 'hover:bg-red-500/10 text-red-400',
-  },
-
-  SUBADMIN: {
-    sidebarBg: 'bg-amber-950',
-    brand: 'text-amber-100',
-    brandText: 'ReviewHub',
-    brandSub: 'text-amber-500/60',
-    activeLink: 'bg-amber-500/15',
-    activeLinkText: 'text-amber-400',
-    avatarBg: 'bg-amber-500/15',
-    avatarText: 'text-amber-400',
-    accent:
-      'text-amber-400/70 hover:bg-amber-900/50 hover:text-amber-200',
-    logoutHover: 'hover:bg-red-500/10 text-red-400',
-  },
-
-  FACULTY: {
-    sidebarBg:
-      'bg-gradient-to-br from-[#0a0e27] via-[#0f172a] to-[#1a1a3e]',
-    brand: 'text-white',
-    brandText: 'Faculty Portal',
-    brandSub: 'text-blue-400/60',
-    activeLink: 'bg-blue-500/15',
-    activeLinkText: 'text-blue-400',
-    avatarBg: 'bg-blue-500/15',
-    avatarText: 'text-blue-400',
-    accent:
-      'text-blue-300/60 hover:bg-blue-900/40 hover:text-blue-300',
-    logoutHover: 'hover:bg-red-500/10 text-red-400',
-  },
-
-  STUDENT: {
-    sidebarBg: 'bg-teal-950',
-    brand: 'text-teal-100',
-    brandText: 'Student Hub',
-    brandSub: 'text-teal-500/60',
-    activeLink: 'bg-teal-500/15',
-    activeLinkText: 'text-teal-400',
-    avatarBg: 'bg-teal-500/15',
-    avatarText: 'text-teal-400',
-    accent:
-      'text-teal-400/70 hover:bg-teal-900/50 hover:text-teal-200',
-    logoutHover: 'hover:bg-red-500/10 text-red-400',
-  },
-};
-
 export const Sidebar: React.FC = () => {
   const { user, clearAuth } = useAuthStore();
   const navigate = useNavigate();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] =
     useState(false);
-
-  const [supervisionRequestCount, setSupervisionRequestCount] =
-    useState(0);
-
-  const loadSupervisionRequestCount =
-    useCallback(async () => {
-      if (user?.role !== 'FACULTY') {
-        setSupervisionRequestCount(0);
-        return;
-      }
-
-      try {
-        const poolResponse = await poolService.list();
-
-        const pools = poolResponse?.data || [];
-
-        if (!Array.isArray(pools) || pools.length === 0) {
-          setSupervisionRequestCount(0);
-          return;
-        }
-
-        let pendingCount = 0;
-
-        for (const pool of pools) {
-          try {
-            const requests =
-              await ideaService.getSupervisionRequests(
-                pool.id
-              );
-
-            if (!Array.isArray(requests)) {
-              continue;
-            }
-
-            pendingCount += requests.filter(
-              (request: any) =>
-                request?.responseStatus === 'PENDING' ||
-                request?.status === 'PENDING'
-            ).length;
-          } catch {
-          
-            continue;
-          }
-        }
-
-        setSupervisionRequestCount(pendingCount);
-      } catch {
-       
-        setSupervisionRequestCount(0);
-      }
-    }, [user?.role]);
-
-  useEffect(() => {
-    if (user?.role !== 'FACULTY') {
-      return;
-    }
-
-    loadSupervisionRequestCount();
-
-    const interval = window.setInterval(() => {
-      loadSupervisionRequestCount();
-    }, 30000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [
-    user?.role,
-    loadSupervisionRequestCount,
-  ]);
-
-  /**
-   * Refresh the count whenever the browser window
-   * becomes active again.
-   */
-  useEffect(() => {
-    if (user?.role !== 'FACULTY') {
-      return;
-    }
-
-    const handleFocus = () => {
-      loadSupervisionRequestCount();
-    };
-
-    window.addEventListener(
-      'focus',
-      handleFocus
-    );
-
-    return () => {
-      window.removeEventListener(
-        'focus',
-        handleFocus
-      );
-    };
-  }, [
-    user?.role,
-    loadSupervisionRequestCount,
-  ]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -359,40 +178,80 @@ export const Sidebar: React.FC = () => {
       }
     };
 
-    window.addEventListener(
-      'resize',
-      handleResize
-    );
+    window.addEventListener('resize', handleResize);
 
     return () =>
-      window.removeEventListener(
-        'resize',
-        handleResize
-      );
+      window.removeEventListener('resize', handleResize);
   }, []);
 
   const items =
     navItems[user?.role || 'STUDENT'] || [];
 
-  const theme =
-    roleTheme[user?.role || 'STUDENT'];
+  const role = user?.role || 'STUDENT';
 
-  const isStudent =
-    user?.role === 'STUDENT';
+  const isStudent = role === 'STUDENT';
 
-  const isFaculty =
-    user?.role === 'FACULTY';
+  const roleConfig = {
+    ADMIN: {
+      accent: 'blue',
+      lightIcon: 'text-blue-600',
+      darkIcon: 'text-blue-400',
+      lightActive:
+        'bg-blue-50 text-blue-700 border-blue-100',
+      darkActive:
+        'bg-blue-500/10 text-blue-300 border-blue-500/10',
+    },
+
+    SUBADMIN: {
+      accent: 'amber',
+      lightIcon: 'text-amber-600',
+      darkIcon: 'text-amber-400',
+      lightActive:
+        'bg-amber-50 text-amber-700 border-amber-100',
+      darkActive:
+        'bg-amber-500/10 text-amber-300 border-amber-500/10',
+    },
+
+    FACULTY: {
+      accent: 'violet',
+      lightIcon: 'text-violet-600',
+      darkIcon: 'text-violet-400',
+      lightActive:
+        'bg-violet-50 text-violet-700 border-violet-100',
+      darkActive:
+        'bg-violet-500/10 text-violet-300 border-violet-500/10',
+    },
+
+    STUDENT: {
+      accent: 'teal',
+      lightIcon: 'text-teal-600',
+      darkIcon: 'text-teal-400',
+      lightActive:
+        'bg-teal-50 text-teal-700 border-teal-100',
+      darkActive:
+        'bg-teal-500/10 text-teal-300 border-teal-500/10',
+    },
+  }[role as 'ADMIN' | 'SUBADMIN' | 'FACULTY' | 'STUDENT'];
 
   return (
     <>
-      {/* Mobile Hamburger Button */}
+      {/* =====================================================
+          MOBILE MENU BUTTON
+      ===================================================== */}
       <button
         onClick={() =>
-          setIsMobileMenuOpen(
-            !isMobileMenuOpen
-          )
+          setIsMobileMenuOpen(!isMobileMenuOpen)
         }
-        className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg md:hidden"
+        className="
+          fixed top-4 left-4 z-50
+          p-2.5 rounded-xl
+          bg-white dark:bg-slate-800
+          border border-cream-300 dark:border-slate-700
+          text-stone-700 dark:text-white
+          shadow-lg
+          md:hidden
+          transition-all duration-300
+        "
         aria-label="Toggle navigation menu"
       >
         {isMobileMenuOpen ? (
@@ -402,60 +261,130 @@ export const Sidebar: React.FC = () => {
         )}
       </button>
 
-      {/* Mobile Overlay */}
+      {/* =====================================================
+          MOBILE OVERLAY
+      ===================================================== */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="
+            fixed inset-0
+            bg-black/40 dark:bg-black/60
+            backdrop-blur-sm
+            z-40 md:hidden
+          "
           onClick={() =>
             setIsMobileMenuOpen(false)
           }
         />
       )}
 
-      {/* Sidebar */}
+      {/* =====================================================
+          SIDEBAR
+      ===================================================== */}
       <aside
         className={`
-          fixed left-0 top-0 h-screen flex flex-col z-40
-          transition-transform duration-300
-          w-64 ${theme.sidebarBg}
-          ${
-            isMobileMenuOpen
-              ? 'translate-x-0'
-              : '-translate-x-full'
-          }
+          fixed left-0 top-0
+          h-screen w-64
+          flex flex-col
+          z-40
+
+          bg-white
+          dark:bg-slate-950
+
+          border-r
+          border-cream-300
+          dark:border-slate-800
+
+          shadow-xl
+          dark:shadow-black/30
+
+          transition-all duration-500
+          ${isMobileMenuOpen
+            ? 'translate-x-0'
+            : '-translate-x-full'}
           md:translate-x-0
-          shadow-2xl
         `}
       >
-        {/* Brand Section */}
-        <div className="p-6 border-b border-white/5">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 bg-white/5 rounded-xl">
-              <Sparkles className="w-5 h-5 text-blue-400" />
+
+        {/* ===================================================
+            BRAND
+        =================================================== */}
+        <div
+          className="
+            p-6
+            border-b
+            border-cream-200
+            dark:border-slate-800
+          "
+        >
+          <div className="flex items-center gap-3">
+
+            <div
+              className={`
+                p-2 rounded-xl
+                bg-${roleConfig.accent}-50
+                dark:bg-${roleConfig.accent}-500/10
+                border
+                border-${roleConfig.accent}-100
+                dark:border-${roleConfig.accent}-500/10
+              `}
+            >
+              <Sparkles
+                className={`
+                  w-5 h-5
+                  ${roleConfig.lightIcon}
+                  dark:${roleConfig.darkIcon.replace(
+                    'text-',
+                    'text-'
+                  )}
+                `}
+              />
             </div>
 
             <h1
-              className={`text-xl font-bold ${theme.brand} tracking-tight`}
+              className="
+                text-xl font-bold
+                tracking-tight
+                text-stone-900
+                dark:text-white
+              "
             >
-              {theme.brandText}
+              ProjectAlloc
             </h1>
+
           </div>
 
           <p
-            className={`text-xs mt-1 ${theme.brandSub}`}
+            className="
+              text-xs mt-2
+              text-stone-400
+              dark:text-slate-500
+            "
           >
-            {user?.role === 'ADMIN'
+            {role === 'ADMIN'
               ? 'Administration'
-              : user?.role === 'FACULTY'
+              : role === 'FACULTY'
                 ? 'Faculty Portal'
-                : 'Allocation Platform'}
+                : role === 'SUBADMIN'
+                  ? 'Review Hub'
+                  : 'Student Hub'}
           </p>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto">
+        {/* ===================================================
+            NAVIGATION
+        =================================================== */}
+        <nav
+          className="
+            flex-1
+            py-6 px-3
+            space-y-1.5
+            overflow-y-auto
+          "
+        >
           {items.map((item) => {
-            // Special What To Do notice for students
+
+            {/* Special Student Notice */}
             if (
               isStudent &&
               item.notice
@@ -469,30 +398,60 @@ export const Sidebar: React.FC = () => {
                   }
                   className={({ isActive }) =>
                     cn(
-                      'relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 group',
+                      `
+                        relative
+                        flex items-center gap-3
+                        px-3 py-3
+                        rounded-xl
+                        text-sm font-medium
+                        border
+                        transition-all duration-300
+                        overflow-hidden
+                      `,
                       isActive
-                        ? `${theme.activeLink} ${theme.activeLinkText} shadow-md`
-                        : theme.accent
+                        ? `
+                          ${roleConfig.lightActive}
+                          dark:${roleConfig.darkActive}
+                          shadow-sm
+                        `
+                        : `
+                          border-transparent
+                          text-stone-500
+                          dark:text-slate-400
+                          hover:bg-cream-100
+                          dark:hover:bg-slate-800
+                          hover:text-stone-900
+                          dark:hover:text-white
+                        `
                     )
                   }
                 >
-                  {/* Shine effect */}
-                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-
-                  <ListChecks className="w-5 h-5 animate-pulse" />
+                  <div className="transition-transform duration-300 group-hover:scale-110">
+                    <ListChecks className="w-5 h-5 animate-pulse" />
+                  </div>
 
                   <span className="flex-1 text-left">
                     {item.label}
                   </span>
 
-                  <span className="text-[9px] font-bold bg-white/30 px-2 py-0.5 rounded-full animate-pulse">
+                  <span
+                    className="
+                      text-[8px]
+                      font-bold
+                      bg-red-500
+                      text-white
+                      px-2 py-1
+                      rounded-full
+                      animate-pulse
+                    "
+                  >
                     MUST READ
                   </span>
                 </NavLink>
               );
             }
 
-            // Regular navigation items
+            {/* Normal Navigation */}
             return (
               <NavLink
                 key={item.path}
@@ -502,88 +461,142 @@ export const Sidebar: React.FC = () => {
                 }
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 group',
+                    `
+                      flex items-center gap-3
+                      px-3 py-3
+                      rounded-xl
+                      text-sm font-medium
+                      border
+                      transition-all duration-300
+                      group
+                    `,
                     isActive
-                      ? `${theme.activeLink} ${theme.activeLinkText} shadow-md`
-                      : theme.accent
+                      ? `
+                        ${roleConfig.lightActive}
+                        dark:${roleConfig.darkActive}
+                        shadow-sm
+                      `
+                      : `
+                        border-transparent
+                        text-stone-500
+                        dark:text-slate-400
+                        hover:bg-cream-100
+                        dark:hover:bg-slate-800
+                        hover:text-stone-900
+                        dark:hover:text-white
+                      `
                   )
                 }
               >
-                <div className="transition-transform duration-200 group-hover:scale-110">
+                <div
+                  className="
+                    transition-transform
+                    duration-300
+                    group-hover:scale-110
+                  "
+                >
                   {item.icon}
                 </div>
 
-                <span className="flex-1 text-left">
-                  {item.label}
-                </span>
+                <span>{item.label}</span>
 
-                {/* Faculty supervision request badge */}
-                {isFaculty &&
-                  item.requestBadge &&
-                  supervisionRequestCount > 0 && (
-                    <span
-                      className="
-                        min-w-[22px]
-                        h-[22px]
-                        px-1.5
-                        flex
-                        items-center
-                        justify-center
-                        rounded-full
-                        bg-red-500
-                        text-white
-                        text-[11px]
-                        font-bold
-                        shadow-lg
-                        shadow-red-500/30
-                        animate-pulse
-                      "
-                      title={`${supervisionRequestCount} pending supervision ${
-                        supervisionRequestCount === 1
-                          ? 'request'
-                          : 'requests'
-                      }`}
-                    >
-                      {supervisionRequestCount > 99
-                        ? '99+'
-                        : supervisionRequestCount}
-                    </span>
-                  )}
-
-                {/* Existing notification indicator */}
                 {item.label === 'Notifications' && (
-                  <span className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  <span
+                    className="
+                      ml-auto
+                      w-2 h-2
+                      rounded-full
+                      bg-red-500
+                      animate-pulse
+                    "
+                  />
                 )}
               </NavLink>
             );
           })}
         </nav>
 
-        {/* Profile & Logout */}
-        <div className="p-4 border-t border-white/5 space-y-2">
+        {/* ===================================================
+            PROFILE + LOGOUT
+        =================================================== */}
+        <div
+          className="
+            p-4
+            border-t
+            border-cream-200
+            dark:border-slate-800
+            space-y-2
+          "
+        >
           <button
             onClick={() => {
               navigate('/profile');
               setIsMobileMenuOpen(false);
             }}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-all duration-300 ${theme.accent} group`}
+            className="
+              w-full
+              flex items-center gap-3
+              px-3 py-3
+              rounded-xl
+              text-left
+              bg-cream-50
+              dark:bg-slate-900
+              border
+              border-cream-200
+              dark:border-slate-800
+              hover:bg-cream-100
+              dark:hover:bg-slate-800
+              transition-all duration-300
+              group
+            "
           >
             <div
-              className={`w-9 h-9 ${theme.avatarBg} rounded-xl flex items-center justify-center ${theme.avatarText} font-bold text-sm backdrop-blur-sm transition-transform group-hover:scale-105`}
+              className={`
+                w-10 h-10
+                rounded-xl
+                flex items-center justify-center
+                font-bold text-sm
+                bg-${roleConfig.accent}-50
+                dark:bg-${roleConfig.accent}-500/10
+                ${roleConfig.lightIcon}
+                dark:${roleConfig.darkIcon.replace(
+                  'text-',
+                  'text-'
+                )}
+                transition-transform
+                group-hover:scale-105
+              `}
             >
               {user?.firstName?.[0]}
               {user?.lastName?.[0]}
             </div>
 
-            <div className="flex-1 text-left min-w-0">
-              <p className="font-semibold text-white/90 truncate text-sm">
+            <div className="flex-1 min-w-0">
+              <p
+                className="
+                  font-semibold
+                  text-stone-800
+                  dark:text-white
+                  truncate
+                  text-sm
+                "
+              >
                 {user?.firstName} {user?.lastName}
               </p>
 
-              <p className="text-xs text-white/50">
+              <p
+                className="
+                  text-xs
+                  text-stone-400
+                  dark:text-slate-500
+                  mt-0.5
+                "
+              >
                 {user?.role}
               </p>
             </div>
+
+            <User className="w-4 h-4 text-stone-400 dark:text-slate-500" />
           </button>
 
           <button
@@ -591,7 +604,18 @@ export const Sidebar: React.FC = () => {
               clearAuth();
               window.location.href = '/login';
             }}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-xl transition-all duration-300 ${theme.logoutHover}`}
+            className="
+              w-full
+              flex items-center gap-2
+              px-3 py-2.5
+              rounded-xl
+              text-sm
+              text-red-500
+              dark:text-red-400
+              hover:bg-red-50
+              dark:hover:bg-red-500/10
+              transition-all duration-300
+            "
           >
             <LogOut className="w-4 h-4" />
             Logout
@@ -599,8 +623,10 @@ export const Sidebar: React.FC = () => {
         </div>
       </aside>
 
-      {/* Desktop content spacer */}
-      <div className="hidden md:block w-64" />
+      {/* Desktop spacer */}
+      <div className="hidden md:block w-64 flex-shrink-0" />
     </>
   );
 };
+
+export default Sidebar;
