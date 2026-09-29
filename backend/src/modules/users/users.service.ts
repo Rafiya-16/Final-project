@@ -72,184 +72,1223 @@ export class UsersService {
   }
 
   // ── CSV PARSING ──
-  private async parseCsv(buffer: Buffer): Promise<ParsedRow[]> {
-    return new Promise((resolve, reject) => {
-      const rows: ParsedRow[] = [];
-      let rowNum = 0;
-      const stream = Readable.from(buffer.toString());
+  private async parseCsv(
+  buffer: Buffer
+): Promise<ParsedRow[]> {
+  return new Promise((resolve, reject) => {
+    const rows: ParsedRow[] = [];
+    let rowNum = 0;
 
-      stream
-        .pipe(csvParser({
-          mapHeaders: ({ header }) => header.trim().replace(/^\uFEFF/, '').replace(/['"]/g, '').toLowerCase(),
-        }))
-        .on('data', (raw: Record<string, string>) => {
-          rowNum++;
-          if (rowNum > IMPORT_LIMITS.MAX_ROWS) { stream.destroy(); reject(new BadRequestError(`Max ${IMPORT_LIMITS.MAX_ROWS} rows`)); return; }
-          if (!Object.values(raw).some(v => v && v.trim())) return;
+    const stream = Readable.from(
+      buffer.toString('utf8')
+    );
 
-          const result = csvRowSchema.safeParse(raw);
-          if (result.success) {
-            const { firstName, lastName } = this.splitName(result.data.name);
-            rows.push({ rowNumber: rowNum, rawData: raw, isValid: true, errors: [], parsed: { ...result.data, firstName, lastName } });
-          } else {
-            rows.push({ rowNumber: rowNum, rawData: raw, isValid: false, errors: result.error.issues.map(e => `${e.path.join('.')}: ${e.message}`) });
-          }
+    stream
+      .pipe(
+        csvParser({
+          mapHeaders: ({ header }) => {
+            const normalized = header
+              .trim()
+              .replace(/^\uFEFF/, '')
+              .replace(/['"]/g, '')
+              .toLowerCase()
+              .replace(/\s+/g, '');
+
+            const aliases: Record<
+              string,
+              string
+            > = {
+              enrollmentno: 'enrollment',
+              enrollmentnumber: 'enrollment',
+              enrollmentid: 'enrollment',
+              'enrollmentno.': 'enrollment',
+            };
+
+            return (
+              aliases[normalized] ||
+              normalized
+            );
+          },
         })
-        .on('end', () => resolve(rows))
-        .on('error', (e) => reject(new BadRequestError(`CSV parse error: ${e.message}`)));
-    });
-  }
+      )
+      .on(
+        'data',
+        (raw: Record<string, string>) => {
+          rowNum++;
 
-  private validateHeaders(buffer: Buffer) {
-    const line = buffer.toString().split('\n')[0];
-    if (!line || !line.trim()) throw new BadRequestError('CSV is empty');
-    const headers = line.replace(/^\uFEFF/, '').split(',').map(h => h.trim().replace(/['"]/g, '').toLowerCase());
-    const required = ['name', 'email', 'role', 'department'];
-    const missing = required.filter(h => !headers.includes(h));
-    if (missing.length) throw new ValidationError(`Missing columns: ${missing.join(', ')}. Required: name,email,enrollment,role,department`);
-  }
+          if (
+            rowNum >
+            IMPORT_LIMITS.MAX_ROWS
+          ) {
+            stream.destroy();
 
-  private findDuplicates(rows: ParsedRow[]): Map<number, string> {
-    const dups = new Map<number, string>();
-    const emails = new Map<string, number>();
-    const enrollments = new Map<string, number>();
+            reject(
+              new BadRequestError(
+                `Max ${IMPORT_LIMITS.MAX_ROWS} rows`
+              )
+            );
 
-    for (const r of rows) {
-      if (!r.isValid || !r.parsed) continue;
-      if (emails.has(r.parsed.email)) { dups.set(r.rowNumber, `Dup email at row ${emails.get(r.parsed.email)}`); continue; }
-      emails.set(r.parsed.email, r.rowNumber);
-      if (r.parsed.role === 'student' && r.parsed.enrollment) {
-        if (enrollments.has(r.parsed.enrollment)) { dups.set(r.rowNumber, `Dup enrollment at row ${enrollments.get(r.parsed.enrollment)}`); continue; }
-        enrollments.set(r.parsed.enrollment, r.rowNumber);
-      }
-    }
-    return dups;
-  }
+            return;
+          }
 
-  // ── BULK IMPORT ──
-  async bulkImport(file: Express.Multer.File, adminId: string) {
-    if (!file) throw new BadRequestError('CSV file required');
-    if (!file.originalname.endsWith('.csv')) throw new BadRequestError('Only CSV files accepted');
+          const hasData = Object.values(
+            raw
+          ).some(
+            value =>
+              value &&
+              value.trim()
+          );
 
-    this.validateHeaders(file.buffer);
-    const parsedRows = await this.parseCsv(file.buffer);
-    if (!parsedRows.length) throw new BadRequestError('No data rows found');
+          if (!hasData) {
+            return;
+          }
 
-    // Internal duplicates
-    const internalDups = this.findDuplicates(parsedRows);
-    for (const [num, msg] of internalDups) {
-      const r = parsedRows.find(x => x.rowNumber === num);
-      if (r) { r.isValid = false; r.errors.push(msg); }
-    }
+          const result =
+            csvRowSchema.safeParse(raw);
 
-    const validRows = parsedRows.filter(r => r.isValid && r.parsed);
-    const studentCount = validRows.filter(r => r.parsed.role === 'student').length;
-    const facultyCount = validRows.filter(r => r.parsed.role === 'faculty').length;
-    const importType = studentCount > 0 && facultyCount > 0 ? 'MIXED' : studentCount > 0 ? 'STUDENT' : 'FACULTY';
+          if (result.success) {
+            const {
+              firstName,
+              lastName,
+            } = this.splitName(
+              result.data.name
+            );
 
-    // Create job
-    const job = await prisma.bulkImportJob.create({
-      data: { fileName: `import_${Date.now()}.csv`, originalName: file.originalname, importType, status: 'PROCESSING', totalRows: parsedRows.length, createdById: adminId, startedAt: new Date() },
-    });
+            const role =
+              result.data.role;
 
-    // Check DB duplicates
-    const emails = validRows.map(r => r.parsed.email);
-    const enrollments = validRows.filter(r => r.parsed.role === 'student' && r.parsed.enrollment).map(r => r.parsed.enrollment);
+            const enrollment =
+              role === 'student'
+                ? result.data.id
+                : '';
 
-    const [existEmails, existEnrolls] = await Promise.all([
-      prisma.user.findMany({ where: { email: { in: emails } }, select: { email: true } }),
-      enrollments.length ? prisma.user.findMany({ where: { enrollmentNo: { in: enrollments } }, select: { enrollmentNo: true } }) : Promise.resolve([]),
-    ]);
+            const facultyId =
+              role === 'faculty' ||
+              role === 'subadmin'
+                ? result.data.id
+                : '';
 
-    const emailSet = new Set(existEmails.map(u => u.email));
-    const enrollSet = new Set(existEnrolls.map(u => (u as any).enrollmentNo));
+            rows.push({
+              rowNumber: rowNum,
 
-    const results: any[] = [];
-    let successCount = 0, failureCount = 0, duplicateCount = 0;
-    const toInsert: any[] = [];
+              rawData: raw,
 
-    for (const row of parsedRows) {
-      if (!row.isValid || !row.parsed) {
-        failureCount++;
-        results.push({ rowNumber: row.rowNumber, status: 'INVALID', name: row.rawData.name, email: row.rawData.email, error: row.errors.join('; ') });
-        continue;
-      }
+              isValid: true,
 
-      const { email, enrollment, role } = row.parsed;
+              errors: [],
 
-      if (emailSet.has(email)) {
-        duplicateCount++;
-        results.push({ rowNumber: row.rowNumber, status: 'DUPLICATE', name: row.rawData.name, email, error: `Email already exists` });
-        continue;
-      }
-      if (role === 'student' && enrollment && enrollSet.has(enrollment)) {
-        duplicateCount++;
-        results.push({ rowNumber: row.rowNumber, status: 'DUPLICATE', name: row.rawData.name, email, enrollment, error: `Enrollment already exists` });
-        continue;
-      }
-
-      const identifier = enrollment || email.split('@')[0];
-      const tempPassword = generateTempPassword(row.parsed.firstName, identifier);
-      const hashedPassword = await hashPassword(tempPassword);
-
-      toInsert.push({ rowNumber: row.rowNumber, parsed: row.parsed, tempPassword, hashedPassword });
-      emailSet.add(email);
-      if (role === 'student' && enrollment) enrollSet.add(enrollment);
-    }
-
-    // Batch insert
-    for (let i = 0; i < toInsert.length; i += IMPORT_LIMITS.BATCH_SIZE) {
-      const batch = toInsert.slice(i, i + IMPORT_LIMITS.BATCH_SIZE);
-      await prisma.$transaction(async (tx) => {
-        for (const item of batch) {
-          try {
-            const userRole: UserRole = item.parsed.role === 'student' ? 'STUDENT' : 'FACULTY';
-            const created = await tx.user.create({
-              data: {
-                email: item.parsed.email, password: item.hashedPassword, role: userRole,
-                firstName: item.parsed.firstName, lastName: item.parsed.lastName,
-                department: item.parsed.department,
-                enrollmentNo: userRole === 'STUDENT' ? item.parsed.enrollment : null,
-                designation: userRole === 'FACULTY' ? 'Assistant Professor' : null,
-                mustResetPwd: true, createdBy: adminId,
+              parsed: {
+                ...result.data,
+                firstName,
+                lastName,
+                enrollment,
+                facultyId,
               },
             });
-            await tx.importRow.create({ data: { jobId: job.id, rowNumber: item.rowNumber, rawData: item.parsed, status: 'SUCCESS', userId: created.id } });
-            successCount++;
-            results.push({ rowNumber: item.rowNumber, status: 'SUCCESS', name: `${item.parsed.firstName} ${item.parsed.lastName}`, email: item.parsed.email, enrollment: item.parsed.enrollment, role: item.parsed.role, tempPassword: item.tempPassword });
-          } catch (err: any) {
-            failureCount++;
-            await tx.importRow.create({ data: { jobId: job.id, rowNumber: item.rowNumber, rawData: item.parsed, status: 'FAILED', errorMsg: err.message } });
-            results.push({ rowNumber: item.rowNumber, status: 'FAILED', email: item.parsed.email, error: err.message });
+          } else {
+            rows.push({
+              rowNumber: rowNum,
+              rawData: raw,
+              isValid: false,
+              errors:
+                result.error.issues.map(
+                  issue =>
+                    `${issue.path.join('.')}: ${issue.message}`
+                ),
+            });
           }
         }
+      )
+      .on('end', () => {
+        resolve(rows);
+      })
+      .on('error', error => {
+        reject(
+          new BadRequestError(
+            `CSV parse error: ${error.message}`
+          )
+        );
       });
-    }
+  });
+}
 
-    // Save non-success rows
-    for (const row of parsedRows) {
-      const r = results.find(x => x.rowNumber === row.rowNumber);
-      if (r && (r.status === 'INVALID' || r.status === 'DUPLICATE')) {
-        const exists = await prisma.importRow.findFirst({ where: { jobId: job.id, rowNumber: row.rowNumber } });
-        if (!exists) await prisma.importRow.create({ data: { jobId: job.id, rowNumber: row.rowNumber, rawData: row.rawData, status: r.status === 'DUPLICATE' ? 'DUPLICATE' : 'FAILED', errorMsg: r.error } });
+ private validateHeaders(
+  buffer: Buffer
+) {
+  const line =
+    buffer
+      .toString('utf8')
+      .split(/\r?\n/)[0];
+
+  if (
+    !line ||
+    !line.trim()
+  ) {
+    throw new BadRequestError(
+      'CSV is empty'
+    );
+  }
+
+  const headers =
+    line
+      .replace(/^\uFEFF/, '')
+      .split(',')
+      .map(header =>
+        header
+          .trim()
+          .replace(/['"]/g, '')
+          .toLowerCase()
+          .replace(/\s+/g, '')
+      );
+
+  const normalizedHeaders =
+    headers.map(header => {
+      if (
+        header ===
+          'enrollmentno' ||
+        header ===
+          'enrollmentnumber' ||
+        header ===
+          'enrollmentid' ||
+        header ===
+          'enrollmentno.'
+      ) {
+        return 'enrollment';
       }
-    }
 
-    const finalStatus: ImportStatus = successCount === parsedRows.length ? 'COMPLETED' : successCount === 0 ? 'FAILED' : 'PARTIAL';
-    await prisma.bulkImportJob.update({
-      where: { id: job.id },
-      data: { status: finalStatus, successCount, failureCount, duplicateCount, completedAt: new Date(), errorSummary: { total: parsedRows.length, students: studentCount, faculty: facultyCount, succeeded: successCount, failed: failureCount, duplicates: duplicateCount } },
+      return header;
     });
 
-    results.sort((a, b) => a.rowNumber - b.rowNumber);
-    logger.info(`Import done: ${successCount}/${parsedRows.length} success`, { jobId: job.id });
+  const required = [
+    'name',
+    'email',
+    'role',
+    'department',
+  ];
 
-    return { jobId: job.id, status: finalStatus, totalRows: parsedRows.length, successCount, failureCount, duplicateCount, results };
+  const hasId =
+    normalizedHeaders.includes(
+      'id'
+    );
+
+  const hasEnrollment =
+    normalizedHeaders.includes(
+      'enrollment'
+    );
+
+  const missing =
+    required.filter(
+      header =>
+        !normalizedHeaders.includes(
+          header
+        )
+    );
+
+  /*
+   * We accept either:
+   *
+   * id
+   *
+   * or
+   *
+   * enrollment
+   *
+   * because both formats are supported.
+   */
+  if (
+    !hasId &&
+    !hasEnrollment
+  ) {
+    missing.push(
+      'id/enrollment'
+    );
   }
 
-  generateCsvTemplate() {
-    return ['name,email,enrollment,role,department', 'Ali Khan,ali@iul.ac.in,20BCS001,student,CSE', 'Sara Ahmed,sara@iul.ac.in,20BCS002,student,CSE', 'Dr Khan,khan@iul.ac.in,,faculty,CSE'].join('\n');
+  if (missing.length) {
+    throw new ValidationError(
+      `Missing columns: ${missing.join(
+        ', '
+      )}. Required: name,email,id,role,department,section`
+    );
   }
+}
+
+  private findDuplicates(
+  rows: ParsedRow[]
+): Map<number, string> {
+  const duplicates =
+    new Map<number, string>();
+
+  const emails =
+    new Map<string, number>();
+
+  const enrollments =
+    new Map<string, number>();
+
+  const facultyIds =
+    new Map<string, number>();
+
+  for (const row of rows) {
+    if (
+      !row.isValid ||
+      !row.parsed
+    ) {
+      continue;
+    }
+
+    const email =
+      row.parsed.email;
+
+    const role =
+      row.parsed.role;
+
+    if (emails.has(email)) {
+      duplicates.set(
+        row.rowNumber,
+        `Duplicate email at row ${emails.get(
+          email
+        )}`
+      );
+
+      continue;
+    }
+
+    emails.set(
+      email,
+      row.rowNumber
+    );
+
+    if (
+      role === 'student' &&
+      row.parsed.enrollment
+    ) {
+      const enrollment =
+        row.parsed.enrollment;
+
+      if (
+        enrollments.has(enrollment)
+      ) {
+        duplicates.set(
+          row.rowNumber,
+          `Duplicate enrollment at row ${enrollments.get(
+            enrollment
+          )}`
+        );
+
+        continue;
+      }
+
+      enrollments.set(
+        enrollment,
+        row.rowNumber
+      );
+    }
+
+    if (
+      (
+        role === 'faculty' ||
+        role === 'subadmin'
+      ) &&
+      row.parsed.facultyId
+    ) {
+      const facultyId =
+        row.parsed.facultyId;
+
+      if (
+        facultyIds.has(facultyId)
+      ) {
+        duplicates.set(
+          row.rowNumber,
+          `Duplicate faculty ID at row ${facultyIds.get(
+            facultyId
+          )}`
+        );
+        continue;
+      }
+      facultyIds.set(
+        facultyId,
+        row.rowNumber
+      );
+    }
+  }
+  return duplicates;
+}
+
+  // ── BULK IMPORT ──
+ async bulkImport(
+  file: Express.Multer.File,
+  adminId: string
+) {
+  if (!file) {
+    throw new BadRequestError(
+      'CSV file required'
+    );
+  }
+
+  if (
+    !file.originalname
+      .toLowerCase()
+      .endsWith('.csv')
+  ) {
+    throw new BadRequestError(
+      'Only CSV files accepted'
+    );
+  }
+
+  this.validateHeaders(
+    file.buffer
+  );
+
+  const parsedRows =
+    await this.parseCsv(
+      file.buffer
+    );
+
+  if (!parsedRows.length) {
+    throw new BadRequestError(
+      'No data rows found'
+    );
+  }
+
+  /*
+   * -----------------------------------------
+   * INTERNAL DUPLICATES
+   * -----------------------------------------
+   */
+
+  const internalDups =
+    this.findDuplicates(
+      parsedRows
+    );
+
+  for (const [
+    rowNumber,
+    message,
+  ] of internalDups) {
+    const row =
+      parsedRows.find(
+        item =>
+          item.rowNumber ===
+          rowNumber
+      );
+
+    if (row) {
+      row.isValid = false;
+      row.errors.push(message);
+    }
+  }
+
+  /*
+   * -----------------------------------------
+   * VALID ROWS
+   * -----------------------------------------
+   */
+
+  const validRows =
+    parsedRows.filter(
+      row =>
+        row.isValid &&
+        row.parsed
+    );
+
+  /*
+   * -----------------------------------------
+   * COUNTS
+   * -----------------------------------------
+   */
+
+  const studentCount =
+    validRows.filter(
+      row =>
+        row.parsed.role ===
+        'student'
+    ).length;
+
+  const facultyCount =
+    validRows.filter(
+      row =>
+        row.parsed.role ===
+        'faculty'
+    ).length;
+
+  const subadminCount =
+    validRows.filter(
+      row =>
+        row.parsed.role ===
+        'subadmin'
+    ).length;
+
+  /*
+   * -----------------------------------------
+   * IMPORT TYPE
+   * -----------------------------------------
+   */
+
+  const roleTypes =
+    [
+      studentCount > 0
+        ? 'STUDENT'
+        : null,
+
+      facultyCount > 0
+        ? 'FACULTY'
+        : null,
+
+      subadminCount > 0
+        ? 'SUBADMIN'
+        : null,
+    ].filter(Boolean);
+
+  const importType =
+    roleTypes.length === 1
+      ? roleTypes[0] as string
+      : 'MIXED';
+
+  /*
+   * -----------------------------------------
+   * CREATE IMPORT JOB
+   * -----------------------------------------
+   */
+
+  const job =
+    await prisma.bulkImportJob.create({
+      data: {
+        fileName:
+          `import_${Date.now()}.csv`,
+
+        originalName:
+          file.originalname,
+
+        importType,
+
+        status:
+          'PROCESSING',
+
+        totalRows:
+          parsedRows.length,
+
+        createdById:
+          adminId,
+
+        startedAt:
+          new Date(),
+      },
+    });
+
+  /*
+   * -----------------------------------------
+   * CHECK EXISTING DB DUPLICATES
+   * -----------------------------------------
+   */
+
+  const emails =
+    validRows.map(
+      row =>
+        row.parsed.email
+    );
+
+  const enrollments =
+    validRows
+      .filter(
+        row =>
+          row.parsed.role ===
+            'student' &&
+          row.parsed.enrollment
+      )
+      .map(
+        row =>
+          row.parsed.enrollment
+      );
+
+  const facultyIds =
+    validRows
+      .filter(
+        row =>
+          (
+            row.parsed.role ===
+              'faculty' ||
+            row.parsed.role ===
+              'subadmin'
+          ) &&
+          row.parsed.facultyId
+      )
+      .map(
+        row =>
+          row.parsed.facultyId
+      );
+
+  const [
+    existingEmails,
+    existingEnrollments,
+    existingFacultyIds,
+  ] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        email: {
+          in: emails,
+        },
+      },
+
+      select: {
+        email: true,
+      },
+    }),
+
+    enrollments.length
+      ? prisma.user.findMany({
+          where: {
+            enrollmentNo: {
+              in: enrollments,
+            },
+          },
+
+          select: {
+            enrollmentNo: true,
+          },
+        })
+      : Promise.resolve([]),
+
+    facultyIds.length
+      ? prisma.user.findMany({
+          where: {
+            facultyId: {
+              in: facultyIds,
+            },
+          },
+
+          select: {
+            facultyId: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const emailSet =
+    new Set(
+      existingEmails.map(
+        user => user.email
+      )
+    );
+
+  const enrollmentSet =
+    new Set(
+      existingEnrollments
+        .map(
+          user =>
+            user.enrollmentNo
+        )
+        .filter(Boolean)
+    );
+
+  const facultyIdSet =
+    new Set(
+      existingFacultyIds
+        .map(
+          user =>
+            user.facultyId
+        )
+        .filter(Boolean)
+    );
+
+  /*
+   * -----------------------------------------
+   * PREPARE RESULTS
+   * -----------------------------------------
+   */
+
+  const results: any[] = [];
+
+  let successCount = 0;
+  let failureCount = 0;
+  let duplicateCount = 0;
+
+  const toInsert: any[] = [];
+
+  /*
+   * -----------------------------------------
+   * VALIDATE EACH ROW
+   * -----------------------------------------
+   */
+
+  for (const row of parsedRows) {
+    if (
+      !row.isValid ||
+      !row.parsed
+    ) {
+      failureCount++;
+
+      results.push({
+        rowNumber:
+          row.rowNumber,
+
+        status:
+          'INVALID',
+
+        name:
+          row.rawData.name,
+
+        email:
+          row.rawData.email,
+
+        error:
+          row.errors.join('; '),
+      });
+
+      continue;
+    }
+
+    const {
+      email,
+      enrollment,
+      facultyId,
+      role,
+    } = row.parsed;
+
+    /*
+     * Email duplicate
+     */
+    if (
+      emailSet.has(email)
+    ) {
+      duplicateCount++;
+
+      results.push({
+        rowNumber:
+          row.rowNumber,
+
+        status:
+          'DUPLICATE',
+
+        name:
+          row.rawData.name,
+
+        email,
+
+        error:
+          'Email already exists',
+      });
+
+      continue;
+    }
+
+    /*
+     * Student enrollment duplicate
+     */
+    if (
+      role === 'student' &&
+      enrollment &&
+      enrollmentSet.has(
+        enrollment
+      )
+    ) {
+      duplicateCount++;
+
+      results.push({
+        rowNumber:
+          row.rowNumber,
+
+        status:
+          'DUPLICATE',
+
+        name:
+          row.rawData.name,
+
+        email,
+
+        enrollment,
+
+        error:
+          'Enrollment already exists',
+      });
+
+      continue;
+    }
+
+    /*
+     * Faculty/SubAdmin ID duplicate
+     */
+    if (
+      (
+        role === 'faculty' ||
+        role === 'subadmin'
+      ) &&
+      facultyId &&
+      facultyIdSet.has(
+        facultyId
+      )
+    ) {
+      duplicateCount++;
+
+      results.push({
+        rowNumber:
+          row.rowNumber,
+
+        status:
+          'DUPLICATE',
+
+        name:
+          row.rawData.name,
+
+        email,
+
+        facultyId,
+
+        error:
+          'Faculty ID already exists',
+      });
+
+      continue;
+    }
+
+    /*
+     * Password
+     */
+    const identifier =
+      enrollment ||
+      facultyId ||
+      email.split('@')[0];
+
+    const tempPassword =
+      generateTempPassword(
+        row.parsed.firstName,
+        identifier
+      );
+
+    const hashedPassword =
+      await hashPassword(
+        tempPassword
+      );
+
+    toInsert.push({
+      rowNumber:
+        row.rowNumber,
+
+      parsed:
+        row.parsed,
+
+      tempPassword,
+
+      hashedPassword,
+    });
+
+    /*
+     * Prevent duplicates between
+     * rows in the same import.
+     */
+    emailSet.add(email);
+
+    if (
+      role === 'student' &&
+      enrollment
+    ) {
+      enrollmentSet.add(
+        enrollment
+      );
+    }
+
+    if (
+      (
+        role === 'faculty' ||
+        role === 'subadmin'
+      ) &&
+      facultyId
+    ) {
+      facultyIdSet.add(
+        facultyId
+      );
+    }
+  }
+
+  /*
+   * -----------------------------------------
+   * INSERT USERS
+   * -----------------------------------------
+   */
+
+  for (
+    let i = 0;
+    i < toInsert.length;
+    i +=
+      IMPORT_LIMITS.BATCH_SIZE
+  ) {
+    const batch =
+      toInsert.slice(
+        i,
+        i +
+          IMPORT_LIMITS.BATCH_SIZE
+      );
+
+    await prisma.$transaction(
+      async tx => {
+        for (const item of batch) {
+          try {
+            /*
+             * IMPORTANT:
+             *
+             * Do not use:
+             *
+             * role === student
+             *   ? STUDENT
+             *   : FACULTY
+             *
+             * because that turns SUBADMIN
+             * into FACULTY.
+             */
+            let userRole: UserRole;
+
+            switch (
+              item.parsed.role
+            ) {
+              case 'student':
+                userRole =
+                  'STUDENT';
+                break;
+
+              case 'faculty':
+                userRole =
+                  'FACULTY';
+                break;
+
+              case 'subadmin':
+                userRole =
+                  'SUBADMIN';
+                break;
+
+              default:
+                throw new Error(
+                  `Unsupported role: ${item.parsed.role}`
+                );
+            }
+
+            const isStudent =
+              userRole ===
+              'STUDENT';
+
+            const isFaculty =
+              userRole ===
+              'FACULTY';
+
+            const isSubadmin =
+              userRole ===
+              'SUBADMIN';
+
+            const created =
+              await tx.user.create({
+                data: {
+                  email:
+                    item.parsed.email,
+
+                  password:
+                    item.hashedPassword,
+
+                  role:
+                    userRole,
+
+                  firstName:
+                    item.parsed.firstName,
+
+                  lastName:
+                    item.parsed.lastName,
+
+                  department:
+                    item.parsed.department,
+
+                  /*
+                   * Excel "id":
+                   *
+                   * student
+                   *   -> enrollmentNo
+                   *
+                   * faculty/subadmin
+                   *   -> facultyId
+                   */
+                  enrollmentNo:
+                    isStudent
+                      ? item.parsed
+                          .enrollment
+                      : null,
+
+                  facultyId:
+                    isFaculty ||
+                    isSubadmin
+                      ? item.parsed
+                          .facultyId
+                      : null,
+
+                  section:
+                    isStudent
+                      ? (
+                          item.parsed
+                            .section ||
+                          null
+                        )
+                      : null,
+
+                  designation:
+                    isFaculty ||
+                    isSubadmin
+                      ? 'Assistant Professor'
+                      : null,
+
+                  mustResetPwd:
+                    true,
+
+                  createdBy:
+                    adminId,
+                },
+
+                select: {
+                  id: true,
+                  email: true,
+                  role: true,
+                  firstName: true,
+                  lastName: true,
+                  enrollmentNo: true,
+                  facultyId: true,
+                  department: true,
+                  section: true,
+                  createdAt: true,
+                },
+              });
+
+            await tx.importRow.create({
+              data: {
+                jobId:
+                  job.id,
+
+                rowNumber:
+                  item.rowNumber,
+
+                rawData:
+                  item.parsed,
+
+                status:
+                  'SUCCESS',
+
+                userId:
+                  created.id,
+              },
+            });
+
+            successCount++;
+
+            results.push({
+              rowNumber:
+                item.rowNumber,
+
+              status:
+                'SUCCESS',
+
+              name:
+                `${item.parsed.firstName} ${item.parsed.lastName}`,
+
+              email:
+                item.parsed.email,
+
+              role:
+                item.parsed.role,
+
+              enrollment:
+                item.parsed.enrollment ||
+                null,
+
+              facultyId:
+                item.parsed.facultyId ||
+                null,
+
+              section:
+                item.parsed.section ||
+                null,
+
+              tempPassword:
+                item.tempPassword,
+            });
+          } catch (err: any) {
+            failureCount++;
+
+            await tx.importRow.create({
+              data: {
+                jobId:
+                  job.id,
+
+                rowNumber:
+                  item.rowNumber,
+
+                rawData:
+                  item.parsed,
+
+                status:
+                  'FAILED',
+
+                errorMsg:
+                  err.message,
+              },
+            });
+
+            results.push({
+              rowNumber:
+                item.rowNumber,
+
+              status:
+                'FAILED',
+
+              email:
+                item.parsed.email,
+
+              error:
+                err.message,
+            });
+          }
+        }
+      }
+    );
+  }
+
+  /*
+   * -----------------------------------------
+   * SAVE INVALID / DUPLICATE ROWS
+   * -----------------------------------------
+   */
+
+  for (const row of parsedRows) {
+    const result =
+      results.find(
+        item =>
+          item.rowNumber ===
+          row.rowNumber
+      );
+
+    if (
+      !result ||
+      (
+        result.status !==
+          'INVALID' &&
+        result.status !==
+          'DUPLICATE'
+      )
+    ) {
+      continue;
+    }
+
+    const exists =
+      await prisma.importRow.findFirst({
+        where: {
+          jobId:
+            job.id,
+
+          rowNumber:
+            row.rowNumber,
+        },
+      });
+
+    if (!exists) {
+      await prisma.importRow.create({
+        data: {
+          jobId:
+            job.id,
+
+          rowNumber:
+            row.rowNumber,
+
+          rawData:
+            row.rawData,
+
+          status:
+            result.status ===
+            'DUPLICATE'
+              ? 'DUPLICATE'
+              : 'FAILED',
+
+          errorMsg:
+            result.error,
+        },
+      });
+    }
+  }
+
+  /*
+   * -----------------------------------------
+   * FINAL STATUS
+   * -----------------------------------------
+   */
+
+  const finalStatus: ImportStatus =
+    successCount ===
+    parsedRows.length
+      ? 'COMPLETED'
+      : successCount === 0
+        ? 'FAILED'
+        : 'PARTIAL';
+
+  await prisma.bulkImportJob.update({
+    where: {
+      id: job.id,
+    },
+
+    data: {
+      status:
+        finalStatus,
+
+      successCount,
+
+      failureCount,
+
+      duplicateCount,
+
+      completedAt:
+        new Date(),
+
+      errorSummary: {
+        total:
+          parsedRows.length,
+
+        students:
+          studentCount,
+
+        faculty:
+          facultyCount,
+
+        subadmins:
+          subadminCount,
+
+        succeeded:
+          successCount,
+
+        failed:
+          failureCount,
+
+        duplicates:
+          duplicateCount,
+      },
+    },
+  });
+
+  results.sort(
+    (a, b) =>
+      a.rowNumber -
+      b.rowNumber
+  );
+
+  logger.info(
+    `Import done: ${successCount}/${parsedRows.length} success`,
+    {
+      jobId: job.id,
+    }
+  );
+
+  return {
+    jobId:
+      job.id,
+    status:
+      finalStatus,
+    totalRows:
+      parsedRows.length,
+    successCount,
+    failureCount,
+    duplicateCount,
+    results,
+  };
+}
 
   async getImportJob(jobId: string) {
     const job = await prisma.bulkImportJob.findUnique({ where: { id: jobId }, include: { rows: { orderBy: { rowNumber: 'asc' } }, creator: { select: { firstName: true, lastName: true, email: true } } } });
