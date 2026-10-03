@@ -21,19 +21,7 @@ type IdeaInput = {
 };
 
 export class IdeasService {
-  /**
-   * Returns faculty members assigned to this pool who still
-   * have supervisor capacity available.
-   *
-   * Capacity is:
-   *
-   *   approved projects already owned by faculty
-   *   +
-   *   supervisor-assigned ideas whose team does not yet have a project
-   *
-   * Once an idea's team has a project, that idea is not counted
-   * separately because the project itself already consumes capacity.
-   */
+
   async getAvailableSupervisors(poolId: string) {
     const pool = await prisma.pool.findUnique({
       where: {
@@ -121,13 +109,6 @@ export class IdeasService {
     return result;
   }
 
-  /**
-   * Submit a student idea.
-   *
-   * The student's current team is stored on StudentIdea.
-   * No project is created here.
-   * No projectCode is assigned here.
-   */
   async submitIdea(
     poolId: string,
     studentId: string,
@@ -231,10 +212,6 @@ export class IdeasService {
       );
     }
 
-    /**
-     * Prevent multiple active ideas from the same student
-     * in the same pool.
-     */
     const existing = await prisma.studentIdea.findFirst({
       where: {
         poolId,
@@ -275,11 +252,6 @@ export class IdeasService {
       }
     }
 
-    /**
-     * Similarity detection against existing projects.
-     *
-     * Rejected projects are ignored.
-     */
     const existingProjects =
       await prisma.project.findMany({
         where: {
@@ -313,12 +285,6 @@ export class IdeasService {
       );
     }
 
-    /**
-     * Create the idea and exactly three supervisor preferences.
-     *
-     * assignedTeamId is saved at submission time so that
-     * approval does not need to rediscover the student's team.
-     */
     const idea = await prisma.$transaction(
       async (tx) => {
         const createdIdea =
@@ -371,18 +337,6 @@ export class IdeasService {
     return this.getIdeaWithDetails(idea.id);
   }
 
-  /**
-   * Admin approves the idea.
-   *
-   * Approval:
-   * 1. Marks StudentIdea APPROVED
-   * 2. Creates the Project
-   * 3. Associates the Project with the student's team
-   * 4. Does NOT assign projectCode
-   * 5. Opens the three supervisor requests
-   *
-   * The nightly project-code job is responsible for projectCode.
-   */
   async approveIdea(
     ideaId: string,
     adminFeedback?: string
@@ -430,16 +384,6 @@ export class IdeasService {
         'This idea is not associated with a team'
       );
     }
-
-    /**
-     * The project requires a facultyId in the current schema.
-     * Until a real supervisor accepts, the admin is used only
-     * as the temporary project owner.
-     *
-     * Once a supervisor accepts or the admin manually assigns
-     * one, Project.facultyId is immediately changed to the
-     * actual supervisor.
-     */
     const admin = await prisma.user.findFirst({
       where: {
         role: 'ADMIN',
@@ -476,8 +420,6 @@ export class IdeasService {
           );
         }
 
-       
-
         const updatedIdea =
           await tx.studentIdea.update({
             where: {
@@ -500,11 +442,6 @@ export class IdeasService {
             },
           });
 
-        /**
-         * Create project WITHOUT projectCode.
-         *
-         * The nightly project-code service will assign it.
-         */
         const poolConfig = await tx.pool.findUnique({
   where: {
     id: idea.poolId,
@@ -530,10 +467,6 @@ const project = await tx.project.create({
   },
 });
 
-        /**
-         * Assign the project to the exact team captured
-         * when the student submitted the idea.
-         */
         await tx.team.update({
           where: {
             id: team.id,
@@ -543,10 +476,6 @@ const project = await tx.project.create({
           },
         });
 
-        /**
-         * Reset supervisor request states so all three
-         * requests can respond after approval.
-         */
         await tx.supervisorPreference.updateMany({
           where: {
             studentIdeaId: ideaId,
@@ -735,15 +664,6 @@ const project = await tx.project.create({
               'Supervisor already assigned.'
             );
           }
-
-          /**
-           * Count only actual capacity usage.
-           *
-           * Projects already owned by the faculty count.
-           * Supervisor-assigned ideas without a project also
-           * count. Once the team has a project, the idea is
-           * not counted a second time.
-           */
           const approvedProjectCount =
             await tx.project.count({
               where: {
@@ -798,10 +718,6 @@ const project = await tx.project.create({
               },
             });
 
-          /**
-           * Transfer actual project ownership from the
-           * temporary admin owner to the real supervisor.
-           */
           if (idea.assignedTeamId) {
             const team = await tx.team.findUnique({
               where: {
@@ -824,9 +740,6 @@ const project = await tx.project.create({
             }
           }
 
-          /**
-           * Mark this request accepted.
-           */
           await tx.supervisorPreference.update({
             where: {
               id: preference.id,
@@ -839,9 +752,6 @@ const project = await tx.project.create({
             },
           });
 
-          /**
-           * Close the other two requests.
-           */
           await tx.supervisorPreference.updateMany({
             where: {
               studentIdeaId: ideaId,
@@ -1045,11 +955,6 @@ const project = await tx.project.create({
 
     return this.getIdeaWithDetails(ideaId);
   }
-
-  /**
-   * Admin manually assigns a supervisor after all
-   * three preferred supervisors have rejected the request.
-   */
   async assignSupervisor(
     ideaId: string,
     supervisorId: string

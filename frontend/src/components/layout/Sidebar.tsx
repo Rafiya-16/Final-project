@@ -17,9 +17,7 @@ import {
   BarChart3,
   ListChecks,
   Shield,
-  LogOut,
-  User,
-  Menu,
+  LogOut, User, Menu,
   X,
   Sparkles,
 } from 'lucide-react';

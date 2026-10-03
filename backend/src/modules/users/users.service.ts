@@ -284,17 +284,6 @@ export class UsersService {
         )
     );
 
-  /*
-   * We accept either:
-   *
-   * id
-   *
-   * or
-   *
-   * enrollment
-   *
-   * because both formats are supported.
-   */
   if (
     !hasId &&
     !hasEnrollment
@@ -544,12 +533,7 @@ export class UsersService {
       ? roleTypes[0] as string
       : 'MIXED';
 
-  /*
-   * -----------------------------------------
-   * CREATE IMPORT JOB
-   * -----------------------------------------
-   */
-
+  // CREATE IMPORT JOB
   const job =
     await prisma.bulkImportJob.create({
       data: {
@@ -575,11 +559,8 @@ export class UsersService {
       },
     });
 
-  /*
-   * -----------------------------------------
-   * CHECK EXISTING DB DUPLICATES
-   * -----------------------------------------
-   */
+  // CHECK EXISTING DB DUPLICATES
+
 
   const emails =
     validRows.map(
@@ -690,11 +671,8 @@ export class UsersService {
         .filter(Boolean)
     );
 
-  /*
-   * -----------------------------------------
-   * PREPARE RESULTS
-   * -----------------------------------------
-   */
+  // PREPARE RESULTS
+
 
   const results: any[] = [];
 
@@ -704,11 +682,7 @@ export class UsersService {
 
   const toInsert: any[] = [];
 
-  /*
-   * -----------------------------------------
-   * VALIDATE EACH ROW
-   * -----------------------------------------
-   */
+ // VALIDATE EACH ROW
 
   for (const row of parsedRows) {
     if (
@@ -867,14 +841,8 @@ export class UsersService {
         row.parsed,
 
       tempPassword,
-
       hashedPassword,
     });
-
-    /*
-     * Prevent duplicates between
-     * rows in the same import.
-     */
     emailSet.add(email);
 
     if (
@@ -899,12 +867,7 @@ export class UsersService {
     }
   }
 
-  /*
-   * -----------------------------------------
-   * INSERT USERS
-   * -----------------------------------------
-   */
-
+  // INSERT USERS
   for (
     let i = 0;
     i < toInsert.length;
@@ -922,18 +885,7 @@ export class UsersService {
       async tx => {
         for (const item of batch) {
           try {
-            /*
-             * IMPORTANT:
-             *
-             * Do not use:
-             *
-             * role === student
-             *   ? STUDENT
-             *   : FACULTY
-             *
-             * because that turns SUBADMIN
-             * into FACULTY.
-             */
+
             let userRole: UserRole;
 
             switch (
@@ -993,15 +945,6 @@ export class UsersService {
                   department:
                     item.parsed.department,
 
-                  /*
-                   * Excel "id":
-                   *
-                   * student
-                   *   -> enrollmentNo
-                   *
-                   * faculty/subadmin
-                   *   -> facultyId
-                   */
                   enrollmentNo:
                     isStudent
                       ? item.parsed
@@ -1144,11 +1087,8 @@ export class UsersService {
     );
   }
 
-  /*
-   * -----------------------------------------
-   * SAVE INVALID / DUPLICATE ROWS
-   * -----------------------------------------
-   */
+// SAVE INVALID / DUPLICATE ROWS
+
 
   for (const row of parsedRows) {
     const result =
@@ -1206,11 +1146,8 @@ export class UsersService {
     }
   }
 
-  /*
-   * -----------------------------------------
-   * FINAL STATUS
-   * -----------------------------------------
-   */
+  // FINAL STATUS
+
 
   const finalStatus: ImportStatus =
     successCount ===
@@ -1228,37 +1165,20 @@ export class UsersService {
     data: {
       status:
         finalStatus,
-
       successCount,
-
       failureCount,
-
       duplicateCount,
-
       completedAt:
         new Date(),
 
       errorSummary: {
-        total:
-          parsedRows.length,
-
-        students:
-          studentCount,
-
-        faculty:
-          facultyCount,
-
-        subadmins:
-          subadminCount,
-
-        succeeded:
-          successCount,
-
-        failed:
-          failureCount,
-
-        duplicates:
-          duplicateCount,
+        total: parsedRows.length,
+        students: studentCount,
+        faculty: facultyCount,
+        subadmins: subadminCount,
+        succeeded: successCount,
+        failed: failureCount,
+        duplicates: duplicateCount,
       },
     },
   });
@@ -1277,16 +1197,9 @@ export class UsersService {
   );
 
   return {
-    jobId:
-      job.id,
-    status:
-      finalStatus,
-    totalRows:
-      parsedRows.length,
-    successCount,
-    failureCount,
-    duplicateCount,
-    results,
+    jobId: job.id,
+    status: finalStatus,
+    totalRows: parsedRows.length, successCount, failureCount, duplicateCount, results,
   };
 }
 
