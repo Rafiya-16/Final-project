@@ -1,3 +1,5 @@
+// backend/src/modules/pools/pools.service.ts
+
 import prisma from '../../config/database';
 import { PoolStatus } from '@prisma/client';
 import {
@@ -14,9 +16,170 @@ import { notificationsService } from '../notifications/notifications.service';
 
 export class PoolsService {
   /**
+   * Validate users being assigned to a pool.
+   *
+   * Rules:
+   * - SubAdmin assignment:
+   *   active SUBADMIN OR active FACULTY
+   * - Faculty assignment:
+   *   active FACULTY only
+   * - Student assignment:
+   *   active STUDENT only
+   *
+   * A FACULTY user may intentionally appear in both
+   * subadminIds and facultyIds.
+   */
+  private async validatePoolUsers(
+    subadminIds: string[] = [],
+    facultyIds: string[] = [],
+    studentIds: string[] = [],
+  ) {
+    const allIds = [
+      ...new Set([
+        ...subadminIds,
+        ...facultyIds,
+        ...studentIds,
+      ]),
+    ];
+
+    if (allIds.length === 0) {
+      return;
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        id: {
+          in: allIds,
+        },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        isActive: true,
+      },
+    });
+
+    const userMap = new Map(
+      users.map((user) => [user.id, user]),
+    );
+
+    const missingIds = allIds.filter(
+      (id) => !userMap.has(id),
+    );
+
+    if (missingIds.length > 0) {
+      throw new BadRequestError(
+        `One or more selected users do not exist: ${missingIds.join(', ')}`,
+      );
+    }
+
+    const inactiveUsers = users.filter(
+      (user) => !user.isActive,
+    );
+
+    if (inactiveUsers.length > 0) {
+      const names = inactiveUsers
+        .map(
+          (user) =>
+            `${user.firstName} ${user.lastName}`,
+        )
+        .join(', ');
+
+      throw new BadRequestError(
+        `Cannot assign inactive users to a pool: ${names}`,
+      );
+    }
+
+    const invalidSubadmins = subadminIds
+      .map((id) => userMap.get(id))
+      .filter(
+        (user) =>
+          user &&
+          user.role !== 'SUBADMIN' &&
+          user.role !== 'FACULTY',
+      );
+
+    if (invalidSubadmins.length > 0) {
+      const names = invalidSubadmins
+        .map(
+          (user) =>
+            `${user!.firstName} ${user!.lastName}`,
+        )
+        .join(', ');
+
+      throw new BadRequestError(
+        `SubAdmin assignment is allowed only for SUBADMIN or FACULTY users. Invalid users: ${names}`,
+      );
+    }
+
+    const invalidFaculty = facultyIds
+      .map((id) => userMap.get(id))
+      .filter(
+        (user) =>
+          user &&
+          user.role !== 'FACULTY',
+      );
+
+    if (invalidFaculty.length > 0) {
+      const names = invalidFaculty
+        .map(
+          (user) =>
+            `${user!.firstName} ${user!.lastName}`,
+        )
+        .join(', ');
+
+      throw new BadRequestError(
+        `Faculty assignment is allowed only for FACULTY users. Invalid users: ${names}`,
+      );
+    }
+
+    const invalidStudents = studentIds
+      .map((id) => userMap.get(id))
+      .filter(
+        (user) =>
+          user &&
+          user.role !== 'STUDENT',
+      );
+
+    if (invalidStudents.length > 0) {
+      const names = invalidStudents
+        .map(
+          (user) =>
+            `${user!.firstName} ${user!.lastName}`,
+        )
+        .join(', ');
+
+      throw new BadRequestError(
+        `Student assignment is allowed only for STUDENT users. Invalid users: ${names}`,
+      );
+    }
+  }
+
+  /**
    * Create a new pool
    */
   async createPool(data: any, adminId: string) {
+    const subadminIds = [
+      ...new Set<string>(data.subadminIds ?? []),
+    ];
+
+    const facultyIds = [
+      ...new Set<string>(data.facultyIds ?? []),
+    ];
+
+    const studentIds = [
+      ...new Set<string>(data.studentIds ?? []),
+    ];
+
+    await this.validatePoolUsers(
+      subadminIds,
+      facultyIds,
+      studentIds,
+    );
+
     const pool = await prisma.pool.create({
       data: {
         name: data.name,
@@ -35,25 +198,33 @@ export class PoolsService {
         teamFreezeDate: new Date(data.teamFreezeDate),
 
         minTeamSize: data.minTeamSize ?? 3,
-        defaultMaxTeamSize: data.defaultMaxTeamSize ?? 3,
-        allowStudentIdeas: data.allowStudentIdeas ?? true,
+        defaultMaxTeamSize:
+          data.defaultMaxTeamSize ?? 3,
+        allowStudentIdeas:
+          data.allowStudentIdeas ?? true,
 
         createdById: adminId,
 
+        /*
+         * A FACULTY user can also be inserted into
+         * PoolSubadmin.
+         *
+         * This does NOT change User.role.
+         */
         subadmins: {
-          create: (data.subadminIds ?? []).map((id: string) => ({
+          create: subadminIds.map((id: string) => ({
             subadminId: id,
           })),
         },
 
         faculty: {
-          create: (data.facultyIds ?? []).map((id: string) => ({
+          create: facultyIds.map((id: string) => ({
             facultyId: id,
           })),
         },
 
         students: {
-          create: (data.studentIds ?? []).map((id: string) => ({
+          create: studentIds.map((id: string) => ({
             studentId: id,
           })),
         },
@@ -94,18 +265,28 @@ export class PoolsService {
       },
     });
 
-    logger.info(`Pool created: ${pool.name} (${pool.id})`);
+    logger.info(
+      `Pool created: ${pool.name} (${pool.id})`,
+    );
 
-    // Audit pool creation
     auditService
-      .log(adminId, 'CREATE_POOL', 'Pool', pool.id)
+      .log(
+        adminId,
+        'CREATE_POOL',
+        'Pool',
+        pool.id,
+      )
       .catch(() => {});
 
     return pool;
   }
 
   /**
-   * List pools according to the user's role
+   * List pools according to the user's role/capability.
+   *
+   * Important:
+   * A FACULTY user who is also assigned as a pool
+   * SubAdmin can see the pool through either assignment.
    */
   async listPools(
     userId: string,
@@ -124,11 +305,22 @@ export class PoolsService {
       };
     } else if (userRole === 'FACULTY') {
       where = {
-        faculty: {
-          some: {
-            facultyId: userId,
+        OR: [
+          {
+            faculty: {
+              some: {
+                facultyId: userId,
+              },
+            },
           },
-        },
+          {
+            subadmins: {
+              some: {
+                subadminId: userId,
+              },
+            },
+          },
+        ],
       };
     } else if (userRole === 'STUDENT') {
       where = {
@@ -142,23 +334,91 @@ export class PoolsService {
 
     // ADMIN sees all pools.
 
-    const skip = (params.page - 1) * params.limit;
+    const skip =
+      (params.page - 1) * params.limit;
 
-    const [pools, total] = await Promise.all([
-      prisma.pool.findMany({
-        where,
+    const [pools, total] =
+      await Promise.all([
+        prisma.pool.findMany({
+          where,
+          skip,
+          take: params.limit,
 
-        skip,
-        take: params.limit,
+          orderBy: {
+            createdAt: 'desc',
+          },
 
-        orderBy: {
-          createdAt: 'desc',
+          include: {
+            _count: {
+              select: {
+                faculty: true,
+                students: true,
+                projects: true,
+                teams: true,
+              },
+            },
+
+            creator: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        }),
+
+        prisma.pool.count({
+          where,
+        }),
+      ]);
+
+    return paginatedResult(
+      pools,
+      total,
+      params,
+    );
+  }
+
+  /**
+   * Get a single pool by ID
+   */
+  async getPoolById(poolId: string) {
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
         },
 
         include: {
+          subadmins: {
+            include: {
+              subadmin: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+
+          faculty: {
+            include: {
+              faculty: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                  designation: true,
+                },
+              },
+            },
+          },
+
           _count: {
             select: {
-              faculty: true,
               students: true,
               projects: true,
               teams: true,
@@ -172,72 +432,12 @@ export class PoolsService {
             },
           },
         },
-      }),
-
-      prisma.pool.count({
-        where,
-      }),
-    ]);
-
-    return paginatedResult(pools, total, params);
-  }
-
-  /**
-   * Get a single pool by ID
-   */
-  async getPoolById(poolId: string) {
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
-
-      include: {
-        subadmins: {
-          include: {
-            subadmin: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-          },
-        },
-
-        faculty: {
-          include: {
-            faculty: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-                designation: true,
-              },
-            },
-          },
-        },
-
-        _count: {
-          select: {
-            students: true,
-            projects: true,
-            teams: true,
-          },
-        },
-
-        creator: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found',
+      );
     }
 
     return pool;
@@ -246,15 +446,21 @@ export class PoolsService {
   /**
    * Update a pool
    */
-  async updatePool(poolId: string, data: any) {
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
-    });
+  async updatePool(
+    poolId: string,
+    data: any,
+  ) {
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found',
+      );
     }
 
     if (pool.status !== 'DRAFT') {
@@ -276,13 +482,17 @@ export class PoolsService {
       'teamFreezeDate',
     ];
 
-    for (const [key, value] of Object.entries(data)) {
+    for (const [key, value] of Object.entries(
+      data,
+    )) {
       if (value === undefined) {
         continue;
       }
 
       if (dateFields.includes(key)) {
-        updateData[key] = new Date(value as string);
+        updateData[key] = new Date(
+          value as string,
+        );
       } else {
         updateData[key] = value;
       }
@@ -300,24 +510,27 @@ export class PoolsService {
    * Activate a pool
    */
   async activatePool(poolId: string) {
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
 
-      include: {
-        _count: {
-          select: {
-            subadmins: true,
-            faculty: true,
-            students: true,
+        include: {
+          _count: {
+            select: {
+              subadmins: true,
+              faculty: true,
+              students: true,
+            },
           },
         },
-      },
-    });
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found',
+      );
     }
 
     if (pool.status !== 'DRAFT') {
@@ -344,17 +557,17 @@ export class PoolsService {
       );
     }
 
-    const updated = await prisma.pool.update({
-      where: {
-        id: poolId,
-      },
+    const updated =
+      await prisma.pool.update({
+        where: {
+          id: poolId,
+        },
 
-      data: {
-        status: 'SUBMISSION_OPEN',
-      },
-    });
+        data: {
+          status: 'SUBMISSION_OPEN',
+        },
+      });
 
-    // Audit pool activation
     auditService
       .log(
         'system',
@@ -364,7 +577,6 @@ export class PoolsService {
       )
       .catch(() => {});
 
-    // Notify assigned faculty
     const facultyAssignments =
       await prisma.poolFaculty.findMany({
         where: {
@@ -380,7 +592,8 @@ export class PoolsService {
       notificationsService
         .createBulk(
           facultyAssignments.map(
-            (faculty) => faculty.facultyId,
+            (faculty) =>
+              faculty.facultyId,
           ),
           'SUBMISSION_REMINDER',
           'Submissions Open',
@@ -397,25 +610,37 @@ export class PoolsService {
    * Advance the pool to the next phase
    */
   async advancePhase(poolId: string) {
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
-    });
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found',
+      );
     }
 
-    const transitions: Record<string, PoolStatus> = {
-      SUBMISSION_OPEN: 'UNDER_REVIEW',
-      UNDER_REVIEW: 'DECISION_PENDING',
-      DECISION_PENDING: 'SELECTION_OPEN',
-      SELECTION_OPEN: 'TEAMS_FORMING',
-      TEAMS_FORMING: 'FROZEN',
+    const transitions: Record<
+      string,
+      PoolStatus
+    > = {
+      SUBMISSION_OPEN:
+        'UNDER_REVIEW',
+      UNDER_REVIEW:
+        'DECISION_PENDING',
+      DECISION_PENDING:
+        'SELECTION_OPEN',
+      SELECTION_OPEN:
+        'TEAMS_FORMING',
+      TEAMS_FORMING:
+        'FROZEN',
     };
 
-    const nextStatus = transitions[pool.status];
+    const nextStatus =
+      transitions[pool.status];
 
     if (!nextStatus) {
       throw new BadRequestError(
@@ -423,7 +648,6 @@ export class PoolsService {
       );
     }
 
-    // Freeze all teams when the pool reaches FROZEN.
     if (nextStatus === 'FROZEN') {
       await prisma.team.updateMany({
         where: {
@@ -440,17 +664,17 @@ export class PoolsService {
       });
     }
 
-    const updated = await prisma.pool.update({
-      where: {
-        id: poolId,
-      },
+    const updated =
+      await prisma.pool.update({
+        where: {
+          id: poolId,
+        },
 
-      data: {
-        status: nextStatus,
-      },
-    });
+        data: {
+          status: nextStatus,
+        },
+      });
 
-    // Audit phase advancement
     auditService
       .log(
         'system',
@@ -462,7 +686,6 @@ export class PoolsService {
       )
       .catch(() => {});
 
-    // Notify subadmins when review starts
     if (nextStatus === 'UNDER_REVIEW') {
       const subadmins =
         await prisma.poolSubadmin.findMany({
@@ -479,7 +702,8 @@ export class PoolsService {
         notificationsService
           .createBulk(
             subadmins.map(
-              (subadmin) => subadmin.subadminId,
+              (subadmin) =>
+                subadmin.subadminId,
             ),
             'GENERAL',
             'Review Phase Started',
@@ -490,7 +714,6 @@ export class PoolsService {
       }
     }
 
-    // Notify students when selection opens
     if (nextStatus === 'SELECTION_OPEN') {
       const students =
         await prisma.poolStudent.findMany({
@@ -507,7 +730,8 @@ export class PoolsService {
         notificationsService
           .createBulk(
             students.map(
-              (student) => student.studentId,
+              (student) =>
+                student.studentId,
             ),
             'GENERAL',
             'Project Selection Open',
@@ -525,14 +749,17 @@ export class PoolsService {
    * Freeze a pool and all active teams
    */
   async freezePool(poolId: string) {
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
-    });
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found',
+      );
     }
 
     await prisma.team.updateMany({
@@ -564,14 +791,17 @@ export class PoolsService {
    * Archive a pool
    */
   async archivePool(poolId: string) {
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
-    });
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found',
+      );
     }
 
     return prisma.pool.update({
@@ -585,22 +815,49 @@ export class PoolsService {
     });
   }
 
-  /**
-   * Assign subadmins, faculty and students to a pool
-   */
-  async assignUsers(poolId: string, data: any) {
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
-    });
+  async assignUsers(
+    poolId: string,
+    data: any,
+  ) {
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found',
+      );
     }
 
-    if (data.subadminIds?.length) {
-      for (const id of data.subadminIds) {
+    const subadminIds = [
+      ...new Set<string>(
+        data.subadminIds ?? [],
+      ),
+    ];
+
+    const facultyIds = [
+      ...new Set<string>(
+        data.facultyIds ?? [],
+      ),
+    ];
+
+    const studentIds = [
+      ...new Set<string>(
+        data.studentIds ?? [],
+      ),
+    ];
+
+    await this.validatePoolUsers(
+      subadminIds,
+      facultyIds,
+      studentIds,
+    );
+
+    if (subadminIds.length) {
+      for (const id of subadminIds) {
         await prisma.poolSubadmin.upsert({
           where: {
             poolId_subadminId: {
@@ -619,8 +876,8 @@ export class PoolsService {
       }
     }
 
-    if (data.facultyIds?.length) {
-      for (const id of data.facultyIds) {
+    if (facultyIds.length) {
+      for (const id of facultyIds) {
         await prisma.poolFaculty.upsert({
           where: {
             poolId_facultyId: {
@@ -639,8 +896,8 @@ export class PoolsService {
       }
     }
 
-    if (data.studentIds?.length) {
-      for (const id of data.studentIds) {
+    if (studentIds.length) {
+      for (const id of studentIds) {
         await prisma.poolStudent.upsert({
           where: {
             poolId_studentId: {
@@ -661,19 +918,102 @@ export class PoolsService {
 
     return this.getPoolById(poolId);
   }
+/**
+ * Remove a faculty member from a pool.
+ *
+ * This removes only the PoolFaculty assignment.
+ * If the same user is also a pool SubAdmin, that capability remains.
+ */
+async removeFaculty(poolId: string, facultyId: string) {
+  const pool = await prisma.pool.findUnique({
+    where: {
+      id: poolId,
+    },
+  });
 
+  if (!pool) {
+    throw new NotFoundError('Pool not found');
+  }
+
+  const assignment = await prisma.poolFaculty.findUnique({
+    where: {
+      poolId_facultyId: {
+        poolId,
+        facultyId,
+      },
+    },
+  });
+
+  if (!assignment) {
+    throw new NotFoundError(
+      'Faculty is not assigned to this pool',
+    );
+  }
+
+  await prisma.poolFaculty.delete({
+    where: {
+      poolId_facultyId: {
+        poolId,
+        facultyId,
+      },
+    },
+  });
+
+  return this.getPoolById(poolId);
+}
+
+async removeSubadmin(poolId: string, subadminId: string) {
+  const pool = await prisma.pool.findUnique({
+    where: {
+      id: poolId,
+    },
+  });
+
+  if (!pool) {
+    throw new NotFoundError('Pool not found');
+  }
+
+  const assignment = await prisma.poolSubadmin.findUnique({
+    where: {
+      poolId_subadminId: {
+        poolId,
+        subadminId,
+      },
+    },
+  });
+
+  if (!assignment) {
+    throw new NotFoundError(
+      'SubAdmin is not assigned to this pool',
+    );
+  }
+
+  await prisma.poolSubadmin.delete({
+    where: {
+      poolId_subadminId: {
+        poolId,
+        subadminId,
+      },
+    },
+  });
+
+  return this.getPoolById(poolId);
+}
   /**
    * Get statistics for a pool
    */
   async getPoolStats(poolId: string) {
-    const pool = await prisma.pool.findUnique({
-      where: {
-        id: poolId,
-      },
-    });
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
+      });
 
     if (!pool) {
-      throw new NotFoundError('Pool not found');
+      throw new NotFoundError(
+        'Pool not found',
+      );
     }
 
     const [
@@ -745,9 +1085,11 @@ export class PoolsService {
       projectCount,
       approvedCount,
       teamCount,
-      unassignedStudents: unassigned,
+      unassignedStudents:
+        unassigned,
     };
   }
 }
 
-export const poolsService = new PoolsService();
+export const poolsService =
+  new PoolsService();

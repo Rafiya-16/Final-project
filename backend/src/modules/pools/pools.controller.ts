@@ -33,6 +33,33 @@ export class PoolsController {
   async getStats(req: Request, res: Response, next: NextFunction) {
     try { res.json({ success: true, data: await poolsService.getPoolStats(req.params.id as string) }); } catch (e) { next(e); }
   }
+  async removeFaculty(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({
+      success: true,
+      data: await poolsService.removeFaculty(
+        req.params.id as string,
+        req.params.facultyId as string,
+      ),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
+async removeSubadmin(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({
+      success: true,
+      data: await poolsService.removeSubadmin(
+        req.params.id as string,
+        req.params.subadminId as string,
+      ),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
 }
 
 export const poolsController = new PoolsController();
