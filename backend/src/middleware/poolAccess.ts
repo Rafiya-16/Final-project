@@ -12,105 +12,53 @@ function getRouteParam(req: Request, paramName: string): string {
   return value;
 }
 
-/**
- * Checks whether the authenticated user has SubAdmin capability
- * for at least one pool.
- *
- * A user can be:
- * - globally SUBADMIN through User.role
- * - FACULTY + SUBADMIN through PoolSubadmin
- */
-export async function hasSubadminAccess(userId: string): Promise<boolean> {
+export async function hasSubadminAccess(
+  userId: string,
+  userRole?: string,
+): Promise<boolean> {
+  if (userRole === 'ADMIN' || userRole === 'SUBADMIN') {
+    return true;
+  }
+
   const assignment = await prisma.poolSubadmin.findFirst({
+    where: { subadminId: userId },
+    select: { id: true },
+  });
+
+  return !!assignment;
+}
+
+export async function hasSubadminPoolAccess(
+  userId: string,
+  userRole: string,
+  poolId: string,
+): Promise<boolean> {
+  if (userRole === 'ADMIN' || userRole === 'SUBADMIN') {
+    return true;
+  }
+
+  if (userRole !== 'FACULTY') {
+    return false;
+  }
+
+  const assignment = await prisma.poolSubadmin.findUnique({
     where: {
-      subadminId: userId,
+      poolId_subadminId: {
+        poolId,
+        subadminId: userId,
+      },
     },
-    select: {
-      id: true,
-    },
+    select: { id: true },
   });
 
   return !!assignment;
 }
 
 /**
- * Checks whether the authenticated user has SubAdmin
- * capability for a specific pool.
- *
- * Global SUBADMIN users are allowed.
- *
- * FACULTY users who are also assigned in PoolSubadmin
- * are also allowed.
- */
-export async function hasSubadminPoolAccess(
-  userId: string,
-  userRole: string,
-  poolId: string,
-): Promise<boolean> {
-  if (userRole === 'ADMIN') {
-    return true;
-  }
-
-  if (userRole === 'SUBADMIN') {
-    const assignment = await prisma.poolSubadmin.findUnique({
-      where: {
-        poolId_subadminId: {
-          poolId,
-          subadminId: userId,
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    return !!assignment;
-  }
-
-  /**
-   * Important:
-   *
-   * A FACULTY user may also be a SubAdmin.
-   *
-   * We deliberately do NOT require:
-   * req.user.role === 'SUBADMIN'
-   *
-   * because a dual-role user remains FACULTY
-   * in the User table.
-   */
-  if (userRole === 'FACULTY') {
-    const assignment = await prisma.poolSubadmin.findUnique({
-      where: {
-        poolId_subadminId: {
-          poolId,
-          subadminId: userId,
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    return !!assignment;
-  }
-
-  return false;
-}
-
-/**
  * General pool access.
  *
- * ADMIN:
- *   Allowed everywhere.
- *
- * SUBADMIN:
- *   Only assigned pools.
- *
- * FACULTY:
- *   Only assigned pools through PoolFaculty.
- *
- * STUDENT:
- *   Currently allowed to preserve existing behavior.
+ * A FACULTY user may access a pool through either
+ * PoolFaculty or PoolSubadmin assignment.
  */
 export function requirePoolAccess(poolParam = 'poolId') {
   return async (
@@ -126,67 +74,52 @@ export function requirePoolAccess(poolParam = 'poolId') {
       const poolId = getRouteParam(req, poolParam);
 
       if (
-        req.user.role !== 'SUBADMIN' &&
-        req.user.role !== 'FACULTY'
+        req.user.role === 'ADMIN' ||
+        req.user.role === 'SUBADMIN' ||
+        req.user.role === 'STUDENT'
       ) {
         return next();
       }
 
-      if (req.user.role === 'SUBADMIN') {
-        const assignment = await prisma.poolSubadmin.findUnique({
-          where: {
-            poolId_subadminId: {
-              poolId,
-              subadminId: req.user.userId,
-            },
-          },
-          select: {
-            id: true,
-          },
-        });
-
-        if (!assignment) {
-          throw new ForbiddenError(
-            'You are not assigned to this pool',
-          );
-        }
-      }
-
       if (req.user.role === 'FACULTY') {
-        const assignment = await prisma.poolFaculty.findUnique({
-          where: {
-            poolId_facultyId: {
-              poolId,
-              facultyId: req.user.userId,
-            },
-          },
-          select: {
-            id: true,
-          },
-        });
+        const [facultyAssignment, subadminAssignment] =
+          await Promise.all([
+            prisma.poolFaculty.findUnique({
+              where: {
+                poolId_facultyId: {
+                  poolId,
+                  facultyId: req.user.userId,
+                },
+              },
+              select: { id: true },
+            }),
+            prisma.poolSubadmin.findUnique({
+              where: {
+                poolId_subadminId: {
+                  poolId,
+                  subadminId: req.user.userId,
+                },
+              },
+              select: { id: true },
+            }),
+          ]);
 
-        if (!assignment) {
+        if (!facultyAssignment && !subadminAssignment) {
           throw new ForbiddenError(
             'You are not assigned to this pool',
           );
         }
+
+        return next();
       }
 
-      next();
+      throw new ForbiddenError('Access denied');
     } catch (error) {
       next(error);
     }
   };
 }
 
-/**
- * Requires SubAdmin capability for the pool.
- *
- * Allows:
- * - ADMIN
- * - normal SUBADMIN assigned to pool
- * - FACULTY assigned to pool as SubAdmin
- */
 export function requireSubadminPoolAccess(poolParam = 'poolId') {
   return async (
     req: Request,
@@ -219,12 +152,6 @@ export function requireSubadminPoolAccess(poolParam = 'poolId') {
   };
 }
 
-/**
- * Requires SubAdmin capability for at least one pool.
- *
- * This is useful for general SubAdmin pages where
- * there is no poolId in the URL.
- */
 export function requireSubadminAccess() {
   return async (
     req: Request,
@@ -238,6 +165,7 @@ export function requireSubadminAccess() {
 
       const allowed = await hasSubadminAccess(
         req.user.userId,
+        req.user.role,
       );
 
       if (!allowed) {
@@ -253,15 +181,6 @@ export function requireSubadminAccess() {
   };
 }
 
-/**
- * Requires normal Faculty pool assignment.
- *
- * This remains Faculty-specific.
- *
- * A dual Faculty + SubAdmin user can still use
- * normal Faculty functionality because their
- * User.role remains FACULTY.
- */
 export function requireFacultyPoolAccess(poolParam = 'poolId') {
   return async (
     req: Request,
@@ -288,9 +207,7 @@ export function requireFacultyPoolAccess(poolParam = 'poolId') {
             facultyId: req.user.userId,
           },
         },
-        select: {
-          id: true,
-        },
+        select: { id: true },
       });
 
       if (!assignment) {
