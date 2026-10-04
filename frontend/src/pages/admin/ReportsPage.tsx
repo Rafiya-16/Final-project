@@ -30,16 +30,7 @@ const ReportsPage: React.FC = () => {
 
   const loadPools = async () => {
     try {
-      /*
-       * ADMIN:
-       *   all pools
-       *
-       * FACULTY + SUBADMIN workplace:
-       *   only PoolSubadmin assignments
-       *
-       * Normal Faculty:
-       *   Faculty pools
-       */
+     
       const scope =
         user?.role === 'ADMIN'
           ? 'all'

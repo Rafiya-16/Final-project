@@ -101,6 +101,8 @@ const PoolDetailPage: React.FC = () => {
     decisionDeadline: '',
     selectionStart: '',
     selectionEnd: '',
+    ideaSubmissionStart: '',
+    ideaSubmissionEnd: '',
     teamFreezeDate: '',
   });
 
@@ -171,14 +173,7 @@ const PoolDetailPage: React.FC = () => {
 
       const globalSubadmins: User[] =
         subadminResponse?.data || [];
-
-      /*
-       * SubAdmin capability can belong to:
-       * 1. Global SUBADMIN
-       * 2. FACULTY who is assigned as pool SubAdmin
-       *
-       * Therefore combine both roles and remove duplicates.
-       */
+       
       const uniqueSubadmins = new Map<string, User>();
 
       [
@@ -451,6 +446,14 @@ const PoolDetailPage: React.FC = () => {
         pool.selectionEnd
       ),
 
+       ideaSubmissionStart: toDateTimeLocal(
+        pool.ideaSubmissionStart
+      ),
+
+      ideaSubmissionEnd: toDateTimeLocal(
+        pool.ideaSubmissionEnd
+      ),
+
       teamFreezeDate: toDateTimeLocal(
         pool.teamFreezeDate
       ),
@@ -526,6 +529,14 @@ const PoolDetailPage: React.FC = () => {
 
         selectionEnd: new Date(
           editForm.selectionEnd
+        ).toISOString(),
+
+        ideaSubmissionStart: new Date(
+          editForm.ideaSubmissionStart
+        ).toISOString(),
+
+        ideaSubmissionEnd: new Date(
+          editForm.ideaSubmissionEnd
         ).toISOString(),
 
         teamFreezeDate: new Date(
@@ -985,7 +996,31 @@ const PoolDetailPage: React.FC = () => {
                 )
               }
             />
+           <DateTimeField
+              label="Idea Submission Start"
+              value={
+                editForm.ideaSubmissionStart
+              }
+              onChange={(value) =>
+                updateEditField(
+                  'ideaSubmissionStart',
+                  value
+                )
+              }
+            />
 
+            <DateTimeField
+              label="Idea Submission End"
+              value={
+                editForm.ideaSubmissionEnd
+              }
+              onChange={(value) =>
+                updateEditField(
+                  'ideaSubmissionEnd',
+                  value
+                )
+              }
+            />
             <DateTimeField
               label="Team Freeze"
               value={
@@ -1240,27 +1275,32 @@ const PoolDetailPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
                 [
-                  'Submission',
+                  'Submission (Faculty)',
                   pool.submissionStart,
                   pool.submissionEnd,
                 ],
                 [
-                  'Review',
+                  'Review (Subadmin)',
                   pool.reviewStart,
                   pool.reviewEnd,
                 ],
                 [
-                  'Decision Deadline',
+                  'Decision Deadline (Admin)',
                   pool.decisionDeadline,
                   '',
                 ],
                 [
-                  'Selection',
+                  'Selection (Students)',
                   pool.selectionStart,
                   pool.selectionEnd,
                 ],
                 [
-                  'Team Freeze',
+                  'Idea Submission (Students)',
+                  pool.ideaSubmissionStart,
+                  pool.ideaSubmissionEnd,
+                ],
+                [
+                  'Team Freeze (Students)',
                   pool.teamFreezeDate,
                   '',
                 ],

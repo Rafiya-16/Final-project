@@ -186,6 +186,8 @@ export class PoolsService {
         decisionDeadline: new Date(data.decisionDeadline),
         selectionStart: new Date(data.selectionStart),
         selectionEnd: new Date(data.selectionEnd),
+        ideaSubmissionStart: new Date(data.ideaSubmissionStart),
+        ideaSubmissionEnd: new Date(data.ideaSubmissionEnd),
         teamFreezeDate: new Date(data.teamFreezeDate),
 
         minTeamSize: data.minTeamSize ?? 3,
@@ -490,6 +492,8 @@ if (subadminIds.length > 0) {
       'decisionDeadline',
       'selectionStart',
       'selectionEnd',
+      'ideaSubmissionStart',
+      'ideaSubmissionEnd',
       'teamFreezeDate',
     ];
 

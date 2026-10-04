@@ -80,6 +80,8 @@ model Pool {
   decisionDeadline   DateTime   @map("decision_deadline")
   selectionStart     DateTime   @map("selection_start")
   selectionEnd       DateTime   @map("selection_end")
+  ideaSubmissionStart     DateTime?   @map("idea_submission_start")
+  ideaSubmissionEnd       DateTime?   @map("idea_submission_end")
   teamFreezeDate     DateTime   @map("team_freeze_date")
   minTeamSize        Int        @default(3) @map("min_team_size")
   defaultMaxTeamSize Int        @default(3) @map("default_max_team_size")

@@ -152,6 +152,9 @@ interface CreatePoolFormState {
 
   selectionStart: string;
   selectionEnd: string;
+  
+  ideaSubmissionStart: string;
+  ideaSubmissionEnd: string;
 
   teamFreezeDate: string;
 
@@ -179,6 +182,9 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
 
     selectionStart: '',
     selectionEnd: '',
+    
+    ideaSubmissionStart: '',
+    ideaSubmissionEnd: '',
 
     teamFreezeDate: '',
 
@@ -288,26 +294,10 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
     }));
   };
 
-  /**
-   * Toggle Faculty assignment.
-   *
-   * This only controls PoolFaculty.
-   * It does NOT affect SubAdmin assignment.
-   *
-   * Therefore the same Faculty can independently
-   * be selected as both Faculty and SubAdmin.
-   */
   const toggleFaculty = (id: string) => {
     toggle('facultyIds', id);
   };
 
-  /**
-   * Toggle SubAdmin assignment for an existing
-   * global SubAdmin or Faculty.
-   *
-   * For Faculty users this creates PoolSubadmin
-   * while leaving them as Faculty.
-   */
   const toggleSubadmin = (id: string) => {
     toggle('subadminIds', id);
   };
@@ -357,6 +347,14 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
 
         selectionEnd: new Date(
           form.selectionEnd,
+        ).toISOString(),
+
+        ideaSubmissionStart: new Date(
+          form.ideaSubmissionStart,
+        ).toISOString(),
+
+        ideaSubmissionEnd: new Date(
+          form.ideaSubmissionEnd,
         ).toISOString(),
 
         teamFreezeDate: new Date(
@@ -409,6 +407,14 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
       label: 'Selection End (Student)',
     },
     {
+      key: 'ideaSubmissionStart',
+      label: 'Idea Submission Start (Student)',
+    },
+    {
+      key: 'ideaSubmissionEnd',
+      label: 'Idea Submission End (Student)',
+    },
+    {
       key: 'teamFreezeDate',
       label: 'Team Freeze (Student)',
     },
@@ -418,15 +424,10 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
     users.faculty.map((user) => user.id),
   );
 
-  /**
-   * Global SubAdmins are kept separately.
-   *
-   * Faculty users are displayed in the combined
-   * Faculty + SubAdmin table below.
-   */
-  const globalSubadmins = users.subadmins.filter(
-    (user) => !facultyIds.has(user.id),
-  );
+ 
+  // const globalSubadmins = users.subadmins.filter(
+  //   (user) => !facultyIds.has(user.id),
+  // );
 
   return (
     <form
@@ -568,11 +569,6 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
                 Faculty & SubAdmin Assignment
               </h3>
             </div>
-
-            <p className="text-sm text-gray-500 mt-1">
-              A Faculty member can also be assigned as
-              SubAdmin for this pool.
-            </p>
           </div>
 
           <div className="text-sm text-gray-500">
@@ -690,7 +686,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
               </div>
             </div>
 
-            {/* GLOBAL SUBADMINS */}
+      {/* GLOBAL SUBADMINS
             <div className="border rounded-lg overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
                 <div>
@@ -706,7 +702,8 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
                     These users already have the global
                     SubAdmin role.
                   </p>
-                </div>
+                </div> 
+              
 
                 <button
                   type="button"
@@ -770,28 +767,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
                   })
                 )}
               </div>
-            </div>
-
-            {/* EXPLANATION */}
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <div className="flex items-start gap-3">
-                <ShieldCheck className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-
-                <div className="text-sm text-blue-900">
-                  <p className="font-semibold">
-                    Dual-role assignment
-                  </p>
-
-                  <p className="mt-1 text-blue-800">
-                    Selecting both <strong>Faculty</strong>{' '}
-                    and <strong>SubAdmin</strong> for the
-                    same person does not change their
-                    account role. They remain Faculty and
-                    receive SubAdmin access for this pool.
-                  </p>
-                </div>
-              </div>
-            </div>
+            </div> */}
 
             {/* QUICK ACTIONS */}
             <div className="flex items-center gap-3">
