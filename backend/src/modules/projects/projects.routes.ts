@@ -123,12 +123,24 @@ router.get(
 );
 router.get(
   '/:poolId/projects',
-  (q, s, n) => projectsController.listByPool(q, s, n)
+  requirePoolAccess('poolId'),
+  (q, s, n) =>
+    projectsController.listByPool(
+      q,
+      s,
+      n
+    )
 );
 
 router.get(
   '/:poolId/projects/:projectId',
-  (q, s, n) => projectsController.getById(q, s, n)
+  requirePoolAccess('poolId'),
+  (q, s, n) =>
+    projectsController.getById(
+      q,
+      s,
+      n
+    )
 );
 
 export default router;

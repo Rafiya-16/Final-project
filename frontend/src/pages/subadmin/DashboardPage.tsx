@@ -497,13 +497,53 @@ const DashboardPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    poolService.list().then((res) => {
-      if (res.data?.length) {
-        setPools(res.data);
-        setSelectedPool(res.data[0].id);
+  let mounted = true;
+
+  const loadPools = async () => {
+    try {
+      const response =
+        await poolService.list(
+          1,
+          'subadmin'
+        );
+
+      const assignedPools =
+        Array.isArray(response.data)
+          ? response.data
+          : [];
+
+      if (!mounted) {
+        return;
       }
-    });
-  }, []);
+
+      setPools(assignedPools);
+
+      if (assignedPools.length > 0) {
+        setSelectedPool(
+          assignedPools[0].id
+        );
+      } else {
+        setSelectedPool('');
+      }
+    } catch (error) {
+      console.error(
+        'Failed to load SubAdmin pools:',
+        error
+      );
+
+      if (mounted) {
+        setPools([]);
+        setSelectedPool('');
+      }
+    }
+  };
+
+  loadPools();
+
+  return () => {
+    mounted = false;
+  };
+}, []);
 
   useEffect(() => {
     if (!selectedPool) return;

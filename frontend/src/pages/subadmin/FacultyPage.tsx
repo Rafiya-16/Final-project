@@ -35,9 +35,16 @@ const FacultyPage: React.FC = () => {
       setLoadingPools(true);
 
       try {
-        const response = await poolService.list();
+        const response =
+  await poolService.list(
+    1,
+    'subadmin'
+  );
 
-        const assignedPools: Pool[] = response.data || [];
+const assignedPools: Pool[] =
+  Array.isArray(response.data)
+    ? response.data
+    : [];
 
         setPools(assignedPools);
 

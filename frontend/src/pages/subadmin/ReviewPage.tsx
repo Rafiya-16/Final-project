@@ -205,15 +205,37 @@ const ReviewPage: React.FC = () => {
   );
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    poolService
-      .list()
-      .then((r) => {
-        setPools(r.data || []);
-        if (r.data?.length) setSelectedPool(r.data[0].id);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+ useEffect(() => {
+  poolService
+    .list(1, 'subadmin')
+    .then((r) => {
+      const assignedPools: Pool[] =
+        Array.isArray(r.data)
+          ? r.data
+          : [];
+
+      setPools(assignedPools);
+
+      if (assignedPools.length > 0) {
+        setSelectedPool(
+          assignedPools[0].id
+        );
+      } else {
+        setSelectedPool('');
+      }
+    })
+    .catch((error) => {
+      toast.error(
+        getErrorMessage(error)
+      );
+
+      setPools([]);
+      setSelectedPool('');
+    })
+    .finally(() =>
+      setLoading(false)
+    );
+}, []);
 
   useEffect(() => {
     if (!selectedPool) return;

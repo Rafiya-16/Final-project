@@ -13,22 +13,13 @@ import {
 import { logger } from '../../shared/utils/logger';
 import { auditService } from '../audit/audit.service';
 import { notificationsService } from '../notifications/notifications.service';
+import {
+  notifySubadminAccessGranted,
+  notifySubadminAccessRevoked,
+} from '../notifications/notification.triggers';
 
 export class PoolsService {
-  /**
-   * Validate users being assigned to a pool.
-   *
-   * Rules:
-   * - SubAdmin assignment:
-   *   active SUBADMIN OR active FACULTY
-   * - Faculty assignment:
-   *   active FACULTY only
-   * - Student assignment:
-   *   active STUDENT only
-   *
-   * A FACULTY user may intentionally appear in both
-   * subadminIds and facultyIds.
-   */
+
   private async validatePoolUsers(
     subadminIds: string[] = [],
     facultyIds: string[] = [],
@@ -205,12 +196,6 @@ export class PoolsService {
 
         createdById: adminId,
 
-        /*
-         * A FACULTY user can also be inserted into
-         * PoolSubadmin.
-         *
-         * This does NOT change User.role.
-         */
         subadmins: {
           create: subadminIds.map((id: string) => ({
             subadminId: id,
@@ -265,6 +250,23 @@ export class PoolsService {
       },
     });
 
+    // Notify initially assigned SubAdmins.
+if (subadminIds.length > 0) {
+  await Promise.all(
+    subadminIds.map((subadminId) =>
+      notifySubadminAccessGranted(
+        pool.id,
+        subadminId,
+      ).catch((error) => {
+        logger.error(
+          `Failed to send SubAdmin grant notification for ${subadminId}`,
+          error,
+        );
+      }),
+    ),
+  );
+}
+
     logger.info(
       `Pool created: ${pool.name} (${pool.id})`,
     );
@@ -281,21 +283,32 @@ export class PoolsService {
     return pool;
   }
 
-  /**
-   * List pools according to the user's role/capability.
-   *
-   * Important:
-   * A FACULTY user who is also assigned as a pool
-   * SubAdmin can see the pool through either assignment.
-   */
   async listPools(
-    userId: string,
-    userRole: string,
-    params: PaginationParams,
-  ) {
-    let where: any = {};
+  userId: string,
+  userRole: string,
+  params: PaginationParams,
+  scope: 'faculty' | 'subadmin' | 'student' | 'all' = 'all',
+) {
+  let where: any = {};
 
-    if (userRole === 'SUBADMIN') {
+  
+  if (userRole === 'ADMIN') {
+    where = {};
+  }
+
+  else if (userRole === 'SUBADMIN') {
+    where = {
+      subadmins: {
+        some: {
+          subadminId: userId,
+        },
+      },
+    };
+  }
+
+  else if (userRole === 'FACULTY') {
+   
+    if (scope === 'subadmin') {
       where = {
         subadmins: {
           some: {
@@ -303,81 +316,79 @@ export class PoolsService {
           },
         },
       };
-    } else if (userRole === 'FACULTY') {
+    }
+
+    else {
       where = {
-        OR: [
-          {
-            faculty: {
-              some: {
-                facultyId: userId,
-              },
-            },
-          },
-          {
-            subadmins: {
-              some: {
-                subadminId: userId,
-              },
-            },
-          },
-        ],
-      };
-    } else if (userRole === 'STUDENT') {
-      where = {
-        students: {
+        faculty: {
           some: {
-            studentId: userId,
+            facultyId: userId,
           },
         },
       };
     }
-
-    // ADMIN sees all pools.
-
-    const skip =
-      (params.page - 1) * params.limit;
-
-    const [pools, total] =
-      await Promise.all([
-        prisma.pool.findMany({
-          where,
-          skip,
-          take: params.limit,
-
-          orderBy: {
-            createdAt: 'desc',
-          },
-
-          include: {
-            _count: {
-              select: {
-                faculty: true,
-                students: true,
-                projects: true,
-                teams: true,
-              },
-            },
-
-            creator: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        }),
-
-        prisma.pool.count({
-          where,
-        }),
-      ]);
-
-    return paginatedResult(
-      pools,
-      total,
-      params,
-    );
   }
+
+  /*
+   * ---------------------------------------------------------
+   * STUDENT
+   * ---------------------------------------------------------
+   */
+  else if (userRole === 'STUDENT') {
+    where = {
+      students: {
+        some: {
+          studentId: userId,
+        },
+      },
+    };
+  }
+
+  const skip =
+    (params.page - 1) * params.limit;
+
+  const [pools, total] =
+    await Promise.all([
+      prisma.pool.findMany({
+        where,
+
+        skip,
+        take: params.limit,
+
+        orderBy: {
+          createdAt: 'desc',
+        },
+
+        include: {
+          _count: {
+            select: {
+              faculty: true,
+              students: true,
+              projects: true,
+              teams: true,
+            },
+          },
+
+          creator: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+
+      prisma.pool.count({
+        where,
+      }),
+    ]);
+
+  return paginatedResult(
+    pools,
+    total,
+    params,
+  );
+}
 
   /**
    * Get a single pool by ID
@@ -815,115 +826,159 @@ export class PoolsService {
     });
   }
 
-  async assignUsers(
-    poolId: string,
-    data: any,
-  ) {
-    const pool =
-      await prisma.pool.findUnique({
-        where: {
-          id: poolId,
-        },
-      });
+ async assignUsers(
+  poolId: string,
+  data: any,
+) {
+  const pool =
+    await prisma.pool.findUnique({
+      where: {
+        id: poolId,
+      },
+    });
 
-    if (!pool) {
-      throw new NotFoundError(
-        'Pool not found',
-      );
-    }
+  if (!pool) {
+    throw new NotFoundError(
+      'Pool not found',
+    );
+  }
 
-    const subadminIds = [
-      ...new Set<string>(
-        data.subadminIds ?? [],
-      ),
-    ];
+  const subadminIds = [
+    ...new Set<string>(
+      data.subadminIds ?? [],
+    ),
+  ];
 
-    const facultyIds = [
-      ...new Set<string>(
-        data.facultyIds ?? [],
-      ),
-    ];
+  const facultyIds = [
+    ...new Set<string>(
+      data.facultyIds ?? [],
+    ),
+  ];
 
-    const studentIds = [
-      ...new Set<string>(
-        data.studentIds ?? [],
-      ),
-    ];
+  const studentIds = [
+    ...new Set<string>(
+      data.studentIds ?? [],
+    ),
+  ];
 
-    await this.validatePoolUsers(
-      subadminIds,
-      facultyIds,
-      studentIds,
+  await this.validatePoolUsers(
+    subadminIds,
+    facultyIds,
+    studentIds,
+  );
+
+  const existingSubadminAssignments =
+    subadminIds.length > 0
+      ? await prisma.poolSubadmin.findMany({
+          where: {
+            poolId,
+            subadminId: {
+              in: subadminIds,
+            },
+          },
+          select: {
+            subadminId: true,
+          },
+        })
+      : [];
+
+  const existingSubadminIds = new Set(
+    existingSubadminAssignments.map(
+      (assignment) =>
+        assignment.subadminId,
+    ),
+  );
+
+  const newlyAssignedSubadminIds =
+    subadminIds.filter(
+      (subadminId) =>
+        !existingSubadminIds.has(
+          subadminId,
+        ),
     );
 
-    if (subadminIds.length) {
-      for (const id of subadminIds) {
-        await prisma.poolSubadmin.upsert({
-          where: {
-            poolId_subadminId: {
-              poolId,
-              subadminId: id,
-            },
-          },
-
-          create: {
+  if (subadminIds.length > 0) {
+    for (const subadminId of subadminIds) {
+      await prisma.poolSubadmin.upsert({
+        where: {
+          poolId_subadminId: {
             poolId,
-            subadminId: id,
+            subadminId,
           },
+        },
 
-          update: {},
-        });
-      }
+        create: {
+          poolId,
+          subadminId,
+        },
+
+        update: {},
+      });
     }
-
-    if (facultyIds.length) {
-      for (const id of facultyIds) {
-        await prisma.poolFaculty.upsert({
-          where: {
-            poolId_facultyId: {
-              poolId,
-              facultyId: id,
-            },
-          },
-
-          create: {
-            poolId,
-            facultyId: id,
-          },
-
-          update: {},
-        });
-      }
-    }
-
-    if (studentIds.length) {
-      for (const id of studentIds) {
-        await prisma.poolStudent.upsert({
-          where: {
-            poolId_studentId: {
-              poolId,
-              studentId: id,
-            },
-          },
-
-          create: {
-            poolId,
-            studentId: id,
-          },
-
-          update: {},
-        });
-      }
-    }
-
-    return this.getPoolById(poolId);
   }
-/**
- * Remove a faculty member from a pool.
- *
- * This removes only the PoolFaculty assignment.
- * If the same user is also a pool SubAdmin, that capability remains.
- */
+
+  if (facultyIds.length > 0) {
+    for (const facultyId of facultyIds) {
+      await prisma.poolFaculty.upsert({
+        where: {
+          poolId_facultyId: {
+            poolId,
+            facultyId,
+          },
+        },
+
+        create: {
+          poolId,
+          facultyId,
+        },
+
+        update: {},
+      });
+    }
+  }
+
+  if (studentIds.length > 0) {
+    for (const studentId of studentIds) {
+      await prisma.poolStudent.upsert({
+        where: {
+          poolId_studentId: {
+            poolId,
+            studentId,
+          },
+        },
+
+        create: {
+          poolId,
+          studentId,
+        },
+
+        update: {},
+      });
+    }
+  }
+
+  if (
+    newlyAssignedSubadminIds.length > 0
+  ) {
+    await Promise.all(
+      newlyAssignedSubadminIds.map(
+        (subadminId) =>
+          notifySubadminAccessGranted(
+            poolId,
+            subadminId,
+          ).catch((error) => {
+            logger.error(
+              `Failed to send SubAdmin grant notification for ${subadminId}`,
+              error,
+            );
+          }),
+      ),
+    );
+  }
+
+  return this.getPoolById(poolId);
+}
+
 async removeFaculty(poolId: string, facultyId: string) {
   const pool = await prisma.pool.findUnique({
     where: {
@@ -962,25 +1017,36 @@ async removeFaculty(poolId: string, facultyId: string) {
   return this.getPoolById(poolId);
 }
 
-async removeSubadmin(poolId: string, subadminId: string) {
-  const pool = await prisma.pool.findUnique({
-    where: {
-      id: poolId,
-    },
-  });
+async removeSubadmin(
+  poolId: string,
+  subadminId: string,
+) {
+  const pool =
+    await prisma.pool.findUnique({
+      where: {
+        id: poolId,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
 
   if (!pool) {
-    throw new NotFoundError('Pool not found');
+    throw new NotFoundError(
+      'Pool not found',
+    );
   }
 
-  const assignment = await prisma.poolSubadmin.findUnique({
-    where: {
-      poolId_subadminId: {
-        poolId,
-        subadminId,
+  const assignment =
+    await prisma.poolSubadmin.findUnique({
+      where: {
+        poolId_subadminId: {
+          poolId,
+          subadminId,
+        },
       },
-    },
-  });
+    });
 
   if (!assignment) {
     throw new NotFoundError(
@@ -988,6 +1054,9 @@ async removeSubadmin(poolId: string, subadminId: string) {
     );
   }
 
+  /*
+   * Delete the actual capability assignment first.
+   */
   await prisma.poolSubadmin.delete({
     where: {
       poolId_subadminId: {
@@ -995,6 +1064,17 @@ async removeSubadmin(poolId: string, subadminId: string) {
         subadminId,
       },
     },
+  });
+
+  await notifySubadminAccessRevoked(
+    poolId,
+    subadminId,
+    pool.name,
+  ).catch((error) => {
+    logger.error(
+      `Failed to send SubAdmin revoke notification for ${subadminId}`,
+      error,
+    );
   });
 
   return this.getPoolById(poolId);

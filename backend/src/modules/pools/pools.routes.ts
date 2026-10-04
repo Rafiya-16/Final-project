@@ -1,111 +1,199 @@
 // backend/src/modules/pools/pools.routes.ts
 
 import { Router } from 'express';
+
 import { poolsController } from './pools.controller';
+
 import { authenticate } from '../../middleware/authenticate';
 import { authorize } from '../../middleware/authorize';
 import { validateRequest } from '../../middleware/validateRequest';
+
 import {
   createPoolSchema,
   updatePoolSchema,
   assignUsersSchema,
 } from './pools.validation';
-import { requirePoolAccess } from '../../middleware/poolAccess';
+
+import {
+  requirePoolAccess,
+} from '../../middleware/poolAccess';
 
 const router = Router();
 
 router.use(authenticate);
 
-// ============================================================
-// POOL ACCESS
-// ============================================================
-
-// List pools
-//
-// Existing service already filters pools according to the
-// logged-in user's role and assignments.
+/*
+ * ============================================================
+ * POOL LIST
+ * ============================================================
+ *
+ * Backend determines the actual accessible pools.
+ *
+ * Examples:
+ *
+ * /pools?scope=subadmin
+ * /pools?scope=faculty
+ * /pools?scope=student
+ * /pools?scope=all
+ *
+ * ADMIN always receives all pools.
+ */
 router.get(
   '/',
-  (q, s, n) => poolsController.list(q, s, n)
+  (req, res, next) =>
+    poolsController.list(
+      req,
+      res,
+      next
+    )
 );
 
-// View a specific pool
-//
-// SUBADMIN/FACULTY must be assigned to this pool.
-// ADMIN and STUDENT retain their existing application-level access.
+/*
+ * ============================================================
+ * VIEW SPECIFIC POOL
+ * ============================================================
+ *
+ * ADMIN:
+ *   allowed
+ *
+ * SUBADMIN:
+ *   must be assigned through PoolSubadmin
+ *
+ * FACULTY:
+ *   must be assigned through PoolFaculty OR
+ *   PoolSubadmin
+ *
+ * STUDENT:
+ *   existing behavior preserved
+ */
 router.get(
   '/:id',
   requirePoolAccess('id'),
-  (q, s, n) => poolsController.getById(q, s, n)
+  (req, res, next) =>
+    poolsController.getById(
+      req,
+      res,
+      next
+    )
 );
 
-// View pool statistics
-//
-// SUBADMIN/FACULTY must be assigned to this pool.
-// ADMIN and STUDENT retain their existing application-level access.
 router.get(
   '/:id/stats',
   requirePoolAccess('id'),
-  (q, s, n) => poolsController.getStats(q, s, n)
+  (req, res, next) =>
+    poolsController.getStats(
+      req,
+      res,
+      next
+    )
 );
 
-// ============================================================
-// ADMIN ONLY
-// ============================================================
+/*
+ * ============================================================
+ * ADMIN ONLY
+ * ============================================================
+ */
 
 router.post(
   '/',
   authorize('ADMIN'),
   validateRequest(createPoolSchema),
-  (q, s, n) => poolsController.create(q, s, n)
+  (req, res, next) =>
+    poolsController.create(
+      req,
+      res,
+      next
+    )
 );
 
 router.put(
   '/:id',
   authorize('ADMIN'),
   validateRequest(updatePoolSchema),
-  (q, s, n) => poolsController.update(q, s, n)
+  (req, res, next) =>
+    poolsController.update(
+      req,
+      res,
+      next
+    )
 );
 
 router.post(
   '/:id/activate',
   authorize('ADMIN'),
-  (q, s, n) => poolsController.activate(q, s, n)
+  (req, res, next) =>
+    poolsController.activate(
+      req,
+      res,
+      next
+    )
 );
 
 router.post(
   '/:id/advance-phase',
   authorize('ADMIN'),
-  (q, s, n) => poolsController.advancePhase(q, s, n)
+  (req, res, next) =>
+    poolsController.advancePhase(
+      req,
+      res,
+      next
+    )
 );
 
 router.post(
   '/:id/freeze',
   authorize('ADMIN'),
-  (q, s, n) => poolsController.freeze(q, s, n)
+  (req, res, next) =>
+    poolsController.freeze(
+      req,
+      res,
+      next
+    )
 );
 
 router.post(
   '/:id/archive',
   authorize('ADMIN'),
-  (q, s, n) => poolsController.archive(q, s, n)
+  (req, res, next) =>
+    poolsController.archive(
+      req,
+      res,
+      next
+    )
 );
 
 router.post(
   '/:id/assign-users',
   authorize('ADMIN'),
   validateRequest(assignUsersSchema),
-  (q, s, n) => poolsController.assignUsers(q, s, n)
+  (req, res, next) =>
+    poolsController.assignUsers(
+      req,
+      res,
+      next
+    )
 );
+
 router.delete(
   '/:id/faculty/:facultyId',
   authorize('ADMIN'),
-  (q, s, n) => poolsController.removeFaculty(q, s, n),
+  (req, res, next) =>
+    poolsController.removeFaculty(
+      req,
+      res,
+      next
+    )
 );
 
 router.delete(
   '/:id/subadmins/:subadminId',
   authorize('ADMIN'),
-  (q, s, n) => poolsController.removeSubadmin(q, s, n),
+  (req, res, next) =>
+    poolsController.removeSubadmin(
+      req,
+      res,
+      next
+    )
 );
+
 export default router;

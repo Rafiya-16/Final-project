@@ -330,7 +330,10 @@ export const Sidebar: React.FC = () => {
 
       try {
         const poolResponse =
-          await poolService.list();
+  await poolService.list(
+    1,
+    'subadmin'
+  );
 
         const pools =
           poolResponse?.data || [];
@@ -443,8 +446,11 @@ export const Sidebar: React.FC = () => {
       }
 
       try {
-        const poolResponse =
-          await poolService.list();
+       const poolResponse =
+  await poolService.list(
+    1,
+    'faculty'
+  );
 
         const pools =
           poolResponse?.data || [];

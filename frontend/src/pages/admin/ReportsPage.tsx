@@ -8,6 +8,8 @@ import { Badge } from '@/lib/utils';
 import { Printer, Download, BarChart3, ChevronDown, ChevronRight, Users, FileText, UserX } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Pool } from '@/types';
+import { useAuthStore } from '@/stores/authStore';
+import { useWorkplaceStore } from '@/stores/workplaceStore';
 
 const ReportsPage: React.FC = () => {
   const [pools, setPools] = useState<Pool[]>([]);
@@ -20,14 +22,84 @@ const ReportsPage: React.FC = () => {
   const [unassigned, setUnassigned] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuthStore();
+  const { activeWorkplace, } = useWorkplaceStore();
 
-  useEffect(() => {
-    poolService.list().then(r => {
-      const p = r.data || [];
-      setPools(p);
-      if (p.length) setSelectedPool(p[0].id);
-    }).finally(() => setLoading(false));
-  }, []);
+ useEffect(() => {
+  let mounted = true;
+
+  const loadPools = async () => {
+    try {
+      /*
+       * ADMIN:
+       *   all pools
+       *
+       * FACULTY + SUBADMIN workplace:
+       *   only PoolSubadmin assignments
+       *
+       * Normal Faculty:
+       *   Faculty pools
+       */
+      const scope =
+        user?.role === 'ADMIN'
+          ? 'all'
+          : user?.role === 'SUBADMIN'
+            ? 'subadmin'
+            : activeWorkplace ===
+                'SUBADMIN'
+              ? 'subadmin'
+              : 'faculty';
+
+      const response =
+        await poolService.list(
+          1,
+          scope
+        );
+
+      const assignedPools =
+        Array.isArray(response.data)
+          ? response.data
+          : [];
+
+      if (!mounted) {
+        return;
+      }
+
+      setPools(assignedPools);
+
+      if (assignedPools.length > 0) {
+        setSelectedPool(
+          assignedPools[0].id
+        );
+      } else {
+        setSelectedPool('');
+      }
+    } catch (error) {
+      console.error(
+        'Failed to load report pools:',
+        error
+      );
+
+      if (mounted) {
+        setPools([]);
+        setSelectedPool('');
+      }
+    } finally {
+      if (mounted) {
+        setLoading(false);
+      }
+    }
+  };
+
+  loadPools();
+
+  return () => {
+    mounted = false;
+  };
+}, [
+  user?.role,
+  activeWorkplace,
+]);
 
   useEffect(() => {
     if (!selectedPool) return;
