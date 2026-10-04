@@ -1,8 +1,18 @@
 // frontend/src/App.tsx
+
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation, } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+
 import { useAuthStore } from '@/stores/authStore';
+import { useWorkplaceStore } from '@/stores/workplaceStore';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PublicLayout } from '@/components/layout/PublicLayout';
 
@@ -52,22 +62,48 @@ import NotificationsPage from '@/pages/NotificationsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import ChangePasswordPage from '@/pages/ChangePasswordPage';
 
-// Protected Route
-const ProtectedRoute: React.FC<{
+type Workplace = 'FACULTY' | 'SUBADMIN';
+
+interface ProtectedRouteProps {
   children: React.ReactNode;
   roles?: string[];
-}> = ({ children, roles }) => {
+  workplace?: Workplace;
+}
+
+/**
+ * ProtectedRoute
+ *
+ * Normal roles are checked against User.role.
+ *
+ * Special case:
+ * A FACULTY user can access SubAdmin pages when:
+ *
+ * 1. The user has pool-level SubAdmin capability.
+ * 2. SUBADMIN workplace is currently selected.
+ *
+ * User.role itself is never changed.
+ */
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  roles,
+  workplace,
+}) => {
   const { isAuthenticated, user } = useAuthStore();
+
+  const {
+    activeWorkplace,
+    hasSubadminAccess,
+  } = useWorkplaceStore();
+
   const location = useLocation();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  if (roles && user && !roles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
+  /*
+   * Password reset has highest priority.
+   */
   if (
     user?.mustResetPwd &&
     location.pathname !== '/change-password'
@@ -75,12 +111,84 @@ const ProtectedRoute: React.FC<{
     return <Navigate to="/change-password" replace />;
   }
 
+  /*
+   * No role restriction.
+   */
+  if (!roles || !user) {
+    return <>{children}</>;
+  }
+
+  /*
+   * -------------------------------------------------------
+   * FACULTY + SUBADMIN WORKPLACE
+   * -------------------------------------------------------
+   *
+   * User.role remains FACULTY.
+   *
+   * We allow access to SUBADMIN routes only when the
+   * workplace store confirms pool-level SubAdmin access.
+   */
+  if (
+    workplace === 'SUBADMIN' &&
+    user.role === 'FACULTY'
+  ) {
+    if (
+      hasSubadminAccess &&
+      activeWorkplace === 'SUBADMIN'
+    ) {
+      return <>{children}</>;
+    }
+
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  /*
+   * -------------------------------------------------------
+   * NORMAL ROLE CHECK
+   * -------------------------------------------------------
+   */
+  if (!roles.includes(user.role)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  /*
+   * If a specific workplace was requested but the current
+   * user/workplace does not match it, deny access.
+   */
+  if (
+    workplace &&
+    user.role === 'FACULTY' &&
+    workplace === 'FACULTY' &&
+    activeWorkplace !== 'FACULTY'
+  ) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return <>{children}</>;
 };
 
-// Role-based Dashboard Redirect
+/**
+ * Role + Workplace based dashboard.
+ */
 const DashboardRedirect: React.FC = () => {
   const { user } = useAuthStore();
+
+  const {
+    activeWorkplace,
+    hasSubadminAccess,
+  } = useWorkplaceStore();
+
+  /*
+   * Faculty who is also a SubAdmin and has selected
+   * SubAdmin workplace gets the SubAdmin dashboard.
+   */
+  if (
+    user?.role === 'FACULTY' &&
+    hasSubadminAccess &&
+    activeWorkplace === 'SUBADMIN'
+  ) {
+    return <DashboardPage />;
+  }
 
   switch (user?.role) {
     case 'ADMIN':
@@ -104,27 +212,41 @@ const App: React.FC = () => (
   <BrowserRouter>
     <Toaster
       position="top-right"
-      toastOptions={{ duration: 4000 }}
+      toastOptions={{
+        duration: 4000,
+      }}
     />
 
     <Routes>
 
-      {/* ==================== PUBLIC ==================== */}
+      {/* =====================================================
+          PUBLIC
+      ===================================================== */}
 
       <Route element={<PublicLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
-        <Route path="/how-it-works" element={<HowItWorksPage />} />
+        <Route
+          path="/how-it-works"
+          element={<HowItWorksPage />}
+        />
         <Route path="/results" element={<ResultsPage />} />
         <Route path="/faq" element={<FAQPage />} />
         <Route path="/contact" element={<ContactPage />} />
       </Route>
 
-      {/* ==================== AUTH ==================== */}
+      {/* =====================================================
+          AUTH
+      ===================================================== */}
 
-      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/login"
+        element={<LoginPage />}
+      />
 
-      {/* ==================== PROTECTED ==================== */}
+      {/* =====================================================
+          PROTECTED
+      ===================================================== */}
 
       <Route
         element={
@@ -134,14 +256,18 @@ const App: React.FC = () => (
         }
       >
 
-        {/* ==================== DASHBOARD ==================== */}
+        {/* ===================================================
+            DASHBOARD
+        =================================================== */}
 
         <Route
           path="/dashboard"
           element={<DashboardRedirect />}
         />
 
-        {/* ==================== COMMON ==================== */}
+        {/* ===================================================
+            COMMON
+        =================================================== */}
 
         <Route
           path="/profile"
@@ -158,12 +284,17 @@ const App: React.FC = () => (
           element={<NotificationsPage />}
         />
 
-        {/* ==================== SUBADMIN ==================== */}
+        {/* ===================================================
+            SUBADMIN WORKPLACE
+        =================================================== */}
 
         <Route
           path="/faculty"
           element={
-            <ProtectedRoute roles={['SUBADMIN']}>
+            <ProtectedRoute
+              roles={['SUBADMIN']}
+              workplace="SUBADMIN"
+            >
               <FacultyPage />
             </ProtectedRoute>
           }
@@ -172,7 +303,10 @@ const App: React.FC = () => (
         <Route
           path="/admin-projects"
           element={
-            <ProtectedRoute roles={['SUBADMIN']}>
+            <ProtectedRoute
+              roles={['SUBADMIN']}
+              workplace="SUBADMIN"
+            >
               <ProjectsPage />
             </ProtectedRoute>
           }
@@ -181,7 +315,10 @@ const App: React.FC = () => (
         <Route
           path="/review"
           element={
-            <ProtectedRoute roles={['SUBADMIN']}>
+            <ProtectedRoute
+              roles={['SUBADMIN']}
+              workplace="SUBADMIN"
+            >
               <ReviewPage />
             </ProtectedRoute>
           }
@@ -190,13 +327,18 @@ const App: React.FC = () => (
         <Route
           path="/review/:poolId/:facultyId"
           element={
-            <ProtectedRoute roles={['SUBADMIN']}>
+            <ProtectedRoute
+              roles={['SUBADMIN']}
+              workplace="SUBADMIN"
+            >
               <ReviewPage />
             </ProtectedRoute>
           }
         />
 
-        {/* ==================== ADMIN ==================== */}
+        {/* ===================================================
+            ADMIN
+        =================================================== */}
 
         <Route
           path="/users"
@@ -210,7 +352,10 @@ const App: React.FC = () => (
         <Route
           path="/pools"
           element={
-            <ProtectedRoute roles={['ADMIN', 'SUBADMIN']}>
+            <ProtectedRoute
+              roles={['ADMIN', 'SUBADMIN']}
+              workplace="SUBADMIN"
+            >
               <ManagePoolsPage />
             </ProtectedRoute>
           }
@@ -219,7 +364,10 @@ const App: React.FC = () => (
         <Route
           path="/pools/:id"
           element={
-            <ProtectedRoute roles={['ADMIN', 'SUBADMIN']}>
+            <ProtectedRoute
+              roles={['ADMIN', 'SUBADMIN']}
+              workplace="SUBADMIN"
+            >
               <PoolDetailPage />
             </ProtectedRoute>
           }
@@ -228,7 +376,10 @@ const App: React.FC = () => (
         <Route
           path="/reports"
           element={
-            <ProtectedRoute roles={['ADMIN', 'SUBADMIN']}>
+            <ProtectedRoute
+              roles={['ADMIN', 'SUBADMIN']}
+              workplace="SUBADMIN"
+            >
               <ReportsPage />
             </ProtectedRoute>
           }
@@ -252,12 +403,17 @@ const App: React.FC = () => (
           }
         />
 
-               {/* ==================== FACULTY ==================== */}
+        {/* ===================================================
+            FACULTY WORKPLACE
+        =================================================== */}
 
         <Route
           path="/faculty/proposals"
           element={
-            <ProtectedRoute roles={['FACULTY']}>
+            <ProtectedRoute
+              roles={['FACULTY']}
+              workplace="FACULTY"
+            >
               <CreateProposal />
             </ProtectedRoute>
           }
@@ -266,7 +422,10 @@ const App: React.FC = () => (
         <Route
           path="/faculty/team-management"
           element={
-            <ProtectedRoute roles={['FACULTY']}>
+            <ProtectedRoute
+              roles={['FACULTY']}
+              workplace="FACULTY"
+            >
               <TeamManagement />
             </ProtectedRoute>
           }
@@ -275,21 +434,30 @@ const App: React.FC = () => (
         <Route
           path="/my-projects"
           element={
-            <ProtectedRoute roles={['FACULTY']}>
+            <ProtectedRoute
+              roles={['FACULTY']}
+              workplace="FACULTY"
+            >
               <MyProjects />
             </ProtectedRoute>
           }
         />
 
-      <Route
-  path="/supervision-requests"
-  element={
-    <ProtectedRoute roles={['FACULTY']}>
-      <SupervisionRequests />
-    </ProtectedRoute>
-  }
-/>
-        {/* ==================== STUDENT ==================== */}
+        <Route
+          path="/supervision-requests"
+          element={
+            <ProtectedRoute
+              roles={['FACULTY']}
+              workplace="FACULTY"
+            >
+              <SupervisionRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ===================================================
+            STUDENT
+        =================================================== */}
 
         <Route
           path="/projects"
@@ -326,9 +494,12 @@ const App: React.FC = () => (
             </ProtectedRoute>
           }
         />
+
       </Route>
 
-      {/* ==================== 404 ==================== */}
+      {/* =====================================================
+          404
+      ===================================================== */}
 
       <Route element={<PublicLayout />}>
         <Route
