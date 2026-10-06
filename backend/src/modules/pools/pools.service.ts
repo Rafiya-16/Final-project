@@ -293,11 +293,25 @@ if (subadminIds.length > 0) {
 ) {
   let where: any = {};
 
-  
+  /*
+   * ============================================================
+   * ADMIN
+   * ============================================================
+   *
+   * Admin can see every pool.
+   */
   if (userRole === 'ADMIN') {
     where = {};
   }
 
+  /*
+   * ============================================================
+   * SUBADMIN
+   * ============================================================
+   *
+   * A normal SUBADMIN can only see pools where they are assigned
+   * through PoolSubadmin.
+   */
   else if (userRole === 'SUBADMIN') {
     where = {
       subadmins: {
@@ -308,8 +322,31 @@ if (subadminIds.length > 0) {
     };
   }
 
+  /*
+   * ============================================================
+   * FACULTY
+   * ============================================================
+   *
+   * IMPORTANT:
+   *
+   * A FACULTY user can ALSO be a SubAdmin of a particular pool.
+   *
+   * Therefore:
+   *
+   * 1. If scope=subadmin:
+   *      return pools where this faculty is a PoolSubadmin.
+   *
+   * 2. If scope=faculty:
+   *      return pools where this user is assigned as faculty.
+   *
+   * 3. If scope=all:
+   *      return BOTH:
+   *        - pools where user is faculty
+   *        - pools where user is SubAdmin
+   *
+   * This is the important fix.
+   */
   else if (userRole === 'FACULTY') {
-   
     if (scope === 'subadmin') {
       where = {
         subadmins: {
@@ -320,7 +357,7 @@ if (subadminIds.length > 0) {
       };
     }
 
-    else {
+    else if (scope === 'faculty') {
       where = {
         faculty: {
           some: {
@@ -329,12 +366,43 @@ if (subadminIds.length > 0) {
         },
       };
     }
+
+    else {
+      /*
+       * Default "all" for FACULTY means all pools that the user
+       * can legitimately access:
+       *
+       * - faculty assignment
+       * OR
+       * - subadmin assignment
+       */
+      where = {
+        OR: [
+          {
+            faculty: {
+              some: {
+                facultyId: userId,
+              },
+            },
+          },
+          {
+            subadmins: {
+              some: {
+                subadminId: userId,
+              },
+            },
+          },
+        ],
+      };
+    }
   }
 
   /*
-   * ---------------------------------------------------------
+   * ============================================================
    * STUDENT
-   * ---------------------------------------------------------
+   * ============================================================
+   *
+   * Students only see pools explicitly assigned to them.
    */
   else if (userRole === 'STUDENT') {
     where = {
@@ -345,6 +413,12 @@ if (subadminIds.length > 0) {
       },
     };
   }
+
+  /*
+   * ============================================================
+   * PAGINATION
+   * ============================================================
+   */
 
   const skip =
     (params.page - 1) * params.limit;

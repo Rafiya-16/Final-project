@@ -746,6 +746,25 @@ export class ProjectsService {
       note?: string;
     }[]
   ) {
+    const subadminAssignment =
+  await prisma.poolSubadmin.findUnique({
+    where: {
+      poolId_subadminId: {
+        poolId,
+        subadminId,
+      },
+    },
+
+    select: {
+      id: true,
+    },
+  });
+
+if (!subadminAssignment) {
+  throw new ForbiddenError(
+    'You do not have SubAdmin access to this pool'
+  );
+}
     const projects =
       await prisma.project.findMany({
         where: {
@@ -1234,115 +1253,26 @@ export class ProjectsService {
   }
 
   async getProjectsByPool(
-    poolId: string,
-    userId: string,
-    userRole: string
-  ) {
-    const pool =
-      await prisma.pool.findUnique({
-        where: {
-          id: poolId,
-        },
-      });
+  poolId: string,
+  userId: string,
+  userRole: string,
+) {
+  const pool = await prisma.pool.findUnique({
+    where: {
+      id: poolId,
+    },
+  });
 
-    if (!pool) {
-      throw new NotFoundError(
-        'Pool not found'
-      );
-    }
+  if (!pool) {
+    throw new NotFoundError('Pool not found');
+  }
 
-    // STUDENT
-   
-    if (
-      userRole === 'STUDENT'
-    ) {
-      return prisma.project.findMany({
-        where: {
-          poolId,
-          status: 'APPROVED',
-        },
-
-        select: {
-          id: true,
-          projectCode: true,
-          title: true,
-          description: true,
-          domain: true,
-          prerequisites: true,
-          maxTeamSize: true,
-          expectedOutcome: true,
-          status: true,
-
-          team: {
-            select: {
-              id: true,
-              name: true,
-
-              _count: {
-                select: {
-                  members: true,
-                },
-              },
-            },
-          },
-        },
-
-        orderBy: {
-          createdAt: 'asc',
-        },
-      });
-    }
-
-    /**
-     * FACULTY
-     */
-    if (
-      userRole === 'FACULTY'
-    ) {
-      return prisma.project.findMany({
-        where: {
-          poolId,
-          facultyId: userId,
-        },
-
-        include: {
-          team: {
-            include: {
-              members: {
-                where: {
-                  status: 'ACTIVE',
-                },
-
-                include: {
-                  student: {
-                    select: {
-                      id: true,
-                      firstName: true,
-                      lastName: true,
-                      email: true,
-                      enrollmentNo: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-
-        orderBy: {
-          createdAt: 'asc',
-        },
-      });
-    }
-
-    /**
-     * ADMIN / SUBADMIN
-     */
+  // ADMIN can see everything
+  if (userRole === 'ADMIN') {
     return prisma.project.findMany({
       where: {
         poolId,
       },
-
       include: {
         faculty: {
           select: {
@@ -1352,7 +1282,6 @@ export class ProjectsService {
             email: true,
           },
         },
-
         reviewedBy: {
           select: {
             id: true,
@@ -1360,7 +1289,6 @@ export class ProjectsService {
             lastName: true,
           },
         },
-
         decidedBy: {
           select: {
             id: true,
@@ -1368,23 +1296,147 @@ export class ProjectsService {
             lastName: true,
           },
         },
-
-        team: {
-          include: {
-            _count: {
-              select: {
-                members: true,
-              },
-            },
-          },
-        },
+        team: true,
       },
-
       orderBy: {
         createdAt: 'asc',
       },
     });
   }
+
+  // STUDENT can only see approved projects from pools
+  // to which the student is assigned.
+  if (userRole === 'STUDENT') {
+    const studentAssignment = await prisma.poolStudent.findUnique({
+      where: {
+        poolId_studentId: {
+          poolId,
+          studentId: userId,
+        },
+      },
+    });
+
+    if (!studentAssignment) {
+      throw new ForbiddenError(
+        'You are not assigned to this pool',
+      );
+    }
+
+    return prisma.project.findMany({
+      where: {
+        poolId,
+        status: 'APPROVED',
+      },
+      orderBy: [
+        {
+          projectCode: 'asc',
+        },
+        {
+          createdAt: 'asc',
+        },
+      ],
+    });
+  }
+
+  // IMPORTANT:
+  // A FACULTY user can also be a SubAdmin.
+  // Check PoolSubadmin BEFORE checking the user's role.
+  if (
+    userRole === 'SUBADMIN' ||
+    userRole === 'FACULTY'
+  ) {
+    const subadminAssignment =
+      await prisma.poolSubadmin.findUnique({
+        where: {
+          poolId_subadminId: {
+            poolId,
+            subadminId: userId,
+          },
+        },
+      });
+
+    if (subadminAssignment) {
+      return prisma.project.findMany({
+        where: {
+          poolId,
+        },
+        include: {
+          faculty: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          reviewedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          decidedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          team: true,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+    }
+  }
+
+  // Normal FACULTY:
+  // only see their own projects in this pool.
+  if (userRole === 'FACULTY') {
+    const facultyAssignment =
+      await prisma.poolFaculty.findUnique({
+        where: {
+          poolId_facultyId: {
+            poolId,
+            facultyId: userId,
+          },
+        },
+      });
+
+    if (!facultyAssignment) {
+      throw new ForbiddenError(
+        'You are not assigned as faculty to this pool',
+      );
+    }
+
+    return prisma.project.findMany({
+      where: {
+        poolId,
+        facultyId: userId,
+      },
+      include: {
+        faculty: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        team: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+  }
+
+  throw new ForbiddenError(
+    'You do not have access to this pool',
+  );
+}
 
   /**
    * Get ON_HOLD projects for Admin review.

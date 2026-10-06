@@ -245,16 +245,44 @@ const ReviewPage: React.FC = () => {
   }, [selectedPool]);
 
   useEffect(() => {
-    if (!selectedPool || !selectedFaculty) return;
-    projectService.listByPool(selectedPool).then((all) => {
-      const fProjects = all.filter(
-        (p: Project) =>
-          p.facultyId === selectedFaculty && p.status === "SUBMITTED",
-      );
-      setProjects(fProjects);
+  if (!selectedPool || !selectedFaculty) {
+    setProjects([]);
+    setDecisions({});
+    return;
+  }
+
+  const loadFacultyProjects = async () => {
+    try {
+      const all =
+        await projectService.listByPool(
+          selectedPool
+        );
+
+      const facultyProjects =
+        (Array.isArray(all) ? all : []).filter(
+          (project: Project) =>
+            project.facultyId ===
+              selectedFaculty &&
+            project.status === 'SUBMITTED'
+        );
+
+      setProjects(facultyProjects);
       setDecisions({});
-    });
-  }, [selectedFaculty, selectedPool]);
+    } catch (error) {
+      setProjects([]);
+      setDecisions({});
+
+      toast.error(
+        getErrorMessage(error)
+      );
+    }
+  };
+
+  loadFacultyProjects();
+}, [
+  selectedFaculty,
+  selectedPool,
+]);
 
   const setDecision = (projectId: string, action: "LOCK" | "HOLD") => {
     setDecisions((prev) => {

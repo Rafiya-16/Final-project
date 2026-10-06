@@ -425,9 +425,9 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
   );
 
  
-  // const globalSubadmins = users.subadmins.filter(
-  //   (user) => !facultyIds.has(user.id),
-  // );
+  const globalSubadmins = users.subadmins.filter(
+    (user) => !facultyIds.has(user.id),
+  );
 
   return (
     <form
@@ -686,7 +686,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
               </div>
             </div>
 
-      {/* GLOBAL SUBADMINS
+      GLOBAL SUBADMINS
             <div className="border rounded-lg overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
                 <div>
@@ -767,7 +767,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({
                   })
                 )}
               </div>
-            </div> */}
+            </div>
 
             {/* QUICK ACTIONS */}
             <div className="flex items-center gap-3">
