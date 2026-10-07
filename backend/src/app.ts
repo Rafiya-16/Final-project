@@ -6,7 +6,6 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './shared/utils/logger';
-import { startProjectCodeScheduler } from './jobs/project-code-scheduler';
 
 // Routes
 import authRoutes from './modules/auth/auth.routes';
@@ -118,6 +117,4 @@ app.use((_req, res) => {
 
 // Error handler
 app.use(errorHandler);
-startProjectCodeScheduler();
-
 export default app;

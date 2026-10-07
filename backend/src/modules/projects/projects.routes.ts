@@ -110,12 +110,6 @@ router.post(
   (q, s, n) => projectsController.approveAllLocked(q, s, n)
 );
 
-router.post(
-  '/:poolId/projects/reorganize-codes',
-  authorize('ADMIN'),
-  (q, s, n) => projectsController.reorganizeProjectCodes(q, s, n)
-);
-
 router.get(
   '/:poolId/projects/on-hold',
   authorize('ADMIN'),

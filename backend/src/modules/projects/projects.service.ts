@@ -12,16 +12,7 @@ import { similarityService } from './similarity/similarity.service';
 import { projectCodeService } from './project-code.service';
 
 export class ProjectsService {
-  /**
-   * Check a proposal against all other proposals
-   * in the same pool.
-   *
-   * Rejected projects are ignored.
-   *
-   * excludeProjectId is useful when editing an
-   * existing draft so that the project does not
-   * compare against itself.
-   */
+
   async checkProjectSimilarity(
     poolId: string,
     data: {
@@ -193,13 +184,7 @@ export class ProjectsService {
 
         status: 'DRAFT',
 
-        /**
-         * Explicitly keep newly-created proposals
-         * without a project code.
-         */
         projectCode: null,
-        projectCodeLocked: false,
-        projectCodeLockedAt: null,
 
         similarityStatus:
           similarity.action,
@@ -210,20 +195,6 @@ export class ProjectsService {
     });
   }
 
-  /**
-   * Faculty finalizes all proposals.
-   *
-   * The faculty must have exactly
-   * PROPOSALS_PER_FACULTY proposals.
-   *
-   * Every proposal is checked against the other
-   * proposals in the same pool.
-   *
-   * IMPORTANT:
-   * Finalization changes DRAFT -> SUBMITTED.
-   *
-   * No project code is assigned here.
-   */
   async finalizeSubmission(
     poolId: string,
     facultyId: string
@@ -271,12 +242,6 @@ export class ProjectsService {
       );
     }
 
-    /**
-     * Only DRAFT proposals can be finalized.
-     *
-     * This prevents already submitted/locked/approved
-     * projects from being included again.
-     */
     const projects =
       await prisma.project.findMany({
         where: {
@@ -426,10 +391,7 @@ export class ProjectsService {
 
             data: {
               status: 'SUBMITTED',
-              projectCode: null,
-              projectCodeLocked: false,
-              projectCodeLockedAt: null,
-
+              // projectCode: null,
               similarityStatus:
                 result.action,
 
@@ -911,123 +873,111 @@ if (!subadminAssignment) {
     };
   }
 
-  async approveProject(
-    projectId: string,
-    adminId: string,
-    note?: string
-  ) {
-
-    const updated =
-      await prisma.$transaction(
-        async (tx) => {
-          const project =
-            await tx.project.findUnique({
-              where: {
-                id: projectId,
-              },
-              select: {
-                id: true,
-                status: true,
-                facultyId: true,
-                poolId: true,
-                title: true,
-              },
-            });
-
-          if (!project) {
-            throw new NotFoundError(
-              'Project not found'
-            );
-          }
-
-          if (
-            project.status !==
-            'ON_HOLD'
-          ) {
-            throw new BadRequestError(
-              'Only ON_HOLD projects can be approved'
-            );
-          }
-
-          return tx.project.update({
+   async approveProject(
+  projectId: string,
+  adminId: string,
+  note?: string
+) {
+  const approvedProject =
+    await prisma.$transaction(
+      async (tx) => {
+        const project =
+          await tx.project.findUnique({
             where: {
               id: projectId,
             },
 
-            data: {
-              status: 'APPROVED',
-              projectCode: null,
-              projectCodeLocked: false,
-              projectCodeLockedAt: null,
-              adminNote: note,
-              decidedById: adminId,
-              decidedAt: new Date(),
-            },
-              select: {
+            select: {
               id: true,
               status: true,
               facultyId: true,
               poolId: true,
               title: true,
               projectCode: true,
-              projectCodeLocked: true,
-              projectCodeLockedAt: true,
-              }
+            },
           });
+
+        if (!project) {
+          throw new NotFoundError(
+            'Project not found'
+          );
         }
-      );
 
-   /*await projectCodeService.reorganizePool(
-      updated.poolId
-    );*/
+        if (
+          project.status !==
+          'ON_HOLD'
+        ) {
+          throw new BadRequestError(
+            'Only ON_HOLD projects can be approved'
+          );
+        }
 
-    const approvedProject =
-      await prisma.project.findUnique({
-        where: {
-          id: projectId,
-        },
+        await tx.project.update({
+          where: {
+            id: projectId,
+          },
 
-        select: {
-          id: true,
-          poolId: true,
-          facultyId: true,
-          title: true,
-          projectCode: true,
-          projectCodeLocked: true,
-          projectCodeLockedAt: true,
-          status: true,
-        },
-      });
+          data: {
+            status: 'APPROVED',
+            adminNote: note,
+            decidedById:
+              adminId,
+            decidedAt:
+              new Date(),
+          },
+        });
 
-    if (!approvedProject) {
-      throw new NotFoundError(
-        'Project not found after approval'
-      );
-    }
+        await projectCodeService.assignNextProjectCode(
+          project.id,
+          tx as any
+        );
 
-    auditService
-      .log(
-        adminId,
-        'APPROVE_PROJECT',
-        'Project',
-        projectId
-      )
-      .catch(() => {});
+        return tx.project.findUnique({
+          where: {
+            id: projectId,
+          },
 
-  // Notification
+          select: {
+            id: true,
+            status: true,
+            facultyId: true,
+            poolId: true,
+            title: true,
+            projectCode: true,
+          },
+        });
+      }
+    );
 
-    notificationsService
-      .create(
-        approvedProject.facultyId,
-        'PROPOSAL_APPROVED',
-        'Project Approved',
-        `Your project "${updated.title}" has been approved by the admin.`,
-        `/pools/${updated.poolId}`
-      )
-      .catch(() => {});
-
-    return approvedProject;
+  if (!approvedProject) {
+    throw new NotFoundError(
+      'Project not found after approval'
+    );
   }
+
+  // Audit.
+  auditService
+    .log(
+      adminId,
+      'APPROVE_PROJECT',
+      'Project',
+      projectId
+    )
+    .catch(() => {});
+
+  // Notify faculty.
+  notificationsService
+    .create(
+      approvedProject.facultyId,
+      'PROPOSAL_APPROVED',
+      'Project Approved',
+      `Your project "${approvedProject.title}" has been approved by the admin.`,
+      `/pools/${approvedProject.poolId}`
+    )
+    .catch(() => {});
+
+  return approvedProject;
+}
 
   async rejectProject(
     projectId: string,
@@ -1046,7 +996,6 @@ if (!subadminAssignment) {
           facultyId: true,
           poolId: true,
           title: true,
-          projectCodeLocked: true,
         },
       });
 
@@ -1109,148 +1058,145 @@ if (!subadminAssignment) {
     return updated;
   }
 
-  async approveAllLocked(
-    poolId: string,
-    adminId: string
-  ) {
-    const pool =
-      await prisma.pool.findUnique({
-        where: {
-          id: poolId,
-        },
+    async approveAllLocked(
+  poolId: string,
+  adminId: string
+) {
+  const pool =
+    await prisma.pool.findUnique({
+      where: {
+        id: poolId,
+      },
 
-        select: {
-          id: true,
-          name: true,
-        },
-      });
+      select: {
+        id: true,
+        name: true,
+      },
+    });
 
-    if (!pool) {
-      throw new NotFoundError(
-        'Pool not found'
-      );
-    }
-    const projects =
-      await prisma.project.findMany({
-        where: {
-          poolId,
-          status: 'LOCKED',
-        },
-
-        orderBy: [
-          {
-            createdAt: 'asc',
-          },
-          {
-            id: 'asc',
-          },
-        ],
-
-        select: {
-          id: true,
-          facultyId: true,
-          poolId: true,
-          title: true,
-        },
-      });
-
-    if (
-      projects.length === 0
-    ) {
-      return {
-        approved: 0,
-        projects: [],
-      };
-    }
-
-    await prisma.$transaction(
-      projects.map(
-        (project) =>
-          prisma.project.update({
-            where: {
-              id: project.id,
-            },
-
-            data: {
-              status: 'APPROVED',
-              projectCode: null,
-              projectCodeLocked: false,
-              projectCodeLockedAt: null,
-              decidedById: adminId,
-              decidedAt: new Date(),
-            },
-          })
-      )
+  if (!pool) {
+    throw new NotFoundError(
+      'Pool not found'
     );
+  }
 
-   /*  await projectCodeService.reorganizePool(
-      poolId
-    ); */
-    
-     const approvedProjects =
-      await prisma.project.findMany({
-        where: {
-          id: {
-            in: projects.map(
-              (project) => project.id
-            ),
-          },
-        },
+  const projects =
+    await prisma.project.findMany({
+      where: {
+        poolId,
+        status: 'LOCKED',
+      },
 
-        select: {
-          id: true,
-          poolId: true,
-          facultyId: true,
-          title: true,
-          projectCode: true,
-          projectCodeLocked: true,
-          projectCodeLockedAt: true,
-          status: true,
-        },
-
-        orderBy: {
+      orderBy: [
+        {
           createdAt: 'asc',
         },
-      });
+        {
+          id: 'asc',
+        },
+      ],
 
-      // Audit each approved project.
-        for (
-      const project of approvedProjects
-    ) {
-      auditService
-        .log(
-          adminId,
-          'APPROVE_PROJECT',
-          'Project',
-          project.id
-        )
-        .catch(() => {});
+      select: {
+        id: true,
+        facultyId: true,
+        poolId: true,
+        title: true,
+        projectCode: true,
+      },
+    });
 
-      // Notify the faculty.
-       
-      notificationsService
-        .create(
-          project.facultyId,
-          'PROPOSAL_APPROVED',
-          'Project Approved',
-          `Your project "${project.title}" has been approved by the admin.`,
-          `/pools/${project.poolId}`
-        )
-        .catch(() => {});
-    }
-
-    logger.info(
-      `Admin ${adminId} approved ${approvedProjects.length} locked projects in pool ${poolId}`
-    );
-
+  if (projects.length === 0) {
     return {
-      approved:
-        approvedProjects.length,
-
-      projects:
-        approvedProjects,
+      approved: 0,
+      projects: [],
     };
   }
+
+  await prisma.$transaction(
+    async (tx) => {
+      for (const project of projects) {
+       
+        await tx.project.update({
+          where: {
+            id: project.id,
+          },
+
+          data: {
+            status: 'APPROVED',
+            decidedById:
+              adminId,
+            decidedAt:
+              new Date(),
+          },
+        });
+
+        await projectCodeService.assignNextProjectCode(
+          project.id,
+          tx as any
+        );
+      }
+    }
+  );
+
+  const approvedProjects =
+    await prisma.project.findMany({
+      where: {
+        id: {
+          in: projects.map(
+            (project) =>
+              project.id
+          ),
+        },
+      },
+
+      select: {
+        id: true,
+        poolId: true,
+        facultyId: true,
+        title: true,
+        projectCode: true,
+        status: true,
+      },
+
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+  // Audit and notifications.
+  for (const project of approvedProjects) {
+    auditService
+      .log(
+        adminId,
+        'APPROVE_PROJECT',
+        'Project',
+        project.id
+      )
+      .catch(() => {});
+
+    notificationsService
+      .create(
+        project.facultyId,
+        'PROPOSAL_APPROVED',
+        'Project Approved',
+        `Your project "${project.title}" has been approved by the admin.`,
+        `/pools/${project.poolId}`
+      )
+      .catch(() => {});
+  }
+
+  logger.info(
+    `Admin ${adminId} approved ${approvedProjects.length} locked projects in pool ${poolId}`
+  );
+
+  return {
+    approved:
+      approvedProjects.length,
+
+    projects:
+      approvedProjects,
+  };
+}
 
   async getProjectsByPool(
   poolId: string,
@@ -1566,43 +1512,8 @@ if (!subadminAssignment) {
         'Project not found'
       );
     }
-
     return project;
   }
-
-  async reorganizeProjectCodes(poolId: string, adminId: string) {
-  const pool = await prisma.pool.findUnique({
-    where: {
-      id: poolId,
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  });
-
-  if (!pool) {
-    throw new NotFoundError('Pool not found');
-  }
-
-  const result =
-    await projectCodeService.reorganizePool(poolId);
-
-  await auditService.log(
-    adminId,
-    'PROJECT_CODES_REORGANIZED',
-    'POOL',
-    poolId,
-    undefined,
-    {
-      trigger: 'MANUAL',
-      poolId,
-      poolName: pool.name,
-    }
-  );
-
-  return result;
-}
 }
 
 export const projectsService =

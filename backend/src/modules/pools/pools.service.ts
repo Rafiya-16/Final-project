@@ -49,14 +49,15 @@ type TimelineField =
 
 /**
  * Add calendar days to a Date.
- *
- * Timeline values arrive from the frontend as ISO timestamps.
- * Using setDate() keeps the operation based on calendar days
- * rather than assuming every day is exactly 24 hours.
  */
-function addDays(date: Date, days: number): Date {
+function addDays(
+  date: Date,
+  days: number,
+): Date {
   const result = new Date(date);
-  result.setDate(result.getDate() + days);
+  result.setDate(
+    result.getDate() + days,
+  );
   return result;
 }
 
@@ -96,62 +97,80 @@ function toValidDate(
 
 /**
  * Builds a complete timeline.
- *
- * Only submissionStart is mandatory.
- *
- * Missing values are generated according to the predefined
- * timeline rules.
- *
- * If a value is explicitly supplied, it is respected.
- * This is important for manual timeline overrides.
  */
-function buildTimeline(data: any): TimelineData {
-  const submissionStart = toValidDate(
-    data.submissionStart,
-    'Faculty Project Submission Start',
-  );
+function buildTimeline(
+  data: any,
+): TimelineData {
+  const submissionStart =
+    toValidDate(
+      data.submissionStart,
+      'Faculty Project Submission Start',
+    );
 
-  const submissionEnd = data.submissionEnd
-    ? toValidDate(
-        data.submissionEnd,
-        'Faculty Project Submission End',
-      )
-    : addDays(submissionStart, 9);
+  const submissionEnd =
+    data.submissionEnd
+      ? toValidDate(
+          data.submissionEnd,
+          'Faculty Project Submission End',
+        )
+      : addDays(
+          submissionStart,
+          9,
+        );
 
-  const reviewStart = data.reviewStart
-    ? toValidDate(
-        data.reviewStart,
-        'PQAC Review Start',
-      )
-    : new Date(submissionStart);
+  const reviewStart =
+    data.reviewStart
+      ? toValidDate(
+          data.reviewStart,
+          'PQAC Review Start',
+        )
+      : new Date(
+          submissionStart,
+        );
 
-  const reviewEnd = data.reviewEnd
-    ? toValidDate(
-        data.reviewEnd,
-        'PQAC Review End',
-      )
-    : addDays(submissionEnd, 2);
+  const reviewEnd =
+    data.reviewEnd
+      ? toValidDate(
+          data.reviewEnd,
+          'PQAC Review End',
+        )
+      : addDays(
+          submissionEnd,
+          2,
+        );
 
-  const decisionDeadline = data.decisionDeadline
-    ? toValidDate(
-        data.decisionDeadline,
-        'Admin Decision Deadline',
-      )
-    : addDays(reviewEnd, 3);
+  const decisionDeadline =
+    data.decisionDeadline
+      ? toValidDate(
+          data.decisionDeadline,
+          'Admin Decision Deadline',
+        )
+      : addDays(
+          reviewEnd,
+          3,
+        );
 
-  const selectionStart = data.selectionStart
-    ? toValidDate(
-        data.selectionStart,
-        'Student Project Selection Start',
-      )
-    : addDays(reviewEnd, 1);
+  const selectionStart =
+    data.selectionStart
+      ? toValidDate(
+          data.selectionStart,
+          'Student Project Selection Start',
+        )
+      : addDays(
+          reviewEnd,
+          1,
+        );
 
-  const selectionEnd = data.selectionEnd
-    ? toValidDate(
-        data.selectionEnd,
-        'Student Project Selection End',
-      )
-    : addDays(selectionStart, 9);
+  const selectionEnd =
+    data.selectionEnd
+      ? toValidDate(
+          data.selectionEnd,
+          'Student Project Selection End',
+        )
+      : addDays(
+          selectionStart,
+          9,
+        );
 
   const ideaSubmissionStart =
     data.ideaSubmissionStart
@@ -159,7 +178,10 @@ function buildTimeline(data: any): TimelineData {
           data.ideaSubmissionStart,
           'Student Idea Submission Start',
         )
-      : addDays(selectionEnd, 1);
+      : addDays(
+          selectionEnd,
+          1,
+        );
 
   const ideaSubmissionEnd =
     data.ideaSubmissionEnd
@@ -167,14 +189,21 @@ function buildTimeline(data: any): TimelineData {
           data.ideaSubmissionEnd,
           'Student Idea Submission End',
         )
-      : addDays(ideaSubmissionStart, 3);
+      : addDays(
+          ideaSubmissionStart,
+          3,
+        );
 
-  const teamFreezeDate = data.teamFreezeDate
-    ? toValidDate(
-        data.teamFreezeDate,
-        'Team Freeze',
-      )
-    : addDays(ideaSubmissionEnd, 5);
+  const teamFreezeDate =
+    data.teamFreezeDate
+      ? toValidDate(
+          data.teamFreezeDate,
+          'Team Freeze',
+        )
+      : addDays(
+          ideaSubmissionEnd,
+          5,
+        );
 
   return {
     submissionStart,
@@ -191,8 +220,7 @@ function buildTimeline(data: any): TimelineData {
 }
 
 /**
- * Validates the final timeline after automatic calculation
- * and/or manual overrides.
+ * Validates the final timeline.
  */
 function validateTimeline(
   timeline: TimelineData,
@@ -222,31 +250,18 @@ function validateTimeline(
     );
   }
 
-  /*
-   * Review may start at the same time as faculty submission.
-   * It must not start before submission starts.
-   */
   if (reviewStart < submissionStart) {
     throw new BadRequestError(
       'PQAC Review Start cannot be before Faculty Project Submission Start.',
     );
   }
 
-  /*
-   * Review should not finish before faculty submission finishes.
-   */
   if (reviewEnd < submissionEnd) {
     throw new BadRequestError(
       'PQAC Review End cannot be before Faculty Project Submission End.',
     );
   }
 
-  /*
-   * Decision Deadline is informational only.
-   *
-   * It must be chronologically sensible, but it does NOT
-   * control whether Admin can make a decision.
-   */
   if (decisionDeadline < reviewEnd) {
     throw new BadRequestError(
       'Admin Decision Deadline cannot be before PQAC Review End.',
@@ -291,20 +306,77 @@ function timelineToPrismaData(
   timeline: TimelineData,
 ) {
   return {
-    submissionStart: timeline.submissionStart,
-    submissionEnd: timeline.submissionEnd,
-    reviewStart: timeline.reviewStart,
-    reviewEnd: timeline.reviewEnd,
-    decisionDeadline: timeline.decisionDeadline,
-    selectionStart: timeline.selectionStart,
-    selectionEnd: timeline.selectionEnd,
+    submissionStart:
+      timeline.submissionStart,
+
+    submissionEnd:
+      timeline.submissionEnd,
+
+    reviewStart:
+      timeline.reviewStart,
+
+    reviewEnd:
+      timeline.reviewEnd,
+
+    decisionDeadline:
+      timeline.decisionDeadline,
+
+    selectionStart:
+      timeline.selectionStart,
+
+    selectionEnd:
+      timeline.selectionEnd,
+
     ideaSubmissionStart:
       timeline.ideaSubmissionStart,
+
     ideaSubmissionEnd:
       timeline.ideaSubmissionEnd,
+
     teamFreezeDate:
       timeline.teamFreezeDate,
   };
+}
+
+function sortFacultyAlphabetically<
+  T extends {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  },
+>(
+  faculty: T[],
+): T[] {
+  return [...faculty].sort(
+    (a, b) => {
+      const nameA =
+        `${a.firstName ?? ''} ${
+          a.lastName ?? ''
+        }`
+          .trim()
+          .toLocaleLowerCase();
+
+      const nameB =
+        `${b.firstName ?? ''} ${
+          b.lastName ?? ''
+        }`
+          .trim()
+          .toLocaleLowerCase();
+
+      const comparison =
+        nameA.localeCompare(
+          nameB,
+        );
+
+      if (comparison !== 0) {
+        return comparison;
+      }
+
+      return a.id.localeCompare(
+        b.id,
+      );
+    },
+  );
 }
 
 export class PoolsService {
@@ -325,29 +397,34 @@ export class PoolsService {
       return;
     }
 
-    const users = await prisma.user.findMany({
-      where: {
-        id: {
-          in: allIds,
+    const users =
+      await prisma.user.findMany({
+        where: {
+          id: {
+            in: allIds,
+          },
         },
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        role: true,
-        isActive: true,
-      },
-    });
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          role: true,
+          isActive: true,
+        },
+      });
 
     const userMap = new Map(
-      users.map((user) => [user.id, user]),
+      users.map((user) => [
+        user.id,
+        user,
+      ]),
     );
 
-    const missingIds = allIds.filter(
-      (id) => !userMap.has(id),
-    );
+    const missingIds =
+      allIds.filter(
+        (id) => !userMap.has(id),
+      );
 
     if (missingIds.length > 0) {
       throw new BadRequestError(
@@ -355,81 +432,108 @@ export class PoolsService {
       );
     }
 
-    const inactiveUsers = users.filter(
-      (user) => !user.isActive,
-    );
+    const inactiveUsers =
+      users.filter(
+        (user) => !user.isActive,
+      );
 
     if (inactiveUsers.length > 0) {
-      const names = inactiveUsers
-        .map(
-          (user) =>
-            `${user.firstName} ${user.lastName}`,
-        )
-        .join(', ');
+      const names =
+        inactiveUsers
+          .map(
+            (user) =>
+              `${user.firstName} ${user.lastName}`,
+          )
+          .join(', ');
 
       throw new BadRequestError(
         `Cannot assign inactive users to a pool: ${names}`,
       );
     }
 
-    const invalidSubadmins = subadminIds
-      .map((id) => userMap.get(id))
-      .filter(
-        (user) =>
-          user &&
-          user.role !== 'SUBADMIN' &&
-          user.role !== 'FACULTY',
-      );
-
-    if (invalidSubadmins.length > 0) {
-      const names = invalidSubadmins
-        .map(
-          (user) =>
-            `${user!.firstName} ${user!.lastName}`,
+    const invalidSubadmins =
+      subadminIds
+        .map((id) =>
+          userMap.get(id),
         )
-        .join(', ');
+        .filter(
+          (user) =>
+            user &&
+            user.role !==
+              'SUBADMIN' &&
+            user.role !==
+              'FACULTY',
+        );
+
+    if (
+      invalidSubadmins.length >
+      0
+    ) {
+      const names =
+        invalidSubadmins
+          .map(
+            (user) =>
+              `${user!.firstName} ${user!.lastName}`,
+          )
+          .join(', ');
 
       throw new BadRequestError(
         `SubAdmin assignment is allowed only for SUBADMIN or FACULTY users. Invalid users: ${names}`,
       );
     }
 
-    const invalidFaculty = facultyIds
-      .map((id) => userMap.get(id))
-      .filter(
-        (user) =>
-          user &&
-          user.role !== 'FACULTY',
-      );
-
-    if (invalidFaculty.length > 0) {
-      const names = invalidFaculty
-        .map(
-          (user) =>
-            `${user!.firstName} ${user!.lastName}`,
+    const invalidFaculty =
+      facultyIds
+        .map((id) =>
+          userMap.get(id),
         )
-        .join(', ');
+        .filter(
+          (user) =>
+            user &&
+            user.role !==
+              'FACULTY',
+        );
+
+    if (
+      invalidFaculty.length >
+      0
+    ) {
+      const names =
+        invalidFaculty
+          .map(
+            (user) =>
+              `${user!.firstName} ${user!.lastName}`,
+          )
+          .join(', ');
 
       throw new BadRequestError(
         `Faculty assignment is allowed only for FACULTY users. Invalid users: ${names}`,
       );
     }
 
-    const invalidStudents = studentIds
-      .map((id) => userMap.get(id))
-      .filter(
-        (user) =>
-          user &&
-          user.role !== 'STUDENT',
-      );
-
-    if (invalidStudents.length > 0) {
-      const names = invalidStudents
-        .map(
-          (user) =>
-            `${user!.firstName} ${user!.lastName}`,
+    const invalidStudents =
+      studentIds
+        .map((id) =>
+          userMap.get(id),
         )
-        .join(', ');
+        .filter(
+          (user) =>
+            user &&
+            user.role !==
+              'STUDENT',
+        );
+
+    if (
+      invalidStudents.length >
+      0
+    ) {
+      const names =
+        invalidStudents
+          .map(
+            (user) =>
+              `${user!.firstName} ${user!.lastName}`,
+          )
+          .join(', ');
 
       throw new BadRequestError(
         `Student assignment is allowed only for STUDENT users. Invalid users: ${names}`,
@@ -437,9 +541,6 @@ export class PoolsService {
     }
   }
 
-  /**
-   * Create a new pool.
-   */
   async createPool(
     data: any,
     adminId: string,
@@ -468,20 +569,47 @@ export class PoolsService {
       studentIds,
     );
 
-    /*
-     * Build and validate the complete timeline.
-     */
-    const timeline = buildTimeline(data);
+    const timeline =
+      buildTimeline(data);
 
-    validateTimeline(timeline);
+    validateTimeline(
+      timeline,
+    );
+
+    /**
+     * Fetch faculty names so the initial
+     * allocation order can be alphabetical.
+     */
+    const facultyUsers =
+      facultyIds.length > 0
+        ? await prisma.user.findMany({
+            where: {
+              id: {
+                in: facultyIds,
+              },
+            },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          })
+        : [];
+
+    const sortedFaculty =
+      sortFacultyAlphabetically(
+        facultyUsers,
+      );
 
     const pool =
       await prisma.pool.create({
         data: {
           name: data.name,
-          academicYear: data.academicYear,
+          academicYear:
+            data.academicYear,
           semester: data.semester,
-          department: data.department,
+          department:
+            data.department,
           status: 'DRAFT',
 
           ...timelineToPrismaData(
@@ -492,35 +620,54 @@ export class PoolsService {
             data.minTeamSize ?? 3,
 
           defaultMaxTeamSize:
-            data.defaultMaxTeamSize ?? 3,
+            data.defaultMaxTeamSize ??
+            3,
 
           allowStudentIdeas:
-            data.allowStudentIdeas ?? true,
+            data.allowStudentIdeas ??
+            true,
 
-          createdById: adminId,
+          createdById:
+            adminId,
 
           subadmins: {
-            create: subadminIds.map(
-              (id: string) => ({
-                subadminId: id,
-              }),
-            ),
+            create:
+              subadminIds.map(
+                (
+                  id: string,
+                ) => ({
+                  subadminId:
+                    id,
+                }),
+              ),
           },
 
           faculty: {
-            create: facultyIds.map(
-              (id: string) => ({
-                facultyId: id,
-              }),
-            ),
+            create:
+              sortedFaculty.map(
+                (
+                  faculty,
+                  index,
+                ) => ({
+                  facultyId:
+                    faculty.id,
+
+                  allocationOrder:
+                    index + 1,
+                }),
+              ),
           },
 
           students: {
-            create: studentIds.map(
-              (id: string) => ({
-                studentId: id,
-              }),
-            ),
+            create:
+              studentIds.map(
+                (
+                  id: string,
+                ) => ({
+                  studentId:
+                    id,
+                }),
+              ),
           },
         },
 
@@ -549,6 +696,10 @@ export class PoolsService {
                 },
               },
             },
+            orderBy: {
+              allocationOrder:
+                'asc',
+            },
           },
 
           _count: {
@@ -559,9 +710,6 @@ export class PoolsService {
         },
       });
 
-    /*
-     * Notify initially assigned SubAdmins.
-     */
     if (subadminIds.length > 0) {
       await Promise.all(
         subadminIds.map(
@@ -569,12 +717,14 @@ export class PoolsService {
             notifySubadminAccessGranted(
               pool.id,
               subadminId,
-            ).catch((error) => {
-              logger.error(
-                `Failed to send SubAdmin grant notification for ${subadminId}`,
-                error,
-              );
-            }),
+            ).catch(
+              (error) => {
+                logger.error(
+                  `Failed to send SubAdmin grant notification for ${subadminId}`,
+                  error,
+                );
+              },
+            ),
         ),
       );
     }
@@ -615,28 +765,35 @@ export class PoolsService {
       where = {
         subadmins: {
           some: {
-            subadminId: userId,
+            subadminId:
+              userId,
           },
         },
       };
     } else if (
       userRole === 'FACULTY'
     ) {
-      if (scope === 'subadmin') {
+      if (
+        scope ===
+        'subadmin'
+      ) {
         where = {
           subadmins: {
             some: {
-              subadminId: userId,
+              subadminId:
+                userId,
             },
           },
         };
       } else if (
-        scope === 'faculty'
+        scope ===
+        'faculty'
       ) {
         where = {
           faculty: {
             some: {
-              facultyId: userId,
+              facultyId:
+                userId,
             },
           },
         };
@@ -646,14 +803,16 @@ export class PoolsService {
             {
               faculty: {
                 some: {
-                  facultyId: userId,
+                  facultyId:
+                    userId,
                 },
               },
             },
             {
               subadmins: {
                 some: {
-                  subadminId: userId,
+                  subadminId:
+                    userId,
                 },
               },
             },
@@ -666,7 +825,8 @@ export class PoolsService {
       where = {
         students: {
           some: {
-            studentId: userId,
+            studentId:
+              userId,
           },
         },
       };
@@ -676,40 +836,43 @@ export class PoolsService {
       (params.page - 1) *
       params.limit;
 
-    const [pools, total] =
-      await Promise.all([
-        prisma.pool.findMany({
-          where,
-          skip,
-          take: params.limit,
+    const [
+      pools,
+      total,
+    ] = await Promise.all([
+      prisma.pool.findMany({
+        where,
+        skip,
+        take: params.limit,
 
-          orderBy: {
-            createdAt: 'desc',
-          },
+        orderBy: {
+          createdAt:
+            'desc',
+        },
 
-          include: {
-            _count: {
-              select: {
-                faculty: true,
-                students: true,
-                projects: true,
-                teams: true,
-              },
-            },
-
-            creator: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
+        include: {
+          _count: {
+            select: {
+              faculty: true,
+              students: true,
+              projects: true,
+              teams: true,
             },
           },
-        }),
 
-        prisma.pool.count({
-          where,
-        }),
-      ]);
+          creator: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+
+      prisma.pool.count({
+        where,
+      }),
+    ]);
 
     return paginatedResult(
       pools,
@@ -721,7 +884,9 @@ export class PoolsService {
   /**
    * Get a single pool by ID.
    */
-  async getPoolById(poolId: string) {
+  async getPoolById(
+    poolId: string,
+  ) {
     const pool =
       await prisma.pool.findUnique({
         where: {
@@ -750,9 +915,14 @@ export class PoolsService {
                   firstName: true,
                   lastName: true,
                   email: true,
-                  designation: true,
+                  designation:
+                    true,
                 },
               },
+            },
+            orderBy: {
+              allocationOrder:
+                'asc',
             },
           },
 
@@ -784,13 +954,6 @@ export class PoolsService {
 
   /**
    * Update a pool.
-   *
-   * The frontend sends the complete final timeline.
-   * Therefore supplied dates are treated as intentional values,
-   * including manual overrides.
-   *
-   * If only some timeline values are supplied, existing values
-   * are retained and the resulting timeline is still validated.
    */
   async updatePool(
     poolId: string,
@@ -815,54 +978,49 @@ export class PoolsService {
       );
     }
 
-    const currentTimeline: TimelineData =
-      {
-        submissionStart:
-          pool.submissionStart,
+    const currentTimeline:
+      TimelineData = {
+      submissionStart:
+        pool.submissionStart,
 
-        submissionEnd:
-          pool.submissionEnd,
+      submissionEnd:
+        pool.submissionEnd,
 
-        reviewStart:
-          pool.reviewStart,
+      reviewStart:
+        pool.reviewStart,
 
-        reviewEnd:
-          pool.reviewEnd,
+      reviewEnd:
+        pool.reviewEnd,
 
-        decisionDeadline:
-          pool.decisionDeadline,
+      decisionDeadline:
+        pool.decisionDeadline,
 
-        selectionStart:
-          pool.selectionStart,
+      selectionStart:
+        pool.selectionStart,
 
-        selectionEnd:
+      selectionEnd:
+        pool.selectionEnd,
+
+      ideaSubmissionStart:
+        pool.ideaSubmissionStart ??
+        addDays(
           pool.selectionEnd,
+          1,
+        ),
 
-        ideaSubmissionStart:
-          pool.ideaSubmissionStart ??
-          addDays(
-            pool.selectionEnd,
-            1,
-          ),
+      ideaSubmissionEnd:
+        pool.ideaSubmissionEnd ??
+        addDays(
+          pool.selectionEnd,
+          4,
+        ),
 
-        ideaSubmissionEnd:
-          pool.ideaSubmissionEnd ??
-          addDays(
-            pool.selectionEnd,
-            4,
-          ),
+      teamFreezeDate:
+        pool.teamFreezeDate,
+    };
 
-        teamFreezeDate:
-          pool.teamFreezeDate,
-      };
-
-    /*
-     * Use existing dates as defaults.
-     *
-     * This means an update of one field does not accidentally
-     * erase all other timeline values.
-     */
-    const mergedTimelineInput: any = {
+    const mergedTimelineInput:
+      any = {
       ...currentTimeline,
       ...data,
     };
@@ -872,14 +1030,23 @@ export class PoolsService {
         mergedTimelineInput,
       );
 
-    validateTimeline(timeline);
+    validateTimeline(
+      timeline,
+    );
 
-    const updateData: any = {};
+    const updateData: any =
+      {};
 
-    for (const [key, value] of Object.entries(
+    for (const [
+      key,
+      value,
+    ] of Object.entries(
       data,
     )) {
-      if (value === undefined) {
+      if (
+        value ===
+        undefined
+      ) {
         continue;
       }
 
@@ -888,7 +1055,8 @@ export class PoolsService {
           key as TimelineField,
         )
       ) {
-        updateData[key] = value;
+        updateData[key] =
+          value;
       }
     }
 
@@ -911,7 +1079,9 @@ export class PoolsService {
   /**
    * Activate a pool.
    */
-  async activatePool(poolId: string) {
+  async activatePool(
+    poolId: string,
+  ) {
     const pool =
       await prisma.pool.findUnique({
         where: {
@@ -941,19 +1111,29 @@ export class PoolsService {
       );
     }
 
-    if (pool._count.subadmins === 0) {
+    if (
+      pool._count
+        .subadmins ===
+      0
+    ) {
       throw new BadRequestError(
         'Assign at least 1 subadmin',
       );
     }
 
-    if (pool._count.faculty === 0) {
+    if (
+      pool._count.faculty ===
+      0
+    ) {
       throw new BadRequestError(
         'Assign at least 1 faculty',
       );
     }
 
-    if (pool._count.students === 0) {
+    if (
+      pool._count.students ===
+      0
+    ) {
       throw new BadRequestError(
         'Assign at least 1 student',
       );
@@ -966,7 +1146,8 @@ export class PoolsService {
         },
 
         data: {
-          status: 'SUBMISSION_OPEN',
+          status:
+            'SUBMISSION_OPEN',
         },
       });
 
@@ -980,18 +1161,21 @@ export class PoolsService {
       .catch(() => {});
 
     const facultyAssignments =
-      await prisma.poolFaculty.findMany({
-        where: {
-          poolId,
-        },
+      await prisma.poolFaculty.findMany(
+        {
+          where: {
+            poolId,
+          },
 
-        select: {
-          facultyId: true,
+          select: {
+            facultyId: true,
+          },
         },
-      });
+      );
 
     if (
-      facultyAssignments.length > 0
+      facultyAssignments.length >
+      0
     ) {
       notificationsService
         .createBulk(
@@ -1012,12 +1196,10 @@ export class PoolsService {
 
   /**
    * Advance the pool to the next phase.
-   *
-   * Kept unchanged intentionally.
-   * Timeline dates enforce feature access through middleware;
-   * Admin can still manually advance the pool status.
    */
-  async advancePhase(poolId: string) {
+  async advancePhase(
+    poolId: string,
+  ) {
     const pool =
       await prisma.pool.findUnique({
         where: {
@@ -1052,7 +1234,9 @@ export class PoolsService {
     };
 
     const nextStatus =
-      transitions[pool.status];
+      transitions[
+        pool.status
+      ];
 
     if (!nextStatus) {
       throw new BadRequestError(
@@ -1060,7 +1244,10 @@ export class PoolsService {
       );
     }
 
-    if (nextStatus === 'FROZEN') {
+    if (
+      nextStatus ===
+      'FROZEN'
+    ) {
       await prisma.team.updateMany({
         where: {
           poolId,
@@ -1084,7 +1271,8 @@ export class PoolsService {
         },
 
         data: {
-          status: nextStatus,
+          status:
+            nextStatus,
         },
       });
 
@@ -1104,17 +1292,22 @@ export class PoolsService {
       'UNDER_REVIEW'
     ) {
       const subadmins =
-        await prisma.poolSubadmin.findMany({
-          where: {
-            poolId,
-          },
+        await prisma.poolSubadmin.findMany(
+          {
+            where: {
+              poolId,
+            },
 
-          select: {
-            subadminId: true,
+            select: {
+              subadminId: true,
+            },
           },
-        });
+        );
 
-      if (subadmins.length > 0) {
+      if (
+        subadmins.length >
+        0
+      ) {
         notificationsService
           .createBulk(
             subadmins.map(
@@ -1135,17 +1328,22 @@ export class PoolsService {
       'SELECTION_OPEN'
     ) {
       const students =
-        await prisma.poolStudent.findMany({
-          where: {
-            poolId,
-          },
+        await prisma.poolStudent.findMany(
+          {
+            where: {
+              poolId,
+            },
 
-          select: {
-            studentId: true,
+            select: {
+              studentId: true,
+            },
           },
-        });
+        );
 
-      if (students.length > 0) {
+      if (
+        students.length >
+        0
+      ) {
         notificationsService
           .createBulk(
             students.map(
@@ -1167,7 +1365,9 @@ export class PoolsService {
   /**
    * Freeze a pool and all active teams.
    */
-  async freezePool(poolId: string) {
+  async freezePool(
+    poolId: string,
+  ) {
     const pool =
       await prisma.pool.findUnique({
         where: {
@@ -1210,7 +1410,9 @@ export class PoolsService {
   /**
    * Archive a pool.
    */
-  async archivePool(poolId: string) {
+  async archivePool(
+    poolId: string,
+  ) {
     const pool =
       await prisma.pool.findUnique({
         where: {
@@ -1278,18 +1480,21 @@ export class PoolsService {
 
     const existingSubadminAssignments =
       subadminIds.length > 0
-        ? await prisma.poolSubadmin.findMany({
-            where: {
-              poolId,
-              subadminId: {
-                in: subadminIds,
+        ? await prisma.poolSubadmin.findMany(
+            {
+              where: {
+                poolId,
+                subadminId: {
+                  in: subadminIds,
+                },
+              },
+
+              select: {
+                subadminId:
+                  true,
               },
             },
-
-            select: {
-              subadminId: true,
-            },
-          })
+          )
         : [];
 
     const existingSubadminIds =
@@ -1308,68 +1513,150 @@ export class PoolsService {
           ),
       );
 
-    if (subadminIds.length > 0) {
+    /**
+     * SubAdmin assignments.
+     */
+    if (
+      subadminIds.length >
+      0
+    ) {
       for (const subadminId of subadminIds) {
-        await prisma.poolSubadmin.upsert({
-          where: {
-            poolId_subadminId: {
+        await prisma.poolSubadmin.upsert(
+          {
+            where: {
+              poolId_subadminId: {
+                poolId,
+                subadminId,
+              },
+            },
+
+            create: {
               poolId,
               subadminId,
             },
+
+            update: {},
           },
-
-          create: {
-            poolId,
-            subadminId,
-          },
-
-          update: {},
-        });
-      }
-    }
-
-    if (facultyIds.length > 0) {
-      for (const facultyId of facultyIds) {
-        await prisma.poolFaculty.upsert({
-          where: {
-            poolId_facultyId: {
-              poolId,
-              facultyId,
-            },
-          },
-
-          create: {
-            poolId,
-            facultyId,
-          },
-
-          update: {},
-        });
-      }
-    }
-
-    if (studentIds.length > 0) {
-      for (const studentId of studentIds) {
-        await prisma.poolStudent.upsert({
-          where: {
-            poolId_studentId: {
-              poolId,
-              studentId,
-            },
-          },
-
-          create: {
-            poolId,
-            studentId,
-          },
-
-          update: {},
-        });
+        );
       }
     }
 
     if (
-      newlyAssignedSubadminIds.length > 0
+      facultyIds.length >
+      0
+    ) {
+      const existingFacultyAssignments =
+        await prisma.poolFaculty.findMany(
+          {
+            where: {
+              poolId,
+            },
+
+            select: {
+              facultyId:
+                true,
+              allocationOrder:
+                true,
+            },
+
+            orderBy: {
+              allocationOrder:
+                'desc',
+            },
+          },
+        );
+
+      let nextAllocationOrder =
+        existingFacultyAssignments
+          .map(
+            (assignment) =>
+              assignment.allocationOrder,
+          )
+          .filter(
+            (
+              order,
+            ): order is number =>
+              order !== null,
+          )
+          .reduce(
+            (
+              maximum,
+              order,
+            ) =>
+              Math.max(
+                maximum,
+                order,
+              ),
+            0,
+          ) + 1;
+
+      const existingFacultyIds =
+        new Set(
+          existingFacultyAssignments.map(
+            (assignment) =>
+              assignment.facultyId,
+          ),
+        );
+
+      for (const facultyId of facultyIds) {
+        /**
+         * Existing faculty:
+         * keep their current allocationOrder.
+         */
+        if (
+          existingFacultyIds.has(
+            facultyId,
+          )
+        ) {
+          continue;
+        }
+
+        await prisma.poolFaculty.create(
+          {
+            data: {
+              poolId,
+              facultyId,
+              allocationOrder:
+                nextAllocationOrder,
+            },
+          },
+        );
+
+        nextAllocationOrder++;
+      }
+    }
+
+    /**
+     * Student assignments.
+     */
+    if (
+      studentIds.length >
+      0
+    ) {
+      for (const studentId of studentIds) {
+        await prisma.poolStudent.upsert(
+          {
+            where: {
+              poolId_studentId: {
+                poolId,
+                studentId,
+              },
+            },
+
+            create: {
+              poolId,
+              studentId,
+            },
+
+            update: {},
+          },
+        );
+      }
+    }
+
+    if (
+      newlyAssignedSubadminIds.length >
+      0
     ) {
       await Promise.all(
         newlyAssignedSubadminIds.map(
@@ -1377,17 +1664,21 @@ export class PoolsService {
             notifySubadminAccessGranted(
               poolId,
               subadminId,
-            ).catch((error) => {
-              logger.error(
-                `Failed to send SubAdmin grant notification for ${subadminId}`,
-                error,
-              );
-            }),
+            ).catch(
+              (error) => {
+                logger.error(
+                  `Failed to send SubAdmin grant notification for ${subadminId}`,
+                  error,
+                );
+              },
+            ),
         ),
       );
     }
 
-    return this.getPoolById(poolId);
+    return this.getPoolById(
+      poolId,
+    );
   }
 
   async removeFaculty(
@@ -1408,14 +1699,16 @@ export class PoolsService {
     }
 
     const assignment =
-      await prisma.poolFaculty.findUnique({
-        where: {
-          poolId_facultyId: {
-            poolId,
-            facultyId,
+      await prisma.poolFaculty.findUnique(
+        {
+          where: {
+            poolId_facultyId: {
+              poolId,
+              facultyId,
+            },
           },
         },
-      });
+      );
 
     if (!assignment) {
       throw new NotFoundError(
@@ -1432,7 +1725,9 @@ export class PoolsService {
       },
     });
 
-    return this.getPoolById(poolId);
+    return this.getPoolById(
+      poolId,
+    );
   }
 
   async removeSubadmin(
@@ -1458,14 +1753,16 @@ export class PoolsService {
     }
 
     const assignment =
-      await prisma.poolSubadmin.findUnique({
-        where: {
-          poolId_subadminId: {
-            poolId,
-            subadminId,
+      await prisma.poolSubadmin.findUnique(
+        {
+          where: {
+            poolId_subadminId: {
+              poolId,
+              subadminId,
+            },
           },
         },
-      });
+      );
 
     if (!assignment) {
       throw new NotFoundError(
@@ -1473,14 +1770,16 @@ export class PoolsService {
       );
     }
 
-    await prisma.poolSubadmin.delete({
-      where: {
-        poolId_subadminId: {
-          poolId,
-          subadminId,
+    await prisma.poolSubadmin.delete(
+      {
+        where: {
+          poolId_subadminId: {
+            poolId,
+            subadminId,
+          },
         },
       },
-    });
+    );
 
     await notifySubadminAccessRevoked(
       poolId,
@@ -1493,13 +1792,17 @@ export class PoolsService {
       );
     });
 
-    return this.getPoolById(poolId);
+    return this.getPoolById(
+      poolId,
+    );
   }
 
   /**
    * Get statistics for a pool.
    */
-  async getPoolStats(poolId: string) {
+  async getPoolStats(
+    poolId: string,
+  ) {
     const pool =
       await prisma.pool.findUnique({
         where: {

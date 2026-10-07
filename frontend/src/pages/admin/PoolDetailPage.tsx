@@ -41,12 +41,8 @@ const PoolDetailPage: React.FC = () => {
   const [pool, setPool] = useState<Pool | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState<PoolStats | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [reorganizingCodes, setReorganizingCodes] =
-    useState(false);
-
   const [confirm, setConfirm] = useState<{
     action: string;
     title: string;
@@ -343,38 +339,6 @@ const PoolDetailPage: React.FC = () => {
     });
   };
 
-  /*
-   * ---------------------------------------------------------
-   * REORGANIZE PROJECT CODES
-   * ---------------------------------------------------------
-   */
-
-  const reorganizeProjectCodes = async () => {
-    if (!id || reorganizingCodes) return;
-
-    setReorganizingCodes(true);
-
-    try {
-      await projectService.reorganizeCodes(id);
-
-      toast.success(
-        'Project codes reorganized successfully'
-      );
-
-      await load();
-    } catch (e: unknown) {
-      toast.error(getErrorMessage(e));
-    } finally {
-      setReorganizingCodes(false);
-    }
-  };
-
-  /*
-   * ---------------------------------------------------------
-   * DATE HELPERS
-   * ---------------------------------------------------------
-   */
-
   const toDateTimeLocal = (
     value?: string | null
   ) => {
@@ -590,14 +554,6 @@ const PoolDetailPage: React.FC = () => {
         action === 'approveAllLocked'
       ) {
         await projectService.approveAllLocked(id);
-      } else if (
-        action === 'reorganizeCodes'
-      ) {
-        await reorganizeProjectCodes();
-
-        setConfirm(null);
-
-        return;
       } else if (
         action.startsWith('removeFaculty:')
       ) {
@@ -1290,12 +1246,12 @@ const PoolDetailPage: React.FC = () => {
                   '',
                 ],
                 [
-                  'Selection (Students)',
+                  'Selection-Online (Students)',
                   pool.selectionStart,
                   pool.selectionEnd,
                 ],
                 [
-                  'Idea Submission (Students)',
+                  'Idea Submission-Offline (Students)',
                   pool.ideaSubmissionStart,
                   pool.ideaSubmissionEnd,
                 ],
@@ -1368,37 +1324,6 @@ const PoolDetailPage: React.FC = () => {
                     )
                   </button>
                 )}
-
-              {isAdmin && (
-                <button
-                  onClick={() =>
-                    setConfirm({
-                      action:
-                        'reorganizeCodes',
-                      title:
-                        'Reorganize Project Codes?',
-                      msg:
-                        'This will reorganize all unlocked approved project codes according to the current allocation order. Locked project codes will not be changed. Continue?',
-                    })
-                  }
-                  disabled={
-                    reorganizingCodes
-                  }
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <RefreshCw
-                    className={`w-4 h-4 ${
-                      reorganizingCodes
-                        ? 'animate-spin'
-                        : ''
-                    }`}
-                  />
-
-                  {reorganizingCodes
-                    ? 'Reorganizing...'
-                    : 'Reorganize Project Codes'}
-                </button>
-              )}
             </div>
           </div>
 

@@ -1,14 +1,10 @@
 import prisma from '../../config/database';
-import {
-  BadRequestError,
-  ConflictError,
-  ForbiddenError,
-  NotFoundError,
-} from '../../shared/errors/AppError';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, } from '../../shared/errors/AppError';
 import { Prisma } from '@prisma/client';
 import { logger } from '../../shared/utils/logger';
 import { notificationsService } from '../notifications/notifications.service';
 import { similarityService } from '../projects/similarity/similarity.service';
+import { projectCodeService } from '../projects/project-code.service';
 
 const MAX_SUPERVISOR_CAPACITY = 4;
 const REQUIRED_SUPERVISOR_PREFERENCES = 3;
@@ -718,39 +714,44 @@ const project = await tx.project.create({
               },
             });
 
-          if (idea.assignedTeamId) {
-            const team = await tx.team.findUnique({
-              where: {
-                id: idea.assignedTeamId,
-              },
-              select: {
-                projectId: true,
-              },
-            });
+         if (idea.assignedTeamId) {
+  const team = await tx.team.findUnique({
+    where: {
+      id: idea.assignedTeamId,
+    },
+    select: {
+      projectId: true,
+    },
+  });
 
-            if (team?.projectId) {
-              await tx.project.update({
-                where: {
-                  id: team.projectId,
-                },
-                data: {
-                  facultyId,
-                },
-              });
-            }
-          }
+  if (team?.projectId) {
+    await tx.project.update({
+      where: {
+        id: team.projectId,
+      },
+      data: {
+        facultyId,
+      },
+    });
 
-          await tx.supervisorPreference.update({
-            where: {
-              id: preference.id,
-            },
-            data: {
-              responseStatus: 'ACCEPTED',
-              respondedAt: new Date(),
-              responseNote:
-                responseNote?.trim() || null,
-            },
-          });
+    await projectCodeService.assignNextProjectCode(
+      team.projectId,
+      tx as any
+    );
+  }
+}
+
+await tx.supervisorPreference.update({
+  where: {
+    id: preference.id,
+  },
+  data: {
+    responseStatus: 'ACCEPTED',
+    respondedAt: new Date(),
+    responseNote:
+      responseNote?.trim() || null,
+  },
+});
 
           await tx.supervisorPreference.updateMany({
             where: {
@@ -955,6 +956,7 @@ const project = await tx.project.create({
 
     return this.getIdeaWithDetails(ideaId);
   }
+
   async assignSupervisor(
     ideaId: string,
     supervisorId: string
@@ -1071,31 +1073,33 @@ const project = await tx.project.create({
          * Transfer project ownership to the manually
          * assigned supervisor.
          */
-        if (idea.assignedTeamId) {
-          const team = await tx.team.findUnique({
-            where: {
-              id: idea.assignedTeamId,
-            },
-            select: {
-              projectId: true,
-            },
-          });
+     if (idea.assignedTeamId) {
+  const team = await tx.team.findUnique({
+    where: {
+      id: idea.assignedTeamId,
+    },
+    select: {
+      projectId: true,
+    },
+  });
 
-          if (team?.projectId) {
-            await tx.project.update({
-              where: {
-                id: team.projectId,
-              },
-              data: {
-                facultyId: supervisorId,
-              },
-            });
-          }
-        }
+  if (team?.projectId) {
+    await tx.project.update({
+      where: {
+        id: team.projectId,
+      },
+      data: {
+        facultyId: supervisorId,
+      },
+    });
 
-        /**
-         * Close any still-pending supervisor requests.
-         */
+    await projectCodeService.assignNextProjectCode(
+      team.projectId,
+      tx as any
+    );
+  }
+}
+
         await tx.supervisorPreference.updateMany({
           where: {
             studentIdeaId: ideaId,
