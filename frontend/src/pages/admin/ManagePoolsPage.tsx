@@ -174,7 +174,7 @@ const getAutomaticTimeline = (
 
   const submissionEnd = addDays(
     submissionStart,
-    9,
+    11,
   );
 
   const reviewStart =
@@ -186,7 +186,7 @@ const getAutomaticTimeline = (
   );
 
   const decisionDeadline =
-    addDays(reviewEnd, 3);
+    addDays(reviewEnd, 2);
 
   const selectionStart =
     addDays(reviewEnd, 1);
