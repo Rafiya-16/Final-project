@@ -1,7 +1,16 @@
 // frontend/src/components/layout/Sidebar.tsx
 
-import React, { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
+
+import {
+  NavLink,
+  useNavigate,
+} from 'react-router-dom';
+
 import { useAuthStore } from '@/stores/authStore';
 
 import {
@@ -27,12 +36,26 @@ import {
 
 import { cn } from '@/lib/utils';
 
+import { poolService } from '@/services/poolService';
+import { ideaService } from '@/services/ideaService';
+
+
+// ============================================================
+// TYPES
+// ============================================================
+
 type NavItem = {
   label: string;
   path: string;
   icon: React.ReactNode;
   notice?: boolean;
+  requestBadge?: boolean;
 };
+
+
+// ============================================================
+// NAVIGATION ITEMS
+// ============================================================
 
 const navItems: Record<string, NavItem[]> = {
   ADMIN: [
@@ -122,6 +145,16 @@ const navItems: Record<string, NavItem[]> = {
       path: '/faculty/team-management',
       icon: <User className="w-5 h-5" />,
     },
+
+    // IMPORTANT:
+    // Supervision Requests / Student Proposals
+    {
+      label: 'Student Proposals',
+      path: '/supervision-requests',
+      icon: <Lightbulb className="w-5 h-5" />,
+      requestBadge: true,
+    },
+
     {
       label: 'Notifications',
       path: '/notifications',
@@ -164,12 +197,222 @@ const navItems: Record<string, NavItem[]> = {
   ],
 };
 
+
+// ============================================================
+// ROLE CONFIGURATION
+// Static Tailwind classes are used so Tailwind can detect them.
+// ============================================================
+
+const roleConfig = {
+  ADMIN: {
+    lightIcon: 'text-blue-600',
+    darkIcon: 'dark:text-blue-400',
+
+    lightActive:
+      'bg-blue-50 text-blue-700 border-blue-100',
+
+    darkActive:
+      'dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/10',
+
+    brandGlow:
+      'bg-blue-50 border-blue-100 dark:bg-blue-500/10 dark:border-blue-500/10',
+
+    hover:
+      'hover:bg-blue-50 dark:hover:bg-blue-500/10',
+  },
+
+  SUBADMIN: {
+    lightIcon: 'text-amber-600',
+    darkIcon: 'dark:text-amber-400',
+
+    lightActive:
+      'bg-amber-50 text-amber-700 border-amber-100',
+
+    darkActive:
+      'dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/10',
+
+    brandGlow:
+      'bg-amber-50 border-amber-100 dark:bg-amber-500/10 dark:border-amber-500/10',
+
+    hover:
+      'hover:bg-amber-50 dark:hover:bg-amber-500/10',
+  },
+
+  FACULTY: {
+    lightIcon: 'text-violet-600',
+    darkIcon: 'dark:text-violet-400',
+
+    lightActive:
+      'bg-violet-50 text-violet-700 border-violet-100',
+
+    darkActive:
+      'dark:bg-violet-500/10 dark:text-violet-300 dark:border-violet-500/10',
+
+    brandGlow:
+      'bg-violet-50 border-violet-100 dark:bg-violet-500/10 dark:border-violet-500/10',
+
+    hover:
+      'hover:bg-violet-50 dark:hover:bg-violet-500/10',
+  },
+
+  STUDENT: {
+    lightIcon: 'text-teal-600',
+    darkIcon: 'dark:text-teal-400',
+
+    lightActive:
+      'bg-teal-50 text-teal-700 border-teal-100',
+
+    darkActive:
+      'dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/10',
+
+    brandGlow:
+      'bg-teal-50 border-teal-100 dark:bg-teal-500/10 dark:border-teal-500/10',
+
+    hover:
+      'hover:bg-teal-50 dark:hover:bg-teal-500/10',
+  },
+};
+
+
+// ============================================================
+// SIDEBAR COMPONENT
+// ============================================================
+
 export const Sidebar: React.FC = () => {
-  const { user, clearAuth } = useAuthStore();
+  const {
+    user,
+    clearAuth,
+  } = useAuthStore();
+
   const navigate = useNavigate();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] =
     useState(false);
+
+  const [supervisionRequestCount, setSupervisionRequestCount] =
+    useState(0);
+
+
+  // ==========================================================
+  // LOAD FACULTY SUPERVISION REQUEST COUNT
+  // ==========================================================
+
+  const loadSupervisionRequestCount =
+    useCallback(async () => {
+      if (user?.role !== 'FACULTY') {
+        setSupervisionRequestCount(0);
+        return;
+      }
+
+      try {
+        const poolResponse =
+          await poolService.list();
+
+        const pools =
+          poolResponse?.data || [];
+
+        if (
+          !Array.isArray(pools) ||
+          pools.length === 0
+        ) {
+          setSupervisionRequestCount(0);
+          return;
+        }
+
+        let pendingCount = 0;
+
+        for (const pool of pools) {
+          try {
+            const requests =
+              await ideaService.getSupervisionRequests(
+                pool.id
+              );
+
+            if (!Array.isArray(requests)) {
+              continue;
+            }
+
+            pendingCount += requests.filter(
+              (request: any) =>
+                request?.responseStatus === 'PENDING' ||
+                request?.status === 'PENDING'
+            ).length;
+
+          } catch {
+            // Ignore individual pool errors
+            // and continue checking other pools.
+            continue;
+          }
+        }
+
+        setSupervisionRequestCount(
+          pendingCount
+        );
+
+      } catch {
+        setSupervisionRequestCount(0);
+      }
+    }, [user?.role]);
+
+
+  // ==========================================================
+  // INITIAL + 30 SECOND REFRESH
+  // ==========================================================
+
+  useEffect(() => {
+    if (user?.role !== 'FACULTY') {
+      return;
+    }
+
+    loadSupervisionRequestCount();
+
+    const interval =
+      window.setInterval(() => {
+        loadSupervisionRequestCount();
+      }, 30000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [
+    user?.role,
+    loadSupervisionRequestCount,
+  ]);
+
+
+  // ==========================================================
+  // REFRESH WHEN BROWSER GETS FOCUS
+  // ==========================================================
+
+  useEffect(() => {
+    if (user?.role !== 'FACULTY') {
+      return;
+    }
+
+    const handleFocus = () => {
+      loadSupervisionRequestCount();
+    };
+
+    window.addEventListener(
+      'focus',
+      handleFocus
+    );
+
+    return () => {
+      window.removeEventListener(
+        'focus',
+        handleFocus
+      );
+    };
+  }, [
+    user?.role,
+    loadSupervisionRequestCount,
+  ]);
+
+
+  // ==========================================================
+  // RESPONSIVE SIDEBAR
+  // ==========================================================
 
   useEffect(() => {
     const handleResize = () => {
@@ -178,77 +421,73 @@ export const Sidebar: React.FC = () => {
       }
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener(
+      'resize',
+      handleResize
+    );
 
-    return () =>
-      window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener(
+        'resize',
+        handleResize
+      );
+    };
   }, []);
 
+
+  // ==========================================================
+  // ROLE
+  // ==========================================================
+
+  const role =
+    user?.role || 'STUDENT';
+
   const items =
-    navItems[user?.role || 'STUDENT'] || [];
+    navItems[role] || [];
 
-  const role = user?.role || 'STUDENT';
+  const theme =
+    roleConfig[
+      role as keyof typeof roleConfig
+    ] || roleConfig.STUDENT;
 
-  const isStudent = role === 'STUDENT';
+  const isStudent =
+    role === 'STUDENT';
 
-  const roleConfig = {
-    ADMIN: {
-      accent: 'blue',
-      lightIcon: 'text-blue-600',
-      darkIcon: 'text-blue-400',
-      lightActive:
-        'bg-blue-50 text-blue-700 border-blue-100',
-      darkActive:
-        'bg-blue-500/10 text-blue-300 border-blue-500/10',
-    },
+  const isFaculty =
+    role === 'FACULTY';
 
-    SUBADMIN: {
-      accent: 'amber',
-      lightIcon: 'text-amber-600',
-      darkIcon: 'text-amber-400',
-      lightActive:
-        'bg-amber-50 text-amber-700 border-amber-100',
-      darkActive:
-        'bg-amber-500/10 text-amber-300 border-amber-500/10',
-    },
 
-    FACULTY: {
-      accent: 'violet',
-      lightIcon: 'text-violet-600',
-      darkIcon: 'text-violet-400',
-      lightActive:
-        'bg-violet-50 text-violet-700 border-violet-100',
-      darkActive:
-        'bg-violet-500/10 text-violet-300 border-violet-500/10',
-    },
-
-    STUDENT: {
-      accent: 'teal',
-      lightIcon: 'text-teal-600',
-      darkIcon: 'text-teal-400',
-      lightActive:
-        'bg-teal-50 text-teal-700 border-teal-100',
-      darkActive:
-        'bg-teal-500/10 text-teal-300 border-teal-500/10',
-    },
-  }[role as 'ADMIN' | 'SUBADMIN' | 'FACULTY' | 'STUDENT'];
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
     <>
       {/* =====================================================
           MOBILE MENU BUTTON
       ===================================================== */}
+
       <button
         onClick={() =>
-          setIsMobileMenuOpen(!isMobileMenuOpen)
+          setIsMobileMenuOpen(
+            !isMobileMenuOpen
+          )
         }
         className="
           fixed top-4 left-4 z-50
-          p-2.5 rounded-xl
-          bg-white dark:bg-slate-800
-          border border-cream-300 dark:border-slate-700
-          text-stone-700 dark:text-white
+          p-2.5
+          rounded-xl
+          bg-white
+          dark:bg-slate-900
+          border
+          border-cream-300
+          dark:border-slate-700
+          text-stone-700
+          dark:text-white
           shadow-lg
+          hover:shadow-xl
+          hover:scale-105
+          active:scale-95
           md:hidden
           transition-all duration-300
         "
@@ -261,16 +500,23 @@ export const Sidebar: React.FC = () => {
         )}
       </button>
 
+
       {/* =====================================================
           MOBILE OVERLAY
       ===================================================== */}
+
       {isMobileMenuOpen && (
         <div
           className="
             fixed inset-0
-            bg-black/40 dark:bg-black/60
+            bg-black/40
+            dark:bg-black/60
             backdrop-blur-sm
-            z-40 md:hidden
+            z-40
+            md:hidden
+            animate-in
+            fade-in
+            duration-300
           "
           onClick={() =>
             setIsMobileMenuOpen(false)
@@ -278,14 +524,20 @@ export const Sidebar: React.FC = () => {
         />
       )}
 
+
       {/* =====================================================
           SIDEBAR
       ===================================================== */}
+
       <aside
         className={`
-          fixed left-0 top-0
-          h-screen w-64
-          flex flex-col
+          fixed
+          left-0
+          top-0
+          h-screen
+          w-64
+          flex
+          flex-col
           z-40
 
           bg-white
@@ -298,65 +550,109 @@ export const Sidebar: React.FC = () => {
           shadow-xl
           dark:shadow-black/30
 
-          transition-all duration-500
-          ${isMobileMenuOpen
-            ? 'translate-x-0'
-            : '-translate-x-full'}
+          transition-all
+          duration-500
+
+          ${
+            isMobileMenuOpen
+              ? 'translate-x-0'
+              : '-translate-x-full'
+          }
+
           md:translate-x-0
         `}
       >
 
         {/* ===================================================
-            BRAND
+            BRAND SECTION
         =================================================== */}
+
         <div
           className="
+            relative
             p-6
             border-b
             border-cream-200
             dark:border-slate-800
+            overflow-hidden
           "
         >
-          <div className="flex items-center gap-3">
+
+          {/* Soft decorative glow */}
+
+          <div
+            className="
+              absolute
+              -top-12
+              -right-12
+              w-28
+              h-28
+              rounded-full
+              bg-violet-200/20
+              dark:bg-violet-500/10
+              blur-2xl
+              pointer-events-none
+            "
+          />
+
+          <div className="relative flex items-center gap-3">
 
             <div
               className={`
-                p-2 rounded-xl
-                bg-${roleConfig.accent}-50
-                dark:bg-${roleConfig.accent}-500/10
+                p-2
+                rounded-xl
                 border
-                border-${roleConfig.accent}-100
-                dark:border-${roleConfig.accent}-500/10
+                shadow-sm
+                transition-all
+                duration-300
+                hover:scale-105
+                ${theme.brandGlow}
               `}
             >
               <Sparkles
                 className={`
                   w-5 h-5
-                  ${roleConfig.lightIcon}
-                  dark:${roleConfig.darkIcon.replace(
-                    'text-',
-                    'text-'
-                  )}
+                  ${theme.lightIcon}
+                  ${theme.darkIcon}
+                  animate-pulse
                 `}
               />
             </div>
 
-            <h1
-              className="
-                text-xl font-bold
-                tracking-tight
-                text-stone-900
-                dark:text-white
-              "
-            >
-              ProjectAlloc
-            </h1>
+            <div>
+              <h1
+                className="
+                  text-xl
+                  font-bold
+                  tracking-tight
+                  text-stone-900
+                  dark:text-white
+                "
+              >
+                ProjectAlloc
+              </h1>
+
+              <p
+                className="
+                  text-[10px]
+                  uppercase
+                  tracking-wider
+                  text-stone-400
+                  dark:text-slate-500
+                  mt-0.5
+                "
+              >
+                Smart Allocation
+              </p>
+            </div>
 
           </div>
 
           <p
             className="
-              text-xs mt-2
+              relative
+              text-xs
+              mt-3
               text-stone-400
               dark:text-slate-500
             "
@@ -369,22 +665,33 @@ export const Sidebar: React.FC = () => {
                   ? 'Review Hub'
                   : 'Student Hub'}
           </p>
+
         </div>
+
 
         {/* ===================================================
             NAVIGATION
         =================================================== */}
+
         <nav
           className="
             flex-1
-            py-6 px-3
+            py-6
+            px-3
             space-y-1.5
             overflow-y-auto
+            scrollbar-thin
+            scrollbar-thumb-cream-300
+            dark:scrollbar-thumb-slate-700
           "
         >
+
           {items.map((item) => {
 
-            {/* Special Student Notice */}
+            // =================================================
+            // STUDENT "WHAT TO DO"
+            // =================================================
+
             if (
               isStudent &&
               item.notice
@@ -400,18 +707,25 @@ export const Sidebar: React.FC = () => {
                     cn(
                       `
                         relative
-                        flex items-center gap-3
-                        px-3 py-3
+                        flex
+                        items-center
+                        gap-3
+                        px-3
+                        py-3
                         rounded-xl
-                        text-sm font-medium
+                        text-sm
+                        font-medium
                         border
-                        transition-all duration-300
                         overflow-hidden
+                        group
+                        transition-all
+                        duration-300
                       `,
+
                       isActive
                         ? `
-                          ${roleConfig.lightActive}
-                          dark:${roleConfig.darkActive}
+                          ${theme.lightActive}
+                          ${theme.darkActive}
                           shadow-sm
                         `
                         : `
@@ -426,32 +740,73 @@ export const Sidebar: React.FC = () => {
                     )
                   }
                 >
-                  <div className="transition-transform duration-300 group-hover:scale-110">
-                    <ListChecks className="w-5 h-5 animate-pulse" />
+
+                  {/* Shine animation */}
+
+                  <div
+                    className="
+                      absolute
+                      inset-0
+                      -translate-x-full
+                      group-hover:translate-x-full
+                      transition-transform
+                      duration-1000
+                      bg-gradient-to-r
+                      from-transparent
+                      via-white/30
+                      to-transparent
+                      pointer-events-none
+                    "
+                  />
+
+                  <div
+                    className="
+                      relative
+                      transition-transform
+                      duration-300
+                      group-hover:scale-110
+                    "
+                  >
+                    <ListChecks
+                      className="
+                        w-5 h-5
+                        text-teal-600
+                        dark:text-teal-400
+                        animate-pulse
+                      "
+                    />
                   </div>
 
-                  <span className="flex-1 text-left">
+                  <span className="relative flex-1 text-left">
                     {item.label}
                   </span>
 
                   <span
                     className="
+                      relative
                       text-[8px]
                       font-bold
                       bg-red-500
                       text-white
-                      px-2 py-1
+                      px-2
+                      py-1
                       rounded-full
+                      shadow-sm
                       animate-pulse
                     "
                   >
                     MUST READ
                   </span>
+
                 </NavLink>
               );
             }
 
-            {/* Normal Navigation */}
+
+            // =================================================
+            // NORMAL NAVIGATION
+            // =================================================
+
             return (
               <NavLink
                 key={item.path}
@@ -462,18 +817,26 @@ export const Sidebar: React.FC = () => {
                 className={({ isActive }) =>
                   cn(
                     `
-                      flex items-center gap-3
-                      px-3 py-3
+                      relative
+                      flex
+                      items-center
+                      gap-3
+                      px-3
+                      py-3
                       rounded-xl
-                      text-sm font-medium
+                      text-sm
+                      font-medium
                       border
-                      transition-all duration-300
+                      transition-all
+                      duration-300
                       group
+                      overflow-hidden
                     `,
+
                     isActive
                       ? `
-                        ${roleConfig.lightActive}
-                        dark:${roleConfig.darkActive}
+                        ${theme.lightActive}
+                        ${theme.darkActive}
                         shadow-sm
                       `
                       : `
@@ -488,37 +851,129 @@ export const Sidebar: React.FC = () => {
                   )
                 }
               >
+
+                {/* Hover shine */}
+
                 <div
                   className="
+                    absolute
+                    inset-0
+                    -translate-x-full
+                    group-hover:translate-x-full
+                    transition-transform
+                    duration-1000
+                    bg-gradient-to-r
+                    from-transparent
+                    via-white/20
+                    to-transparent
+                    pointer-events-none
+                  "
+                />
+
+                {/* Icon */}
+
+                <div
+                  className="
+                    relative
                     transition-transform
                     duration-300
                     group-hover:scale-110
+                    group-hover:-rotate-2
                   "
                 >
                   {item.icon}
                 </div>
 
-                <span>{item.label}</span>
+
+                {/* Label */}
+
+                <span
+                  className="
+                    relative
+                    flex-1
+                    text-left
+                  "
+                >
+                  {item.label}
+                </span>
+
+
+                {/* =================================================
+                    FACULTY SUPERVISION REQUEST BADGE
+                ================================================= */}
+
+                {isFaculty &&
+                  item.requestBadge &&
+                  supervisionRequestCount > 0 && (
+                    <span
+                      className="
+                        relative
+                        min-w-[23px]
+                        h-[23px]
+                        px-1.5
+                        flex
+                        items-center
+                        justify-center
+                        rounded-full
+                        bg-red-500
+                        text-white
+                        text-[11px]
+                        font-bold
+                        shadow-lg
+                        shadow-red-500/30
+                        animate-pulse
+                        ring-2
+                        ring-red-500/10
+                      "
+                      title={`
+                        ${supervisionRequestCount}
+                        pending supervision
+                        ${
+                          supervisionRequestCount === 1
+                            ? 'request'
+                            : 'requests'
+                        }
+                      `}
+                    >
+                      {supervisionRequestCount > 99
+                        ? '99+'
+                        : supervisionRequestCount}
+                    </span>
+                  )}
+
+
+                {/* =================================================
+                    NOTIFICATION INDICATOR
+                ================================================= */}
 
                 {item.label === 'Notifications' && (
                   <span
                     className="
+                      relative
                       ml-auto
-                      w-2 h-2
+                      w-2
+                      h-2
                       rounded-full
                       bg-red-500
+                      shadow-sm
+                      shadow-red-500/50
                       animate-pulse
                     "
+                    title="New notifications"
                   />
                 )}
+
               </NavLink>
             );
           })}
+
         </nav>
+
 
         {/* ===================================================
             PROFILE + LOGOUT
         =================================================== */}
+
         <div
           className="
             p-4
@@ -526,8 +981,14 @@ export const Sidebar: React.FC = () => {
             border-cream-200
             dark:border-slate-800
             space-y-2
+            bg-white/80
+            dark:bg-slate-950/80
+            backdrop-blur-sm
           "
         >
+
+          {/* PROFILE */}
+
           <button
             onClick={() => {
               navigate('/profile');
@@ -535,43 +996,63 @@ export const Sidebar: React.FC = () => {
             }}
             className="
               w-full
-              flex items-center gap-3
-              px-3 py-3
+              flex
+              items-center
+              gap-3
+              px-3
+              py-3
               rounded-xl
               text-left
+
               bg-cream-50
               dark:bg-slate-900
+
               border
               border-cream-200
               dark:border-slate-800
+
               hover:bg-cream-100
               dark:hover:bg-slate-800
-              transition-all duration-300
+
+              hover:shadow-sm
+
+              transition-all
+              duration-300
               group
             "
           >
+
+            {/* Avatar */}
+
             <div
               className={`
-                w-10 h-10
+                w-10
+                h-10
                 rounded-xl
-                flex items-center justify-center
-                font-bold text-sm
-                bg-${roleConfig.accent}-50
-                dark:bg-${roleConfig.accent}-500/10
-                ${roleConfig.lightIcon}
-                dark:${roleConfig.darkIcon.replace(
-                  'text-',
-                  'text-'
-                )}
-                transition-transform
+                flex
+                items-center
+                justify-center
+                font-bold
+                text-sm
+                border
+                shadow-sm
+                transition-all
+                duration-300
                 group-hover:scale-105
+                ${theme.brandGlow}
+                ${theme.lightIcon}
+                ${theme.darkIcon}
               `}
             >
-              {user?.firstName?.[0]}
-              {user?.lastName?.[0]}
+              {user?.firstName?.[0] || ''}
+              {user?.lastName?.[0] || ''}
             </div>
 
+
+            {/* User information */}
+
             <div className="flex-1 min-w-0">
+
               <p
                 className="
                   font-semibold
@@ -581,7 +1062,8 @@ export const Sidebar: React.FC = () => {
                   text-sm
                 "
               >
-                {user?.firstName} {user?.lastName}
+                {user?.firstName}{' '}
+                {user?.lastName}
               </p>
 
               <p
@@ -594,10 +1076,26 @@ export const Sidebar: React.FC = () => {
               >
                 {user?.role}
               </p>
+
             </div>
 
-            <User className="w-4 h-4 text-stone-400 dark:text-slate-500" />
+
+            <User
+              className="
+                w-4
+                h-4
+                text-stone-400
+                dark:text-slate-500
+                transition-transform
+                duration-300
+                group-hover:scale-110
+              "
+            />
+
           </button>
+
+
+          {/* LOGOUT */}
 
           <button
             onClick={() => {
@@ -606,27 +1104,64 @@ export const Sidebar: React.FC = () => {
             }}
             className="
               w-full
-              flex items-center gap-2
-              px-3 py-2.5
+              flex
+              items-center
+              gap-2
+              px-3
+              py-2.5
               rounded-xl
               text-sm
+              font-medium
+
               text-red-500
               dark:text-red-400
+
               hover:bg-red-50
               dark:hover:bg-red-500/10
-              transition-all duration-300
+
+              hover:shadow-sm
+
+              transition-all
+              duration-300
+
+              group
             "
           >
-            <LogOut className="w-4 h-4" />
-            Logout
+
+            <LogOut
+              className="
+                w-4
+                h-4
+                transition-transform
+                duration-300
+                group-hover:-translate-x-0.5
+              "
+            />
+
+            <span>Logout</span>
+
           </button>
+
         </div>
+
       </aside>
 
-      {/* Desktop spacer */}
-      <div className="hidden md:block w-64 flex-shrink-0" />
+
+      {/* =====================================================
+          DESKTOP CONTENT SPACER
+      ===================================================== */}
+
+      <div
+        className="
+          hidden
+          md:block
+          w-64
+          flex-shrink-0
+        "
+      />
     </>
   );
 };
+
 
 export default Sidebar;

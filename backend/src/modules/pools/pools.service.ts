@@ -108,80 +108,79 @@ export class PoolsService {
    * List pools according to the user's role
    */
   async listPools(
-    userId: string,
-    userRole: string,
-    params: PaginationParams,
-  ) {
-    let where: any = {};
+  userId: string,
+  userRole: string,
+  params: PaginationParams,
+) {
+  let where: any = {};
 
-    if (userRole === 'SUBADMIN') {
-      where = {
-        subadmins: {
-          some: {
-            subadminId: userId,
-          },
+  if (userRole === 'SUBADMIN') {
+    where = {
+      subadmins: {
+        some: {
+          subadminId: userId,
         },
-      };
-    } else if (userRole === 'FACULTY') {
-      where = {
-        faculty: {
-          some: {
-            facultyId: userId,
-          },
+      },
+    };
+  } else if (userRole === 'FACULTY') {
+    where = {
+      faculty: {
+        some: {
+          facultyId: userId,
         },
-      };
-    } else if (userRole === 'STUDENT') {
-      where = {
-        students: {
-          some: {
-            studentId: userId,
-          },
+      },
+    };
+  } else if (userRole === 'STUDENT') {
+    where = {
+      students: {
+        some: {
+          studentId: userId,
         },
-      };
-    }
-
-    // ADMIN sees all pools.
-
-    const skip = (params.page - 1) * params.limit;
-
-    const [pools, total] = await Promise.all([
-      prisma.pool.findMany({
-        where,
-
-        skip,
-        take: params.limit,
-
-        orderBy: {
-          createdAt: 'desc',
-        },
-
-        include: {
-          _count: {
-            select: {
-              faculty: true,
-              students: true,
-              projects: true,
-              teams: true,
-            },
-          },
-
-          creator: {
-            select: {
-              firstName: true,
-              lastName: true,
-            },
-          },
-        },
-      }),
-
-      prisma.pool.count({
-        where,
-      }),
-    ]);
-
-    return paginatedResult(pools, total, params);
+      },
+    };
   }
 
+  // ADMIN sees all pools.
+
+  const skip = (params.page - 1) * params.limit;
+
+  const [pools, total] = await Promise.all([
+    prisma.pool.findMany({
+      where,
+
+      skip,
+      take: params.limit,
+
+      orderBy: {
+        createdAt: 'desc',
+      },
+
+      include: {
+        _count: {
+          select: {
+            faculty: true,
+            students: true,
+            projects: true,
+            teams: true,
+          },
+        },
+
+        creator: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    }),
+
+    prisma.pool.count({
+      where,
+    }),
+  ]);
+
+  return paginatedResult(pools, total, params);
+}
   /**
    * Get a single pool by ID
    */

@@ -1,10 +1,12 @@
 import prisma from '../../config/database';
+
 import {
   BadRequestError,
   NotFoundError,
   ForbiddenError,
   ConflictError,
 } from '../../shared/errors/AppError';
+
 import { TEAM_DEFAULTS } from '../../config/constants';
 import { logger } from '../../shared/utils/logger';
 import { notificationsService } from '../notifications/notifications.service';
@@ -232,9 +234,19 @@ export class TeamsService {
       TEAM_DEFAULTS.MAX_SIZE;
 
     /*
-     * Pending invitations occupy team slots.
-     * This prevents over-inviting while invitations
-     * are still awaiting a response.
+     * IMPORTANT:
+     * Only ACTIVE members count towards the team size.
+     * LEFT/REMOVED members do not occupy a slot.
+     */
+    const activeMemberCount = team.members.length;
+
+    /*
+     * Pending invites reserve slots.
+     * Example:
+     * max = 3
+     * active = 2
+     * pending = 1
+     * => occupied = 3
      */
     const pendingInviteCount =
       await prisma.teamInvite.count({
@@ -248,7 +260,7 @@ export class TeamsService {
       });
 
     const occupiedSlots =
-      team.members.length + pendingInviteCount;
+      activeMemberCount + pendingInviteCount;
 
     if (occupiedSlots >= maxSize) {
       throw new BadRequestError(
@@ -256,6 +268,12 @@ export class TeamsService {
       );
     }
 
+    /*
+     * Only ACTIVE team membership should block an invite.
+     *
+     * If the student was previously in a team but their
+     * TeamMember status is LEFT/REMOVED, they can be invited again.
+     */
     const inviteeTeam =
       await this.getActiveTeamForStudent(
         team.poolId,
@@ -268,7 +286,6 @@ export class TeamsService {
       );
     }
 
-    // Check invitee is in the pool.
     const inPool = await prisma.poolStudent.findUnique({
       where: {
         poolId_studentId: {
@@ -284,7 +301,6 @@ export class TeamsService {
       );
     }
 
-    // Check inviter and invitee sections.
     const [inviter, invitee] = await Promise.all([
       prisma.user.findUnique({
         where: {
@@ -295,6 +311,7 @@ export class TeamsService {
           section: true,
         },
       }),
+
       prisma.user.findUnique({
         where: {
           id: inviteeId,
@@ -307,11 +324,15 @@ export class TeamsService {
     ]);
 
     if (!inviter) {
-      throw new NotFoundError('Inviter not found');
+      throw new NotFoundError(
+        'Inviter not found'
+      );
     }
 
     if (!invitee) {
-      throw new NotFoundError('Invitee not found');
+      throw new NotFoundError(
+        'Invitee not found'
+      );
     }
 
     if (!inviter.section) {
@@ -326,19 +347,24 @@ export class TeamsService {
       );
     }
 
-    // Students can only invite students from the same section.
     if (inviter.section !== invitee.section) {
       throw new ForbiddenError(
         `You can only invite students from your section (${inviter.section}).`
       );
     }
 
+    /*
+     * Prevent duplicate pending invites.
+     */
     const pending =
       await prisma.teamInvite.findFirst({
         where: {
           teamId,
           inviteeId,
           status: 'PENDING',
+          expiresAt: {
+            gt: new Date(),
+          },
         },
       });
 
@@ -349,6 +375,7 @@ export class TeamsService {
     }
 
     const expiresAt = new Date();
+
     expiresAt.setHours(
       expiresAt.getHours() + 48
     );
@@ -422,7 +449,9 @@ export class TeamsService {
       });
 
     if (!invite) {
-      throw new NotFoundError('Invite not found');
+      throw new NotFoundError(
+        'Invite not found'
+      );
     }
 
     if (invite.inviteeId !== studentId) {
@@ -443,6 +472,9 @@ export class TeamsService {
       );
     }
 
+    /*
+     * ACCEPT INVITE
+     */
     if (accept) {
       if (invite.team.isFrozen) {
         throw new BadRequestError(
@@ -450,6 +482,11 @@ export class TeamsService {
         );
       }
 
+      /*
+       * A student can only have one ACTIVE team.
+       * A previous LEFT/REMOVED membership does not block
+       * accepting this invite.
+       */
       const existing =
         await this.getActiveTeamForStudent(
           invite.team.poolId,
@@ -483,6 +520,9 @@ export class TeamsService {
 
       await prisma.$transaction(
         async (tx) => {
+          /*
+           * Mark invitation as accepted.
+           */
           await tx.teamInvite.update({
             where: {
               id: inviteId,
@@ -493,6 +533,14 @@ export class TeamsService {
             },
           });
 
+          /*
+           * IMPORTANT:
+           * If this student was previously a member and
+           * left/was removed, reuse the same TeamMember row.
+           *
+           * This avoids violating:
+           * @@unique([teamId, studentId])
+           */
           const existingMember =
             await tx.teamMember.findUnique({
               where: {
@@ -566,6 +614,9 @@ export class TeamsService {
       };
     }
 
+    /*
+     * DECLINE INVITE
+     */
     await prisma.teamInvite.update({
       where: {
         id: inviteId,
@@ -624,7 +675,9 @@ export class TeamsService {
       });
 
     if (!team) {
-      throw new NotFoundError('Team not found');
+      throw new NotFoundError(
+        'Team not found'
+      );
     }
 
     if (team.leaderId !== leaderId) {
@@ -690,11 +743,6 @@ export class TeamsService {
 
     return prisma.$transaction(
       async (tx) => {
-        /*
-         * Re-check project ownership inside the
-         * transaction to prevent two teams selecting
-         * the same project concurrently.
-         */
         const doubleCheck =
           await tx.project.findUnique({
             where: {
@@ -753,10 +801,35 @@ export class TeamsService {
     );
   }
 
-  async leaveTeam(
+  // ============================================================
+  // TEAM LEAVE REQUEST
+  // ============================================================
+
+  async createLeaveRequest(
     teamId: string,
-    studentId: string
+    studentId: string,
+    reason: string
   ) {
+    const trimmedReason = reason.trim();
+
+    if (!trimmedReason) {
+      throw new BadRequestError(
+        'Leave reason is required'
+      );
+    }
+
+    if (trimmedReason.length < 10) {
+      throw new BadRequestError(
+        'Leave reason must be at least 10 characters'
+      );
+    }
+
+    if (trimmedReason.length > 1000) {
+      throw new BadRequestError(
+        'Leave reason cannot exceed 1000 characters'
+      );
+    }
+
     const member =
       await prisma.teamMember.findUnique({
         where: {
@@ -765,58 +838,403 @@ export class TeamsService {
             studentId,
           },
         },
+        include: {
+          team: {
+            include: {
+              project: {
+                select: {
+                  id: true,
+                  title: true,
+                  facultyId: true,
+                },
+              },
+            },
+          },
+        },
       });
 
     if (!member) {
       throw new NotFoundError(
-        'Not a team member'
+        'You are not a member of this team'
       );
     }
 
     if (member.status !== 'ACTIVE') {
       throw new BadRequestError(
-        'Not active in team'
+        'You are not an active member of this team'
       );
     }
 
-    const team =
-      await prisma.team.findUnique({
+    if (member.team.isFrozen) {
+      throw new BadRequestError(
+        'Leave request cannot be submitted because the team is frozen'
+      );
+    }
+
+    if (member.team.leaderId === studentId) {
+      throw new BadRequestError(
+        'Team leader cannot leave. Transfer leadership first or dissolve the team.'
+      );
+    }
+
+    if (!member.team.projectId) {
+      throw new BadRequestError(
+        'Leave request is available only after a project has been selected'
+      );
+    }
+
+    const pendingRequest =
+      await prisma.teamLeaveRequest.findFirst({
         where: {
-          id: teamId,
+          teamId,
+          studentId,
+          status: 'PENDING',
         },
       });
 
-    if (!team) {
-      throw new NotFoundError('Team not found');
-    }
-
-    if (team.isFrozen) {
-      throw new BadRequestError(
-        'Team is frozen'
+    if (pendingRequest) {
+      throw new ConflictError(
+        'You already have a pending leave request for this team'
       );
     }
 
-    if (team.leaderId === studentId) {
-      throw new BadRequestError(
-        'Leader cannot leave. Transfer leadership first or dissolve team.'
-      );
+    const request =
+      await prisma.teamLeaveRequest.create({
+        data: {
+          teamId,
+          studentId,
+          reason: trimmedReason,
+        },
+        include: {
+          team: {
+            select: {
+              id: true,
+              name: true,
+              project: {
+                select: {
+                  id: true,
+                  title: true,
+                  facultyId: true,
+                },
+              },
+            },
+          },
+          student: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+    const facultyId =
+      request.team.project?.facultyId;
+
+    if (facultyId) {
+      notificationsService
+        .create(
+          facultyId,
+          'TEAM_LEFT',
+          'Team Leave Request',
+          `${request.student.firstName} ${request.student.lastName} has submitted a request to leave team "${request.team.name}".`,
+          '/team-management'
+        )
+        .catch(() => {});
     }
 
-    await prisma.teamMember.update({
+    logger.info(
+      `Team leave request created: ${request.id} by ${studentId} for team ${teamId}`
+    );
+
+    return request;
+  }
+
+  async getLeaveRequestsForFaculty(
+    facultyId: string
+  ) {
+    return prisma.teamLeaveRequest.findMany({
       where: {
-        id: member.id,
+        team: {
+          project: {
+            facultyId,
+          },
+        },
       },
-      data: {
-        status: 'LEFT',
-        leftAt: new Date(),
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            enrollmentNo: true,
+          },
+        },
+        team: {
+          select: {
+            id: true,
+            name: true,
+            poolId: true,
+            project: {
+              select: {
+                id: true,
+                title: true,
+                projectCode: true,
+                facultyId: true,
+              },
+            },
+          },
+        },
+        reviewedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
+  }
 
-    await this.updateTeamStatus(teamId);
+  // ============================================================
+  // REVIEW TEAM LEAVE REQUEST
+  // ============================================================
+
+  async reviewLeaveRequest(
+    requestId: string,
+    facultyId: string,
+    status: 'APPROVED' | 'REJECTED',
+    responseNote?: string
+  ) {
+    if (
+      status !== 'APPROVED' &&
+      status !== 'REJECTED'
+    ) {
+      throw new BadRequestError(
+        'Status must be APPROVED or REJECTED'
+      );
+    }
+
+    const trimmedNote =
+      typeof responseNote === 'string'
+        ? responseNote.trim()
+        : undefined;
+
+    if (
+      trimmedNote &&
+      trimmedNote.length > 1000
+    ) {
+      throw new BadRequestError(
+        'Response note cannot exceed 1000 characters'
+      );
+    }
+
+    const request =
+      await prisma.teamLeaveRequest.findUnique({
+        where: {
+          id: requestId,
+        },
+        include: {
+          student: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          team: {
+            include: {
+              project: {
+                select: {
+                  id: true,
+                  title: true,
+                  facultyId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+    if (!request) {
+      throw new NotFoundError(
+        'Leave request not found'
+      );
+    }
+
+    if (
+      request.team.project?.facultyId !==
+      facultyId
+    ) {
+      throw new ForbiddenError(
+        'You are not the supervisor of this project'
+      );
+    }
+
+    if (request.status !== 'PENDING') {
+      throw new ConflictError(
+        `Leave request has already been ${request.status.toLowerCase()}`
+      );
+    }
+
+    const member =
+      await prisma.teamMember.findUnique({
+        where: {
+          teamId_studentId: {
+            teamId: request.teamId,
+            studentId: request.studentId,
+          },
+        },
+      });
+
+    if (!member) {
+      throw new NotFoundError(
+        'Team member record not found'
+      );
+    }
+
+    if (member.status !== 'ACTIVE') {
+      throw new BadRequestError(
+        'Student is no longer an active member of this team'
+      );
+    }
+
+    if (status === 'APPROVED') {
+      if (request.team.isFrozen) {
+        throw new BadRequestError(
+          'Team is frozen. This leave request cannot be approved now.'
+        );
+      }
+
+      if (
+        request.team.leaderId ===
+        request.studentId
+      ) {
+        throw new BadRequestError(
+          'Team leader cannot leave. Transfer leadership first or dissolve the team.'
+        );
+      }
+    }
+
+    const reviewedAt = new Date();
+
+    const result =
+      await prisma.$transaction(
+        async (tx) => {
+          const updatedRequest =
+            await tx.teamLeaveRequest.update({
+              where: {
+                id: requestId,
+              },
+              data: {
+                status,
+                reviewedById: facultyId,
+                reviewedAt,
+                responseNote:
+                  trimmedNote || null,
+              },
+              include: {
+                student: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
+                team: {
+                  select: {
+                    id: true,
+                    name: true,
+                    project: {
+                      select: {
+                        id: true,
+                        title: true,
+                      },
+                    },
+                  },
+                },
+              },
+            });
+
+          if (status === 'APPROVED') {
+            await tx.teamMember.update({
+              where: {
+                id: member.id,
+              },
+              data: {
+                status: 'LEFT',
+                leftAt: reviewedAt,
+              },
+            });
+          }
+
+          return updatedRequest;
+        }
+      );
+
+    let teamStatus:
+      | {
+          activeMemberCount: number;
+          maxSize: number;
+          status: string;
+        }
+      | null = null;
+
+    if (status === 'APPROVED') {
+      teamStatus =
+        await this.updateTeamStatus(
+          request.teamId
+        );
+    }
+
+    const notificationMessage =
+      status === 'APPROVED'
+        ? `Your request to leave team "${request.team.name}" has been approved by the supervisor.`
+        : `Your request to leave team "${request.team.name}" has been rejected by the supervisor.`;
+
+    notificationsService
+      .create(
+        request.studentId,
+        'TEAM_LEFT',
+        `Team Leave Request ${
+          status === 'APPROVED'
+            ? 'Approved'
+            : 'Rejected'
+        }`,
+        notificationMessage,
+        '/my-team'
+      )
+      .catch(() => {});
+
+    logger.info(
+      `Team leave request ${status.toLowerCase()}: ${requestId} reviewed by ${facultyId}`
+    );
 
     return {
-      message: 'Left team',
+      ...result,
+      teamStatus,
     };
+  }
+
+  // ============================================================
+  // LEGACY DIRECT LEAVE
+  // ============================================================
+
+  async leaveTeam(
+    _teamId: string,
+    _studentId: string
+  ) {
+    throw new BadRequestError(
+      'Direct team leaving is not allowed. Submit a leave request for supervisor approval.'
+    );
   }
 
   async removeMember(
@@ -832,7 +1250,9 @@ export class TeamsService {
       });
 
     if (!team) {
-      throw new NotFoundError('Team not found');
+      throw new NotFoundError(
+        'Team not found'
+      );
     }
 
     if (team.leaderId !== leaderId) {
@@ -882,10 +1302,488 @@ export class TeamsService {
       },
     });
 
-    await this.updateTeamStatus(teamId);
+    await this.updateTeamStatus(
+      teamId
+    );
 
     return {
       message: 'Member removed',
+    };
+  }
+
+    // ============================================================
+  // TEAM DISSOLVE REQUEST
+  // ============================================================
+
+  async createDissolveRequest(
+    teamId: string,
+    leaderId: string,
+    reason: string
+  ) {
+    const trimmedReason = reason.trim();
+
+    if (!trimmedReason) {
+      throw new BadRequestError(
+        'Dissolve reason is required'
+      );
+    }
+
+    if (trimmedReason.length < 10) {
+      throw new BadRequestError(
+        'Dissolve reason must be at least 10 characters'
+      );
+    }
+
+    if (trimmedReason.length > 1000) {
+      throw new BadRequestError(
+        'Dissolve reason cannot exceed 1000 characters'
+      );
+    }
+
+    const team =
+      await prisma.team.findUnique({
+        where: {
+          id: teamId,
+        },
+        include: {
+          project: {
+            select: {
+              id: true,
+              title: true,
+              projectCode: true,
+              facultyId: true,
+            },
+          },
+          leader: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      });
+
+    if (!team) {
+      throw new NotFoundError(
+        'Team not found'
+      );
+    }
+
+    if (team.leaderId !== leaderId) {
+      throw new ForbiddenError(
+        'Only team leader can request team dissolution'
+      );
+    }
+
+    if (team.isFrozen) {
+      throw new BadRequestError(
+        'Team is frozen. Dissolution request cannot be submitted.'
+      );
+    }
+
+    if (team.status === 'DISSOLVED') {
+      throw new BadRequestError(
+        'Team is already dissolved'
+      );
+    }
+
+    if (!team.projectId || !team.project) {
+      throw new BadRequestError(
+        'Team dissolution request is available only after a project has been selected'
+      );
+    }
+
+    if (!team.project.facultyId) {
+      throw new BadRequestError(
+        'This team does not have a supervisor assigned yet'
+      );
+    }
+
+    const existingPendingRequest =
+      await prisma.teamDissolveRequest.findFirst({
+        where: {
+          teamId,
+          status: 'PENDING',
+        },
+      });
+
+    if (existingPendingRequest) {
+      throw new ConflictError(
+        'A team dissolution request is already pending'
+      );
+    }
+
+    const request =
+      await prisma.teamDissolveRequest.create({
+        data: {
+          teamId,
+          requestedById: leaderId,
+          reason: trimmedReason,
+        },
+        include: {
+          requestedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          team: {
+            select: {
+              id: true,
+              name: true,
+              project: {
+                select: {
+                  id: true,
+                  title: true,
+                  projectCode: true,
+                  facultyId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+    const facultyId =
+      request.team.project?.facultyId;
+
+    if (facultyId) {
+      notificationsService
+        .create(
+          facultyId,
+          'TEAM_DISSOLVED',
+          'Team Dissolution Request',
+          `${request.requestedBy.firstName} ${request.requestedBy.lastName} has requested to dissolve team "${request.team.name}".`,
+          '/team-management'
+        )
+        .catch(() => {});
+    }
+
+    logger.info(
+      `Team dissolve request created: ${request.id} by ${leaderId} for team ${teamId}`
+    );
+
+    return request;
+  }
+
+  async getDissolveRequestsForFaculty(
+    facultyId: string
+  ) {
+    return prisma.teamDissolveRequest.findMany({
+      where: {
+        team: {
+          project: {
+            facultyId,
+          },
+        },
+      },
+      include: {
+        requestedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            enrollmentNo: true,
+          },
+        },
+        team: {
+          select: {
+            id: true,
+            name: true,
+            poolId: true,
+            status: true,
+            isFrozen: true,
+            project: {
+              select: {
+                id: true,
+                title: true,
+                projectCode: true,
+                facultyId: true,
+              },
+            },
+          },
+        },
+        reviewedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async reviewDissolveRequest(
+    requestId: string,
+    facultyId: string,
+    status: 'APPROVED' | 'REJECTED',
+    responseNote?: string
+  ) {
+    if (
+      status !== 'APPROVED' &&
+      status !== 'REJECTED'
+    ) {
+      throw new BadRequestError(
+        'Status must be APPROVED or REJECTED'
+      );
+    }
+
+    const trimmedNote =
+      typeof responseNote === 'string'
+        ? responseNote.trim()
+        : undefined;
+
+    if (
+      trimmedNote &&
+      trimmedNote.length > 1000
+    ) {
+      throw new BadRequestError(
+        'Response note cannot exceed 1000 characters'
+      );
+    }
+
+    const request =
+      await prisma.teamDissolveRequest.findUnique({
+        where: {
+          id: requestId,
+        },
+        include: {
+          requestedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          team: {
+            include: {
+              project: {
+                select: {
+                  id: true,
+                  title: true,
+                  projectCode: true,
+                  facultyId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+    if (!request) {
+      throw new NotFoundError(
+        'Dissolve request not found'
+      );
+    }
+
+    if (
+      request.team.project?.facultyId !==
+      facultyId
+    ) {
+      throw new ForbiddenError(
+        'You are not the supervisor of this project'
+      );
+    }
+
+    if (request.status !== 'PENDING') {
+      throw new ConflictError(
+        `Dissolve request has already been ${request.status.toLowerCase()}`
+      );
+    }
+
+    if (status === 'APPROVED') {
+      if (request.team.isFrozen) {
+        throw new BadRequestError(
+          'Team is frozen. This dissolve request cannot be approved.'
+        );
+      }
+
+      if (request.team.status === 'DISSOLVED') {
+        throw new BadRequestError(
+          'Team is already dissolved'
+        );
+      }
+    }
+
+    const reviewedAt = new Date();
+
+    /*
+     * REJECT
+     * ----------------------------------------------------------
+     * The team remains completely unchanged.
+     */
+    if (status === 'REJECTED') {
+      const result =
+        await prisma.teamDissolveRequest.update({
+          where: {
+            id: requestId,
+          },
+          data: {
+            status: 'REJECTED',
+            reviewedById: facultyId,
+            reviewedAt,
+            responseNote:
+              trimmedNote || null,
+          },
+          include: {
+            requestedBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            team: {
+              select: {
+                id: true,
+                name: true,
+                project: {
+                  select: {
+                    id: true,
+                    title: true,
+                    projectCode: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+      notificationsService
+        .create(
+          request.requestedById,
+          'TEAM_DISSOLVED',
+          'Team Dissolution Request Rejected',
+          `Your request to dissolve team "${request.team.name}" has been rejected by the supervisor.${
+            trimmedNote
+              ? ` Reason: ${trimmedNote}`
+              : ''
+          }`,
+          '/my-team'
+        )
+        .catch(() => {});
+
+      logger.info(
+        `Team dissolve request rejected: ${requestId} by ${facultyId}`
+      );
+
+      return {
+        ...result,
+        message:
+          'Team dissolution request rejected. The team remains unchanged.',
+      };
+    }
+
+    /*
+     * APPROVE
+     * ----------------------------------------------------------
+     * First mark the request as approved and then perform the
+     * actual existing team dissolution logic in the same
+     * transaction.
+     */
+    const result =
+      await prisma.$transaction(
+        async (tx) => {
+          const updatedRequest =
+            await tx.teamDissolveRequest.update({
+              where: {
+                id: requestId,
+              },
+              data: {
+                status: 'APPROVED',
+                reviewedById: facultyId,
+                reviewedAt,
+                responseNote:
+                  trimmedNote || null,
+              },
+              include: {
+                requestedBy: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
+                team: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            });
+
+          /*
+           * Actual dissolve:
+           * 1. Active members become LEFT
+           * 2. Pending invites expire
+           * 3. Team becomes DISSOLVED
+           * 4. Project becomes available again
+           */
+          await tx.teamMember.updateMany({
+            where: {
+              teamId: request.teamId,
+              status: 'ACTIVE',
+            },
+            data: {
+              status: 'LEFT',
+              leftAt: reviewedAt,
+            },
+          });
+
+          await tx.teamInvite.updateMany({
+            where: {
+              teamId: request.teamId,
+              status: 'PENDING',
+            },
+            data: {
+              status: 'EXPIRED',
+            },
+          });
+
+          await tx.team.update({
+            where: {
+              id: request.teamId,
+            },
+            data: {
+              status: 'DISSOLVED',
+              projectId: null,
+            },
+          });
+
+          return updatedRequest;
+        }
+      );
+
+    notificationsService
+      .create(
+        request.requestedById,
+        'TEAM_DISSOLVED',
+        'Team Dissolution Request Approved',
+        `Your request to dissolve team "${request.team.name}" has been approved by the supervisor. The team has been dissolved.`,
+        '/my-team'
+      )
+      .catch(() => {});
+
+    logger.info(
+      `Team dissolve request approved: ${requestId} by ${facultyId}`
+    );
+
+    return {
+      ...result,
+      message:
+        'Team dissolution request approved. The team has been dissolved.',
     };
   }
 
@@ -901,7 +1799,9 @@ export class TeamsService {
       });
 
     if (!team) {
-      throw new NotFoundError('Team not found');
+      throw new NotFoundError(
+        'Team not found'
+      );
     }
 
     if (team.leaderId !== leaderId) {
@@ -927,6 +1827,7 @@ export class TeamsService {
           leftAt: new Date(),
         },
       }),
+
       prisma.teamInvite.updateMany({
         where: {
           teamId,
@@ -936,6 +1837,7 @@ export class TeamsService {
           status: 'EXPIRED',
         },
       }),
+
       prisma.team.update({
         where: {
           id: teamId,
@@ -952,7 +1854,9 @@ export class TeamsService {
     };
   }
 
-  async getTeamsByPool(poolId: string) {
+  async getTeamsByPool(
+    poolId: string
+  ) {
     return prisma.team.findMany({
       where: {
         poolId,
@@ -976,6 +1880,7 @@ export class TeamsService {
             },
           },
         },
+
         members: {
           where: {
             status: 'ACTIVE',
@@ -992,6 +1897,7 @@ export class TeamsService {
             },
           },
         },
+
         leader: {
           select: {
             id: true,
@@ -999,12 +1905,14 @@ export class TeamsService {
             lastName: true,
           },
         },
+
         _count: {
           select: {
             members: true,
           },
         },
       },
+
       orderBy: {
         createdAt: 'asc',
       },
@@ -1025,11 +1933,6 @@ export class TeamsService {
       return null;
     }
 
-    /*
-     * Keep this pool-wide member information because
-     * the frontend uses it for student/team selection
-     * and availability information.
-     */
     const allMembersInPool =
       await prisma.teamMember.findMany({
         where: {
@@ -1068,6 +1971,7 @@ export class TeamsService {
               },
             },
           },
+
           pool: {
             select: {
               id: true,
@@ -1075,6 +1979,7 @@ export class TeamsService {
               defaultMaxTeamSize: true,
             },
           },
+
           members: {
             where: {
               status: 'ACTIVE',
@@ -1091,6 +1996,7 @@ export class TeamsService {
               },
             },
           },
+
           invites: {
             where: {
               status: 'PENDING',
@@ -1108,6 +2014,7 @@ export class TeamsService {
               },
             },
           },
+
           leader: {
             select: {
               id: true,
@@ -1149,6 +2056,7 @@ export class TeamsService {
           poolId,
         },
       },
+
       include: {
         team: {
           select: {
@@ -1169,6 +2077,7 @@ export class TeamsService {
             },
           },
         },
+
         invitedBy: {
           select: {
             firstName: true,
@@ -1176,6 +2085,7 @@ export class TeamsService {
           },
         },
       },
+
       orderBy: {
         createdAt: 'desc',
       },

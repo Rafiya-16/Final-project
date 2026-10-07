@@ -1,10 +1,13 @@
 // frontend/src/components/layout/DashboardLayout.tsx
 
 import React, { useState } from 'react';
+
 import { Outlet } from 'react-router-dom';
+
 import { Bell, X } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
+
 import { useAuthStore } from '@/stores/authStore';
 
 const DashboardLayout: React.FC = () => {
@@ -13,27 +16,29 @@ const DashboardLayout: React.FC = () => {
 
   const { user } = useAuthStore();
 
+  const displayName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
+    user?.email ||
+    'User';
+
   return (
     <div className="min-h-screen bg-cream-100 dark:bg-slate-900">
-
       {/* =====================================================
           SIDEBAR
       ===================================================== */}
-      <Sidebar
-        isSidebarOpen={isSidebarOpen}
-        setIsSidebarOpen={setIsSidebarOpen}
-      />
+
+      <Sidebar />
 
       {/* =====================================================
           MAIN CONTENT
 
-          OPEN SIDEBAR  = 256px
+          OPEN SIDEBAR   = 256px
           CLOSED SIDEBAR = 76px
 
-          IMPORTANT:
-          No width calculation here.
-          The browser automatically uses remaining width.
+          The sidebar itself handles its own open/close state.
+          Dashboard content follows the same layout spacing.
       ===================================================== */}
+
       <div
         className={`
           min-h-screen
@@ -47,10 +52,10 @@ const DashboardLayout: React.FC = () => {
           }
         `}
       >
-
         {/* ===================================================
             HEADER
         =================================================== */}
+
         <header
           className="
             sticky
@@ -76,10 +81,9 @@ const DashboardLayout: React.FC = () => {
               lg:px-8
             "
           >
-
             {/* ================= WELCOME ================= */}
-            <div className="min-w-0">
 
+            <div className="min-w-0">
               <p
                 className="
                   text-xs
@@ -101,14 +105,13 @@ const DashboardLayout: React.FC = () => {
                   dark:text-white
                 "
               >
-                {user?.name || user?.email || 'User'}
+                {displayName}
               </h1>
-
             </div>
 
             {/* ================= HEADER ACTIONS ================= */}
-            <div className="relative">
 
+            <div className="relative">
               <button
                 type="button"
                 onClick={() =>
@@ -147,6 +150,7 @@ const DashboardLayout: React.FC = () => {
                 <Bell className="h-5 w-5" />
 
                 {/* Notification indicator */}
+
                 <span
                   className="
                     absolute
@@ -166,9 +170,11 @@ const DashboardLayout: React.FC = () => {
               {/* =================================================
                   NOTIFICATION PANEL
               ================================================= */}
+
               {isNotificationOpen && (
                 <>
                   {/* Mobile backdrop */}
+
                   <div
                     className="
                       fixed
@@ -202,8 +208,8 @@ const DashboardLayout: React.FC = () => {
                       dark:bg-slate-800
                     "
                   >
-
                     {/* Panel Header */}
+
                     <div
                       className="
                         flex
@@ -216,7 +222,6 @@ const DashboardLayout: React.FC = () => {
                         dark:border-slate-700
                       "
                     >
-
                       <div>
                         <h3
                           className="
@@ -264,12 +269,11 @@ const DashboardLayout: React.FC = () => {
                       >
                         <X className="h-4 w-4" />
                       </button>
-
                     </div>
 
                     {/* Empty notification state */}
-                    <div className="px-4 py-8 text-center">
 
+                    <div className="px-4 py-8 text-center">
                       <div
                         className="
                           mx-auto
@@ -314,13 +318,10 @@ const DashboardLayout: React.FC = () => {
                       >
                         You're all caught up!
                       </p>
-
                     </div>
-
                   </div>
                 </>
               )}
-
             </div>
           </div>
         </header>
@@ -328,6 +329,7 @@ const DashboardLayout: React.FC = () => {
         {/* =====================================================
             PAGE CONTENT
         ===================================================== */}
+
         <main
           className="
             min-h-[calc(100vh-4rem)]
@@ -341,15 +343,11 @@ const DashboardLayout: React.FC = () => {
         >
           <Outlet />
         </main>
-
       </div>
     </div>
   );
 };
 
-/* ============================================================
-   BOTH EXPORTS
-   ============================================================ */
-
 export { DashboardLayout };
+
 export default DashboardLayout;

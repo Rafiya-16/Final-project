@@ -1,36 +1,109 @@
-// frontend/src/config/api.ts
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+const API_URL =
+  import.meta.env.VITE_API_URL || '/api';
 
 export const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+/*
+ * Attach access token to every API request.
+ */
+api.interceptors.request.use(
+  (config) => {
+    const token =
+      localStorage.getItem('accessToken');
 
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization =
+        `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+/*
+ * Handle expired access tokens.
+ */
 api.interceptors.response.use(
-  (res) => res,
+  (response) => response,
+
   async (error) => {
-    const orig = error.config;
-    if (error.response?.status === 401 && !orig._retry && !orig.url?.includes('/auth/')) {
-      orig._retry = true;
+    const originalRequest = error.config;
+
+    /*
+     * Access token expired.
+     */
+    if (
+      error.response?.status === 401 &&
+      !originalRequest?._retry &&
+      !originalRequest?.url?.includes('/auth/')
+    ) {
+      originalRequest._retry = true;
+
       try {
-        const { data } = await api.post('/auth/refresh');
-        localStorage.setItem('accessToken', data.data.accessToken);
-        orig.headers.Authorization = `Bearer ${data.data.accessToken}`;
-        return api(orig);
-      } catch {
-        localStorage.removeItem('accessToken');
+        const { data } =
+          await api.post('/auth/refresh');
+
+        const newAccessToken =
+          data?.data?.accessToken;
+
+        if (!newAccessToken) {
+          throw new Error(
+            'Access token missing from refresh response'
+          );
+        }
+
+        localStorage.setItem(
+          'accessToken',
+          newAccessToken
+        );
+
+        originalRequest.headers =
+          originalRequest.headers || {};
+
+        originalRequest.headers.Authorization =
+          `Bearer ${newAccessToken}`;
+
+        return api(originalRequest);
+      } catch (refreshError) {
+        localStorage.removeItem(
+          'accessToken'
+        );
+
+        /*
+         * Clear persisted auth state as well.
+         */
+        localStorage.removeItem('auth');
+
         window.location.href = '/login';
+
+        return Promise.reject(refreshError);
       }
     }
+
+    /*
+     * 403 means the server received the request
+     * but refused permission.
+     *
+     * Do NOT redirect to login here because
+     * the user may already be authenticated.
+     */
+    if (error.response?.status === 403) {
+      console.error(
+        '403 Forbidden:',
+        error.response?.data
+      );
+    }
+
     return Promise.reject(error);
   }
 );
