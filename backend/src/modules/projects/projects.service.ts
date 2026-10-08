@@ -1421,30 +1421,82 @@ if (!subadminAssignment) {
     });
   }
 
-  /**
-   * Get faculty submission status
-   * for SubAdmin.
-   */
-  async getFacultySubmissions(
-    poolId: string
-  ) {
-    return prisma.poolFaculty.findMany({
-      where: {
-        poolId,
-      },
+ async getFacultySubmissions(poolId: string) {
+  const PROPOSALS_PER_FACULTY = 4;
 
-      include: {
-        faculty: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
+  const assignments = await prisma.poolFaculty.findMany({
+    where: {
+      poolId,
+    },
+    include: {
+      faculty: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
         },
       },
-    });
-  }
+    },
+  });
+
+  const result = await Promise.all(
+    assignments.map(async (assignment) => {
+      const projects = await prisma.project.findMany({
+        where: {
+          poolId,
+          facultyId: assignment.facultyId,
+        },
+        select: {
+          id: true,
+          status: true,
+          reviewedAt: true,
+          reviewedById: true,
+        },
+      });
+
+      const submittedProjects = projects.filter(
+        (project) => project.status === "SUBMITTED"
+      );
+
+      const reviewedProjects = projects.filter(
+        (project) =>
+          project.reviewedAt !== null ||
+          project.reviewedById !== null ||
+          project.status === "LOCKED" ||
+          project.status === "ON_HOLD"
+      );
+
+      let reviewStatus: "AWAITING" | "SUBMITTED" | "REVIEWED";
+
+      if (reviewedProjects.length >= PROPOSALS_PER_FACULTY) {
+        reviewStatus = "REVIEWED";
+      } else if (
+        submittedProjects.length >= PROPOSALS_PER_FACULTY
+      ) {
+        reviewStatus = "SUBMITTED";
+      } else if (
+        projects.length > 0 ||
+        assignment.hasSubmitted
+      ) {
+        reviewStatus = "SUBMITTED";
+      } else {
+        reviewStatus = "AWAITING";
+      }
+
+      return {
+        facultyId: assignment.facultyId,
+        hasSubmitted:
+          assignment.hasSubmitted || projects.length > 0,
+        submittedAt: assignment.submittedAt,
+        reviewStatus,
+        faculty: assignment.faculty,
+      };
+    })
+  );
+
+  return result;
+}
 
   /**
    * Get a single project.

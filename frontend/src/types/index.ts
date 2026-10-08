@@ -504,7 +504,10 @@ export interface FacultyStatus {
   facultyId: string;
   hasSubmitted: boolean;
   submittedAt?: string;
-
+  reviewStatus:
+    | 'AWAITING'
+    | 'SUBMITTED'
+    | 'REVIEWED';
   faculty: {
     id: string;
     firstName: string;

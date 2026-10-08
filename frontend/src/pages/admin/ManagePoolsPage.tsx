@@ -1,10 +1,9 @@
-// frontend/src/pages/admin/ManagePoolsPage.tsx
-
 import React, {
   useEffect,
   // useMemo,
   useState,
 } from 'react';
+import { useAuthStore } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { poolService } from '@/services/poolService';
 import { userService } from '@/services/userService';
@@ -237,6 +236,13 @@ const ManagePoolsPage: React.FC =
 
     const navigate =
       useNavigate();
+   
+      const user = useAuthStore(
+  (state) => state.user,
+);
+
+const isAdmin =
+  user?.role === 'ADMIN';
 
     const load = async () => {
       setLoading(true);
@@ -284,7 +290,7 @@ const ManagePoolsPage: React.FC =
               Create and manage project allocation pools
             </p>
           </div>
-
+       {isAdmin && (
           <button
             onClick={() =>
               setShowCreate(true)
@@ -294,6 +300,7 @@ const ManagePoolsPage: React.FC =
             <Plus className="w-4 h-4" />
             Create Pool
           </button>
+       )}
         </div>
 
         {loading ? (
