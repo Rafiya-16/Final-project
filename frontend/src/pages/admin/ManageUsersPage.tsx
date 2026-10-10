@@ -1,7 +1,7 @@
 // frontend/src/pages/admin/ManageUsersPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { userService } from '@/services/userService';
-import { Search, Filter, Upload, UserPlus, MoreVertical, ShieldOff, Shield, KeyRound, ChevronLeft, ChevronRight, Download, FileText, Loader2, CheckCircle2, XCircle, AlertTriangle, Eye, EyeOff, Copy } from 'lucide-react';
+import { Search, Upload, MoreVertical, ShieldOff, Shield, KeyRound, ChevronLeft, ChevronRight, Download, FileText, Loader2, CheckCircle2, Eye, EyeOff, Copy } from 'lucide-react';
 import { Badge } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -90,7 +90,9 @@ const UsersList: React.FC = () => {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dept</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>                
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dept</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -105,6 +107,7 @@ const UsersList: React.FC = () => {
                   <td className="px-4 py-3"><Badge text={u.role} /></td>
                   <td className="px-4 py-3 text-sm font-mono text-gray-600">{u.role === 'STUDENT' ? u.enrollmentNo || '—' : u.facultyId || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{u.department || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{u.phone || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${u.isActive ? 'bg-green-500' : 'bg-red-500'}`} />{u.isActive ? 'Active' : 'Inactive'}
@@ -186,13 +189,14 @@ const BulkImport: React.FC = () => {
         </div>
         <div className="bg-white rounded-xl border overflow-hidden">
           <table className="min-w-full divide-y text-sm">
-            <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs text-gray-500">Row</th><th className="px-4 py-2 text-left text-xs text-gray-500">Status</th><th className="px-4 py-2 text-left text-xs text-gray-500">Email</th><th className="px-4 py-2 text-left text-xs text-gray-500">Password</th><th className="px-4 py-2 text-left text-xs text-gray-500">Error</th></tr></thead>
+            <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs text-gray-500">Row</th><th className="px-4 py-2 text-left text-xs text-gray-500">Status</th><th className="px-4 py-2 text-left text-xs text-gray-500">Email</th><th className="px-4 py-2 text-left text-xs text-gray-500">Phone</th><th className="px-4 py-2 text-left text-xs text-gray-500">Password</th><th className="px-4 py-2 text-left text-xs text-gray-500">Error</th></tr></thead>
             <tbody className="divide-y">
               {result.results.map(r => (
                 <tr key={r.rowNumber} className={r.status === 'SUCCESS' ? '' : r.status === 'DUPLICATE' ? 'bg-yellow-50' : 'bg-red-50'}>
                   <td className="px-4 py-2 text-gray-500">{r.rowNumber}</td>
                   <td className="px-4 py-2"><Badge text={r.status} /></td>
                   <td className="px-4 py-2 font-mono text-gray-700">{r.email || '—'}</td>
+                  <td className="px-4 py-2 font-mono text-gray-700">{'phone' in r ? r.phone || '—' : '—'}</td>
                   <td className="px-4 py-2 font-mono">{r.status === 'SUCCESS' ? (showPwd ? <span className="text-green-700 bg-green-100 px-2 py-0.5 rounded">{r.tempPassword}</span> : '••••••') : '—'}</td>
                   <td className="px-4 py-2 text-red-600 text-xs max-w-xs truncate">{r.error}</td>
                 </tr>
@@ -209,11 +213,35 @@ const BulkImport: React.FC = () => {
     <div className="space-y-6">
       <div className="bg-white rounded-xl border p-6">
         <h2 className="text-lg font-semibold mb-3">CSV Format</h2>
-        <div className="overflow-x-auto border rounded-lg">
-          <table className="min-w-full text-xs"><thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left">name</th><th className="px-3 py-2 text-left">email</th><th className="px-3 py-2 text-left">enrollment</th><th className="px-3 py-2 text-left">role</th><th className="px-3 py-2 text-left">department</th></tr></thead>
-            <tbody><tr className="bg-blue-50"><td className="px-3 py-1.5">Ali Khan</td><td className="px-3 py-1.5 font-mono">ali@iul.ac.in</td><td className="px-3 py-1.5">20BCS001</td><td className="px-3 py-1.5">student</td><td className="px-3 py-1.5">CSE</td></tr>
-              <tr className="bg-purple-50"><td className="px-3 py-1.5">Dr Khan</td><td className="px-3 py-1.5 font-mono">khan@iul.ac.in</td><td className="px-3 py-1.5 italic text-gray-400">(empty)</td><td className="px-3 py-1.5">faculty</td><td className="px-3 py-1.5">CSE</td></tr></tbody></table>
-        </div>
+      <div className="overflow-x-auto border rounded-lg">
+  <table className="min-w-full text-xs">
+    <thead className="bg-gray-50">
+      <tr>
+        {['name', 'email', 'enrollment', 'role', 'department', 'phone'].map(header => (
+          <th key={header} className="px-3 py-2 text-left">{header}</th>
+        ))}
+      </tr>
+    </thead>
+    <tbody>
+      <tr className="bg-blue-50">
+        <td className="px-3 py-1.5">Ali Khan</td>
+        <td className="px-3 py-1.5 font-mono">ali@iul.ac.in</td>
+        <td className="px-3 py-1.5">20BCS001</td>
+        <td className="px-3 py-1.5">student</td>
+        <td className="px-3 py-1.5">CSE</td>
+        <td className="px-3 py-1.5">0987654321</td>
+      </tr>
+      <tr className="bg-purple-50">
+        <td className="px-3 py-1.5">Dr Khan</td>
+        <td className="px-3 py-1.5 font-mono">khan@iul.ac.in</td>
+        <td className="px-3 py-1.5 italic text-gray-400">(empty)</td>
+        <td className="px-3 py-1.5">faculty</td>
+        <td className="px-3 py-1.5">CSE</td>
+        <td className="px-3 py-1.5">+919876543210</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
         <button onClick={() => userService.downloadTemplate()} className="mt-3 flex items-center gap-2 px-4 py-2 bg-white border rounded-lg text-sm hover:bg-gray-50"><Download className="w-4 h-4" />Download Template</button>
       </div>
 
@@ -235,7 +263,7 @@ const BulkImport: React.FC = () => {
 
 // ── CREATE USER ──
 const CreateUser: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', role: 'STUDENT', department: 'CSE', enrollmentNo: '', facultyId: '', semester: '', section: '', designation: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', role: 'STUDENT', department: 'CSE', enrollmentNo: '', facultyId: '', semester: '', section: '', designation: '', phone: '', });
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<CreatedUserResult | null>(null);
 
@@ -289,6 +317,16 @@ const CreateUser: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
         <div><label className="text-sm font-medium text-gray-700">Last Name *</label><input value={form.lastName} onChange={e => set('lastName', e.target.value)} required className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
       </div>
       <div><label className="text-sm font-medium text-gray-700">Email *</label><input type="email" value={form.email} onChange={e => set('email', e.target.value)} required className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
+      <div>
+  <label className="text-sm font-medium text-gray-700">Phone Number</label>
+  <input
+    type="tel"
+    value={form.phone}
+    onChange={e => set('phone', e.target.value)}
+    placeholder="e.g. +919876543210"
+    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+  />
+</div>
       <div><label className="text-sm font-medium text-gray-700">Department *</label>
         <select value={form.department} onChange={e => set('department', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none">
           <option value="CSE">CSE</option><option value="IT">IT</option><option value="ECE">ECE</option><option value="ME">ME</option>

@@ -86,64 +86,81 @@ export class ReportsService {
       throw new NotFoundError('Pool not found');
     }
 
-    const [
-      totalStudents,
-      totalFaculty,
-      totalProjects,
-      approvedProjects,
-      totalTeams,
-      frozenTeams,
-      unassignedStudents,
-    ] = await Promise.all([
-      prisma.poolStudent.count({
-        where: { poolId },
-      }),
+   const [
+  totalStudents,
+  totalFaculty,
+  totalProjects,
+  approvedProjects,
+  totalTeams,
+  frozenTeams,
+  unassignedStudents,
+  assignedStudents,
+] = await Promise.all([
+  // Total students registered in this pool
+  prisma.poolStudent.count({
+    where: { poolId },
+  }),
 
-      prisma.poolFaculty.count({
-        where: { poolId },
-      }),
+  // Total faculty assigned to this pool
+  prisma.poolFaculty.count({
+    where: { poolId },
+  }),
 
-      prisma.project.count({
-        where: { poolId },
-      }),
+  // All projects in this pool
+  prisma.project.count({
+    where: { poolId },
+  }),
 
-      prisma.project.count({
-        where: {
-          poolId,
-          status: 'APPROVED',
-        },
-      }),
+  // Approved projects
+  prisma.project.count({
+    where: {
+      poolId,
+      status: 'APPROVED',
+    },
+  }),
 
-      prisma.team.count({
-        where: {
-          poolId,
-          status: { not: 'DISSOLVED' },
-        },
-      }),
+  // Non-dissolved teams
+  prisma.team.count({
+    where: {
+      poolId,
+      status: { not: 'DISSOLVED' },
+    },
+  }),
 
-      prisma.team.count({
-        where: {
-          poolId,
-          status: 'FROZEN',
-        },
-      }),
+  // Frozen teams
+  prisma.team.count({
+    where: {
+      poolId,
+      status: 'FROZEN',
+    },
+  }),
 
-      prisma.poolStudent.count({
-        where: {
-          poolId,
-          student: {
-            teamMemberships: {
-              none: {
-                team: {
-                  poolId,
-                },
-                status: 'ACTIVE',
-              },
-            },
+  // Students without an active team membership
+  prisma.poolStudent.count({
+    where: {
+      poolId,
+      student: {
+        teamMemberships: {
+          none: {
+            team: { poolId },
+            status: 'ACTIVE',
           },
         },
-      }),
-    ]);
+      },
+    },
+  }),
+
+  // Students with an active membership in a non-dissolved team
+  prisma.teamMember.count({
+    where: {
+      status: 'ACTIVE',
+      team: {
+        poolId,
+        status: { not: 'DISSOLVED' },
+      },
+    },
+  }),
+]);
 
     const projectsByStatus = await prisma.project.groupBy({
       by: ['status'],
@@ -166,6 +183,7 @@ export class ReportsService {
       totalFaculty,
       totalProjects,
       approvedProjects,
+      assignedStudents,
       totalTeams,
       frozenTeams,
       unassignedStudents,
@@ -213,15 +231,6 @@ export class ReportsService {
     return students.map((student) => student.student);
   }
 
-  /**
-   * Faculty Report
-   *
-   * Returns:
-   * - Faculty details
-   * - Whether faculty submitted proposals
-   * - Number of proposals
-   * - Complete proposal details
-   */
   async getFacultyReport(poolId: string) {
     const pool = await prisma.pool.findUnique({
       where: {
@@ -283,6 +292,11 @@ export class ReportsService {
                 decidedAt: true,
                 createdAt: true,
                 updatedAt: true,
+                team: {
+                 select: {
+                   name: true,
+                  },  
+                },
               },
             },
           },
@@ -290,18 +304,6 @@ export class ReportsService {
       },
     });
 
-    /*
-     * We intentionally sort here instead of using:
-     *
-     * orderBy: {
-     *   faculty: {
-     *     firstName: 'asc'
-     *   }
-     * }
-     *
-     * because your current Prisma client does not support
-     * that ordering in this PoolFaculty query.
-     */
     poolFaculty.sort((a, b) => {
       const nameA = `${a.faculty.firstName} ${a.faculty.lastName}`.toLowerCase();
       const nameB = `${b.faculty.firstName} ${b.faculty.lastName}`.toLowerCase();
@@ -326,11 +328,10 @@ export class ReportsService {
         },
 
         hasSubmitted: assignment.hasSubmitted,
-
         submittedAt: assignment.submittedAt,
-
         proposalCount: facultyMember.facultyProjects.length,
-
+        totalTopics: facultyMember.facultyProjects.length,
+        approvedProjects: facultyMember.facultyProjects.filter((project) => project.status === 'APPROVED').length,
         proposals: facultyMember.facultyProjects,
       };
     });

@@ -69,6 +69,8 @@ export interface Pool {
   status: PoolStatus;
   submissionStart: string;
   submissionEnd: string;
+  ideaSubmissionStart?: string | null;
+  ideaSubmissionEnd?: string | null;
   reviewStart: string;
   reviewEnd: string;
   decisionDeadline: string;
@@ -165,6 +167,8 @@ export interface Team {
     id: string;
     firstName: string;
     lastName: string;
+    email?: string;
+    enrollmentNo?: string;
   };
 
   invites?: TeamInvite[];
@@ -409,6 +413,7 @@ export interface ImportResult {
     status: string;
     name?: string;
     email?: string;
+    phone?: string | null;
     enrollment?: string;
     role?: string;
     error?: string;
@@ -429,6 +434,7 @@ export interface CreateUserInput {
   semester?: number;
   section?: string;
   designation?: string;
+  phone?: string;
 }
 
 export interface CreatePoolInput {
@@ -438,6 +444,8 @@ export interface CreatePoolInput {
   department?: string;
   submissionStart: string;
   submissionEnd: string;
+  ideaSubmissionStart?: string | null;
+  ideaSubmissionEnd?: string | null;
   reviewStart: string;
   reviewEnd: string;
   decisionDeadline: string;

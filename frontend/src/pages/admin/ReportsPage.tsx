@@ -279,7 +279,6 @@ const ReportsPage: React.FC = () => {
         setFacultyReport(
           getObjectFromResponse(facultyResponse)
         );
-
         setUnassigned(
           getArrayFromResponse(
             unassignedResponse
@@ -565,17 +564,19 @@ const ReportsPage: React.FC = () => {
     summary?.statistics?.totalStudents ??
     0;
 
-  const assignedStudents =
-    summary?.assignedStudents ??
-    summary?.allocatedStudents ??
-    summary?.statistics?.assignedStudents ??
-    0;
-
   const unassignedStudents =
     summary?.unassignedStudents ??
     summary?.statistics?.unassignedStudents ??
     unassigned.length;
 
+     const assignedStudents =
+  summary?.assignedStudents ??
+  summary?.allocatedStudents ??
+  summary?.statistics?.assignedStudents ??
+  (
+    Number(totalStudents) -
+    Number(unassignedStudents)
+  );
   const facultyCount =
     summary?.facultyCount ??
     summary?.totalFaculty ??
@@ -914,6 +915,8 @@ const ReportsPage: React.FC = () => {
             item?.totalTopics ??
               item?.topicCount ??
               item?.projectsCount ??
+              item?.proposalCount ??
+              item?.proposalCount ??
               0,
 
             item?.approvedProjects ??
@@ -1049,7 +1052,69 @@ const ReportsPage: React.FC = () => {
         projectSheet,
         'Project Topics'
       );
+     const facultyProjectRows: any[][] = [
+  [
+    'Faculty ID',
+    'Faculty Name',
+    'Project Code',
+    'Project Title',
+    'Status',
+    'Assigned Team',
+  ],
+];
 
+faculty.forEach((item: ReportRecord) => {
+  const facultyData = item?.faculty || item?.user || item;
+  const facultyName =
+    facultyData?.name ||
+    facultyData?.fullName ||
+    `${facultyData?.firstName || ''} ${facultyData?.lastName || ''}`.trim() ||
+    'Unknown Faculty';
+
+  const facultyProjects: ReportRecord[] = Array.isArray(item?.proposals)
+    ? item.proposals
+    : [];
+
+  if (facultyProjects.length === 0) {
+    facultyProjectRows.push([
+      facultyData?.facultyId || '—',
+      facultyName,
+      '—',
+      'No projects submitted',
+      '—',
+      '—',
+    ]);
+    return;
+  }
+
+  facultyProjects.forEach((project: ReportRecord) => {
+    facultyProjectRows.push([
+      facultyData?.facultyId || '—',
+      facultyName,
+      project?.projectCode || 'Not assigned',
+      project?.title || '—',
+      project?.status || '—',
+      project?.team?.name || 'Not assigned',
+    ]);
+  });
+});
+
+const facultyProjectSheet = XLSX.utils.aoa_to_sheet(facultyProjectRows);
+
+facultyProjectSheet['!cols'] = [
+  { wch: 18 },
+  { wch: 28 },
+  { wch: 18 },
+  { wch: 40 },
+  { wch: 18 },
+  { wch: 28 },
+];
+
+XLSX.utils.book_append_sheet(
+  workbook,
+  facultyProjectSheet,
+  'Faculty Projects'
+);
       const unassignedRows: any[][] = [
         [
           'Section',
@@ -1551,7 +1616,11 @@ const ReportsPage: React.FC = () => {
                         item?.faculty ||
                         item?.user ||
                         item;
-
+                  const facultyProjects: ReportRecord[] = Array.isArray(
+  item?.proposals
+)
+  ? item.proposals
+  : [];
                       const facultyId =
                         item?.facultyId ||
                         facultyData?.facultyId ||
@@ -1671,7 +1740,70 @@ const ReportsPage: React.FC = () => {
                                   </p>
                                 </div>
                               </div>
+                              <div className="mt-6">
+  <h3 className="mb-3 text-sm font-semibold text-gray-900">
+    Submitted Projects ({facultyProjects.length})
+  </h3>
+
+  {facultyProjects.length === 0 ? (
+    <p className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-500">
+      No projects submitted by this faculty.
+    </p>
+  ) : (
+    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+      <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-4 py-3 text-left font-medium text-gray-600">
+              Project Code
+            </th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600">
+              Project Title
+            </th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600">
+              Status
+            </th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600">
+              Assigned Team
+            </th>
+          </tr>
+        </thead>
+
+        <tbody className="divide-y divide-gray-100">
+          {facultyProjects.map((project: ReportRecord) => (
+            <tr key={project.id}>
+              <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">
+                {displayValue(
+                  project.projectCode,
+                  'Not assigned'
+                )}
+              </td>
+
+              <td className="min-w-[200px] px-4 py-3 text-gray-700">
+                {displayValue(project.title)}
+              </td>
+
+              <td className="whitespace-nowrap px-4 py-3">
+                <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                  {displayValue(project.status)}
+                </span>
+              </td>
+
+              <td className="whitespace-nowrap px-4 py-3 text-gray-700">
+                {displayValue(
+                  project.team?.name,
+                  'Not assigned'
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</div>
                             </div>
+                            
                           )}
                         </div>
                       );
@@ -2143,7 +2275,52 @@ const ReportsPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+       <div className="section">
+  <h2>Faculty Submitted Projects</h2>
 
+  {faculty.map((item: ReportRecord, index: number) => {
+    const facultyData = item?.faculty || item?.user || item;
+    const facultyName =
+      facultyData?.name ||
+      facultyData?.fullName ||
+      `${facultyData?.firstName || ''} ${facultyData?.lastName || ''}`.trim() ||
+      'Unknown Faculty';
+    const facultyProjects: ReportRecord[] = Array.isArray(item?.proposals)
+      ? item.proposals
+      : [];
+
+    return (
+      <div key={item?.id || facultyData?.id || index}>
+        <h3>{facultyName}</h3>
+
+        {facultyProjects.length === 0 ? (
+          <p>No projects submitted.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Project Code</th>
+                <th>Project Title</th>
+                <th>Status</th>
+                <th>Assigned Team</th>
+              </tr>
+            </thead>
+            <tbody>
+              {facultyProjects.map((project: ReportRecord) => (
+                <tr key={project.id}>
+                  <td>{displayValue(project.projectCode, 'Not assigned')}</td>
+                  <td>{displayValue(project.title)}</td>
+                  <td>{displayValue(project.status)}</td>
+                  <td>{displayValue(project.team?.name, 'Not assigned')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    );
+  })}
+</div>
         <div className="section">
           <h2>Project Topics</h2>
 

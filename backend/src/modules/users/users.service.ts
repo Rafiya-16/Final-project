@@ -101,7 +101,13 @@ export class UsersService {
               enrollmentno: 'enrollment',
               enrollmentnumber: 'enrollment',
               enrollmentid: 'enrollment',
-              'enrollmentno.': 'enrollment',
+              'enrollmentno.' : 'enrollment',
+               phonenumber: 'phone',
+               mobileno: 'phone',
+               mobilenumber: 'phone',
+               mobile: 'phone',
+               contactno: 'phone',
+               contactnumber: 'phone',
             };
 
             return (
@@ -255,7 +261,16 @@ export class UsersService {
       ) {
         return 'enrollment';
       }
-
+      if (
+    header === 'phonenumber' ||
+    header === 'mobileno' ||
+    header === 'mobilenumber' ||
+    header === 'mobile' ||
+    header === 'contactno' ||
+    header === 'contactnumber'
+  ) {
+    return 'phone';
+  }
       return header;
     });
 
@@ -944,7 +959,7 @@ export class UsersService {
 
                   department:
                     item.parsed.department,
-
+                   phone: item.parsed.phone?.trim() || null,
                   enrollmentNo:
                     isStudent
                       ? item.parsed
@@ -990,6 +1005,7 @@ export class UsersService {
                   facultyId: true,
                   department: true,
                   section: true,
+                  phone: true,
                   createdAt: true,
                 },
               });
@@ -1042,7 +1058,7 @@ export class UsersService {
               section:
                 item.parsed.section ||
                 null,
-
+              phone: item.parsed.phone || null,
               tempPassword:
                 item.tempPassword,
             });
@@ -1201,8 +1217,18 @@ export class UsersService {
     status: finalStatus,
     totalRows: parsedRows.length, successCount, failureCount, duplicateCount, results,
   };
+  
 }
 
+  generateCsvTemplate() {
+    return [
+      'name,email,id,role,department,section,phone',
+      'Ali Khan,ali@example.com,20BCS001,student,CSE,A,0987654321',
+      'Dr Khan,khan@example.com,FAC001,faculty,CSE,,9876543210',
+      'Sara Ahmed,sara@example.com,SUB001,subadmin,CSE,,9876543211',
+    ].join('\n');
+  }
+  
   async getImportJob(jobId: string) {
     const job = await prisma.bulkImportJob.findUnique({ where: { id: jobId }, include: { rows: { orderBy: { rowNumber: 'asc' } }, creator: { select: { firstName: true, lastName: true, email: true } } } });
     if (!job) throw new NotFoundError('Job not found');

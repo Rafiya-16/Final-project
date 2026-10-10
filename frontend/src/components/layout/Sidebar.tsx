@@ -33,7 +33,6 @@ import {
   Menu,
   X,
   Sparkles,
-  ArrowLeftRight,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -603,12 +602,6 @@ export const Sidebar: React.FC = () => {
     hasSubadminAccess &&
     activeWorkplace === 'SUBADMIN';
 
-  /*
-   * Normal roles use their own role.
-   *
-   * Faculty + SubAdmin uses the SUBADMIN navigation
-   * while the workplace is switched.
-   */
   const effectiveRole =
     isSubadminWorkplace
       ? 'SUBADMIN'
@@ -638,11 +631,6 @@ export const Sidebar: React.FC = () => {
       setWorkplace(workplace);
 
       setIsMobileMenuOpen(false);
-
-      /*
-       * DashboardRedirect will render the correct
-       * dashboard based on the selected workplace.
-       */
       navigate('/dashboard');
     };
 

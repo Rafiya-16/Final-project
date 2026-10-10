@@ -126,15 +126,9 @@ export class IdeasService {
       );
     }
 
-    if (
-      !['SELECTION_OPEN', 'TEAMS_FORMING'].includes(
-        pool.status
-      )
-    ) {
-      throw new BadRequestError(
-        'Idea submission is not open'
-      );
-    }
+   if (pool.status !== 'IDEA_SUBMISSION') {
+  throw new BadRequestError('Idea submission is not open');
+}
 
     if (!data.title?.trim()) {
       throw new BadRequestError(

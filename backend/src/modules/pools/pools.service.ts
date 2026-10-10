@@ -885,72 +885,72 @@ export class PoolsService {
    * Get a single pool by ID.
    */
   async getPoolById(
-    poolId: string,
-  ) {
-    const pool =
-      await prisma.pool.findUnique({
-        where: {
-          id: poolId,
-        },
+  poolId: string,
+) {
+  await this.syncPoolPhase(poolId);
 
-        include: {
-          subadmins: {
-            include: {
-              subadmin: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                },
+  const pool =
+    await prisma.pool.findUnique({
+      where: {
+        id: poolId,
+      },
+
+      include: {
+        subadmins: {
+          include: {
+            subadmin: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
               },
             },
           },
+        },
 
-          faculty: {
-            include: {
-              faculty: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                  designation:
-                    true,
-                },
+        faculty: {
+          include: {
+            faculty: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                designation: true,
               },
             },
-            orderBy: {
-              allocationOrder:
-                'asc',
-            },
           },
-
-          _count: {
-            select: {
-              students: true,
-              projects: true,
-              teams: true,
-            },
-          },
-
-          creator: {
-            select: {
-              firstName: true,
-              lastName: true,
-            },
+          orderBy: {
+            allocationOrder: 'asc',
           },
         },
-      });
 
-    if (!pool) {
-      throw new NotFoundError(
-        'Pool not found',
-      );
-    }
+        _count: {
+          select: {
+            students: true,
+            projects: true,
+            teams: true,
+          },
+        },
 
-    return pool;
+        creator: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+  if (!pool) {
+    throw new NotFoundError(
+      'Pool not found',
+    );
   }
+
+  return pool;
+}
 
   /**
    * Update a pool.
@@ -1075,11 +1075,231 @@ export class PoolsService {
       data: updateData,
     });
   }
+  private getPoolPhaseFromTimeline(
+    pool: {
+      status: PoolStatus;
+      submissionStart: Date;
+      submissionEnd: Date;    
+      reviewStart: Date;
+      reviewEnd: Date;
+      selectionStart: Date;
+      selectionEnd: Date;
+      ideaSubmissionStart: Date | null;
+      ideaSubmissionEnd: Date | null;
+      teamFreezeDate: Date;
+    },
+    now = new Date(),
+  ): PoolStatus {
+    if (pool.status === 'ARCHIVED') {
+      return 'ARCHIVED';
+    }
 
-  /**
-   * Activate a pool.
-   */
-  async activatePool(
+    if (now < pool.submissionStart) {
+      return 'DRAFT';
+    }
+
+     if (now < pool.submissionEnd) {
+    return 'SUBMISSION_OPEN';
+  }
+
+    if (now < pool.reviewEnd) {
+      return 'UNDER_REVIEW';
+    }
+
+    if (now < pool.selectionStart) {
+      return 'DECISION_PENDING';
+    }
+
+    if (now < pool.selectionEnd) {
+      return 'SELECTION_OPEN';
+    }
+
+    if (
+      pool.ideaSubmissionStart &&
+      pool.ideaSubmissionEnd
+    ) {
+      if (now < pool.ideaSubmissionStart) {
+        return 'TEAMS_FORMING';
+      }
+
+      if (now < pool.ideaSubmissionEnd) {
+        return 'IDEA_SUBMISSION';
+      }
+    }
+
+    if (now < pool.teamFreezeDate) {
+      return 'TEAMS_FORMING';
+    }
+
+    return 'FROZEN';
+  }
+
+  private async transitionPoolPhase(
+  poolId: string,
+  nextStatus: PoolStatus,
+  previousStatus: PoolStatus,
+  auditAction:
+    | 'ACTIVATE_POOL'
+    | 'ADVANCE_PHASE'
+    | 'SYNC_PHASE' = 'SYNC_PHASE',
+) {
+  if (previousStatus === nextStatus) {
+    return prisma.pool.findUnique({
+      where: {
+        id: poolId,
+      },
+    });
+  }
+
+  if (nextStatus === 'FROZEN') {
+    await prisma.team.updateMany({
+      where: {
+        poolId,
+        status: {
+          not: 'DISSOLVED',
+        },
+      },
+      data: {
+        isFrozen: true,
+        status: 'FROZEN',
+      },
+    });
+  }
+
+  const updated = await prisma.pool.update({
+    where: {
+      id: poolId,
+    },
+    data: {
+      status: nextStatus,
+    },
+  });
+
+  if (auditAction !== 'SYNC_PHASE') {
+    const systemUser = await prisma.user.findFirst({
+      where: {
+        role: 'ADMIN',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (systemUser) {
+      await auditService.log(
+        systemUser.id,
+        auditAction,
+        'Pool',
+        poolId,
+        previousStatus,
+        nextStatus,
+      );
+    }
+  }
+
+  if (nextStatus === 'UNDER_REVIEW') {
+    const subadmins =
+      await prisma.poolSubadmin.findMany({
+        where: {
+          poolId,
+        },
+        select: {
+          subadminId: true,
+        },
+      });
+
+    if (subadmins.length > 0) {
+      notificationsService
+        .createBulk(
+          subadmins.map(
+            (subadmin) =>
+              subadmin.subadminId,
+          ),
+          'GENERAL',
+          'Review Phase Started',
+          `Pool "${updated!.name}" is now in review. Faculty proposals are ready for your review.`,
+          `/pools/${poolId}`,
+        )
+        .catch(() => {});
+    }
+  }
+
+  if (nextStatus === 'SELECTION_OPEN') {
+    const students =
+      await prisma.poolStudent.findMany({
+        where: {
+          poolId,
+        },
+        select: {
+          studentId: true,
+        },
+      });
+
+    if (students.length > 0) {
+      notificationsService
+        .createBulk(
+          students.map(
+            (student) =>
+              student.studentId,
+          ),
+          'GENERAL',
+          'Project Selection Open',
+          `Project selection is now open for pool "${updated!.name}".`,
+          `/pools/${poolId}`,
+        )
+        .catch(() => {});
+    }
+  }
+
+  return updated;
+}
+
+  async syncPoolPhase(
+    poolId: string,
+    now = new Date(),
+  ) {
+    const pool =
+      await prisma.pool.findUnique({
+        where: {
+          id: poolId,
+        },
+      });
+
+    if (!pool) {
+      throw new NotFoundError(
+        'Pool not found',
+      );
+    }
+
+    if (
+      pool.status ===
+        'ARCHIVED'
+    ) {
+      return pool;
+    }
+
+    const expectedStatus =
+      this.getPoolPhaseFromTimeline(
+        pool,
+        now,
+      );
+
+    if (
+      expectedStatus ===
+      pool.status
+    ) {
+      return pool;
+    }
+
+    return this.transitionPoolPhase(
+      poolId,
+      expectedStatus,
+      pool.status,
+      'SYNC_PHASE',
+    );
+  }
+
+    async activatePool(
     poolId: string,
   ) {
     const pool =
@@ -1087,7 +1307,6 @@ export class PoolsService {
         where: {
           id: poolId,
         },
-
         include: {
           _count: {
             select: {
@@ -1112,9 +1331,7 @@ export class PoolsService {
     }
 
     if (
-      pool._count
-        .subadmins ===
-      0
+      pool._count.subadmins === 0
     ) {
       throw new BadRequestError(
         'Assign at least 1 subadmin',
@@ -1122,8 +1339,7 @@ export class PoolsService {
     }
 
     if (
-      pool._count.faculty ===
-      0
+      pool._count.faculty === 0
     ) {
       throw new BadRequestError(
         'Assign at least 1 faculty',
@@ -1131,51 +1347,41 @@ export class PoolsService {
     }
 
     if (
-      pool._count.students ===
-      0
+      pool._count.students === 0
     ) {
       throw new BadRequestError(
         'Assign at least 1 student',
       );
     }
 
-    const updated =
-      await prisma.pool.update({
-        where: {
-          id: poolId,
-        },
+    const expectedStatus =
+      this.getPoolPhaseFromTimeline(
+        pool,
+        new Date(),
+      );
 
-        data: {
-          status:
-            'SUBMISSION_OPEN',
+    const updated =
+      await this.transitionPoolPhase(
+        poolId,
+        expectedStatus,
+        pool.status,
+        'ACTIVATE_POOL',
+      );
+
+    const facultyAssignments =
+      await prisma.poolFaculty.findMany({
+        where: {
+          poolId,
+        },
+        select: {
+          facultyId: true,
         },
       });
 
-    auditService
-      .log(
-        'system',
-        'ACTIVATE_POOL',
-        'Pool',
-        poolId,
-      )
-      .catch(() => {});
-
-    const facultyAssignments =
-      await prisma.poolFaculty.findMany(
-        {
-          where: {
-            poolId,
-          },
-
-          select: {
-            facultyId: true,
-          },
-        },
-      );
-
     if (
-      facultyAssignments.length >
-      0
+      facultyAssignments.length > 0 &&
+      expectedStatus ===
+        'SUBMISSION_OPEN'
     ) {
       notificationsService
         .createBulk(
@@ -1185,7 +1391,7 @@ export class PoolsService {
           ),
           'SUBMISSION_REMINDER',
           'Submissions Open',
-          `Pool "${updated.name}" is now open for proposal submissions.`,
+          `Pool "${pool.name}" is now open for proposal submissions.`,
           `/pools/${poolId}`,
         )
         .catch(() => {});
@@ -1197,7 +1403,7 @@ export class PoolsService {
   /**
    * Advance the pool to the next phase.
    */
-  async advancePhase(
+    async advancePhase(
     poolId: string,
   ) {
     const pool =
@@ -1213,9 +1419,8 @@ export class PoolsService {
       );
     }
 
-    const transitions: Record<
-      string,
-      PoolStatus
+    const transitions: Partial<
+      Record<PoolStatus, PoolStatus>
     > = {
       SUBMISSION_OPEN:
         'UNDER_REVIEW',
@@ -1230,13 +1435,14 @@ export class PoolsService {
         'TEAMS_FORMING',
 
       TEAMS_FORMING:
-        'FROZEN',
+        'IDEA_SUBMISSION',
+
+      IDEA_SUBMISSION:
+        'TEAMS_FORMING',
     };
 
     const nextStatus =
-      transitions[
-        pool.status
-      ];
+      transitions[pool.status];
 
     if (!nextStatus) {
       throw new BadRequestError(
@@ -1244,122 +1450,12 @@ export class PoolsService {
       );
     }
 
-    if (
-      nextStatus ===
-      'FROZEN'
-    ) {
-      await prisma.team.updateMany({
-        where: {
-          poolId,
-
-          status: {
-            not: 'DISSOLVED',
-          },
-        },
-
-        data: {
-          isFrozen: true,
-          status: 'FROZEN',
-        },
-      });
-    }
-
-    const updated =
-      await prisma.pool.update({
-        where: {
-          id: poolId,
-        },
-
-        data: {
-          status:
-            nextStatus,
-        },
-      });
-
-    auditService
-      .log(
-        'system',
-        'ADVANCE_PHASE',
-        'Pool',
-        poolId,
-        pool.status,
-        nextStatus,
-      )
-      .catch(() => {});
-
-    if (
-      nextStatus ===
-      'UNDER_REVIEW'
-    ) {
-      const subadmins =
-        await prisma.poolSubadmin.findMany(
-          {
-            where: {
-              poolId,
-            },
-
-            select: {
-              subadminId: true,
-            },
-          },
-        );
-
-      if (
-        subadmins.length >
-        0
-      ) {
-        notificationsService
-          .createBulk(
-            subadmins.map(
-              (subadmin) =>
-                subadmin.subadminId,
-            ),
-            'GENERAL',
-            'Review Phase Started',
-            `Pool "${updated.name}" is now in review. Faculty proposals are ready for your review.`,
-            `/pools/${poolId}`,
-          )
-          .catch(() => {});
-      }
-    }
-
-    if (
-      nextStatus ===
-      'SELECTION_OPEN'
-    ) {
-      const students =
-        await prisma.poolStudent.findMany(
-          {
-            where: {
-              poolId,
-            },
-
-            select: {
-              studentId: true,
-            },
-          },
-        );
-
-      if (
-        students.length >
-        0
-      ) {
-        notificationsService
-          .createBulk(
-            students.map(
-              (student) =>
-                student.studentId,
-            ),
-            'GENERAL',
-            'Project Selection Open',
-            `Pool "${updated.name}" is now open for project selection. Browse approved projects and form your team!`,
-            '/projects',
-          )
-          .catch(() => {});
-      }
-    }
-
-    return updated;
+    return this.transitionPoolPhase(
+      poolId,
+      nextStatus,
+      pool.status,
+      'ADVANCE_PHASE',
+    );
   }
 
   /**

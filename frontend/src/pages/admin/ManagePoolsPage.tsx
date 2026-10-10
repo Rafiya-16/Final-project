@@ -136,8 +136,7 @@ interface CreatePoolFormState {
   studentIds: string[];
 }
 
-const AUTOMATIC_FIELDS: TimelineKey[] = [
-  'submissionEnd',
+const AUTOMATIC_FIELDS: Exclude<TimelineKey, 'submissionStart'>[] = [  'submissionEnd',
   'reviewStart',
   'reviewEnd',
   'decisionDeadline',

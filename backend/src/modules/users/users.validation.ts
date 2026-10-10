@@ -123,6 +123,11 @@ export const csvRowSchema = z
       .transform(v =>
         (v || '').trim().toUpperCase()
       ),
+  phone: z
+      .string()
+      .optional()
+      .default('')
+      .transform(v => (v || '').trim()),
   })
   .refine(
     d => {

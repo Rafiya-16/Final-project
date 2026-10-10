@@ -73,15 +73,6 @@ export class ProjectsService {
     );
   }
 
-  /**
-   * Faculty creates a project proposal.
-   *
-   * IMPORTANT:
-   * Project codes are NOT assigned here.
-   *
-   * New proposals remain DRAFT until the faculty
-   * finalizes their submission.
-   */
   async submitProposal(
     poolId: string,
     facultyId: string,
@@ -146,14 +137,6 @@ export class ProjectsService {
       );
     }
 
-    /**
-     * Check similarity immediately when creating
-     * the proposal.
-     *
-     * This does NOT block creation. It stores the
-     * similarity result so the faculty can see it
-     * and finalization performs the final check.
-     */
     const similarity =
       await this.checkProjectSimilarity(
         poolId,
@@ -271,13 +254,6 @@ export class ProjectsService {
       [key: string]: any;
     }> = [];
 
-    /**
-     * Check each project against all OTHER projects
-     * in the pool.
-     *
-     * The current project is excluded from its own
-     * comparison.
-     */
     for (const project of projects) {
       const similarity =
         await this.checkProjectSimilarity(
@@ -296,10 +272,6 @@ export class ProjectsService {
       });
     }
 
-    /**
-     * If any proposal is blocked by similarity,
-     * do not submit any proposal.
-     */
     const blockedProjects =
       similarityResults.filter(
         (result) =>
@@ -373,12 +345,6 @@ export class ProjectsService {
       throw error;
     }
 
-    /**
-     * Submit all proposals atomically.
-     *
-     * IMPORTANT:
-     * No project code is generated here.
-     */
     await prisma.$transaction(
       async (tx) => {
         for (
@@ -483,14 +449,6 @@ export class ProjectsService {
         projectId
       );
 
-    /**
-     * Only update fields that belong to
-     * the project.
-     *
-     * This avoids accidentally trying to update
-     * fields such as poolId/facultyId/status from
-     * arbitrary frontend data.
-     */
     const updateData: any = {
       similarityStatus:
         similarity.action,
@@ -590,13 +548,6 @@ export class ProjectsService {
     };
   }
 
-  /**
-   * SubAdmin locks a proposal.
-   *
-   * SUBMITTED -> LOCKED
-   *
-   * No project code is assigned here.
-   */
   async lockProject(
     projectId: string,
     subadminId: string,
@@ -641,13 +592,6 @@ export class ProjectsService {
     });
   }
 
-  /**
-   * SubAdmin holds a proposal for Admin review.
-   *
-   * SUBMITTED -> ON_HOLD
-   *
-   * No project code is assigned here.
-   */
   async holdProject(
     projectId: string,
     subadminId: string,
@@ -691,13 +635,6 @@ export class ProjectsService {
     });
   }
 
-  /**
-   * SubAdmin reviews all proposals from one faculty.
-   *
-   * Required:
-   * 3 LOCK
-   * 1 HOLD
-   */
   async reviewFacultyProposals(
     poolId: string,
     facultyId: string,
@@ -772,10 +709,6 @@ if (!subadminAssignment) {
       );
     }
 
-    /**
-     * Make sure there are no duplicate
-     * project IDs in the decisions.
-     */
     const uniqueDecisionIds =
       new Set(
         decisions.map(
@@ -792,10 +725,6 @@ if (!subadminAssignment) {
       );
     }
 
-    /**
-     * Verify all decisions belong to
-     * this faculty and pool.
-     */
     const projectIds =
       new Set(
         projects.map(
@@ -1198,7 +1127,7 @@ if (!subadminAssignment) {
   };
 }
 
-  async getProjectsByPool(
+async getProjectsByPool(
   poolId: string,
   userId: string,
   userRole: string,
@@ -1213,7 +1142,20 @@ if (!subadminAssignment) {
     throw new NotFoundError('Pool not found');
   }
 
-  // ADMIN can see everything
+  const teamInclude = {
+    include: {
+      leader: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          enrollmentNo: true,
+        },
+      },
+    },
+  };
+
   if (userRole === 'ADMIN') {
     return prisma.project.findMany({
       where: {
@@ -1242,7 +1184,7 @@ if (!subadminAssignment) {
             lastName: true,
           },
         },
-        team: true,
+        team: teamInclude,
       },
       orderBy: {
         createdAt: 'asc',
@@ -1250,17 +1192,16 @@ if (!subadminAssignment) {
     });
   }
 
-  // STUDENT can only see approved projects from pools
-  // to which the student is assigned.
   if (userRole === 'STUDENT') {
-    const studentAssignment = await prisma.poolStudent.findUnique({
-      where: {
-        poolId_studentId: {
-          poolId,
-          studentId: userId,
+    const studentAssignment =
+      await prisma.poolStudent.findUnique({
+        where: {
+          poolId_studentId: {
+            poolId,
+            studentId: userId,
+          },
         },
-      },
-    });
+      });
 
     if (!studentAssignment) {
       throw new ForbiddenError(
@@ -1284,9 +1225,6 @@ if (!subadminAssignment) {
     });
   }
 
-  // IMPORTANT:
-  // A FACULTY user can also be a SubAdmin.
-  // Check PoolSubadmin BEFORE checking the user's role.
   if (
     userRole === 'SUBADMIN' ||
     userRole === 'FACULTY'
@@ -1329,7 +1267,7 @@ if (!subadminAssignment) {
               lastName: true,
             },
           },
-          team: true,
+          team: teamInclude,
         },
         orderBy: {
           createdAt: 'asc',
@@ -1338,8 +1276,6 @@ if (!subadminAssignment) {
     }
   }
 
-  // Normal FACULTY:
-  // only see their own projects in this pool.
   if (userRole === 'FACULTY') {
     const facultyAssignment =
       await prisma.poolFaculty.findUnique({
@@ -1371,7 +1307,7 @@ if (!subadminAssignment) {
             email: true,
           },
         },
-        team: true,
+        team: teamInclude,
       },
       orderBy: {
         createdAt: 'asc',
