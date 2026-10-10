@@ -745,7 +745,7 @@ export class PoolsService {
     return pool;
   }
 
-  async listPools(
+    async listPools(
     userId: string,
     userRole: string,
     params: PaginationParams,
@@ -759,41 +759,28 @@ export class PoolsService {
 
     if (userRole === 'ADMIN') {
       where = {};
-    } else if (
-      userRole === 'SUBADMIN'
-    ) {
+    } else if (userRole === 'SUBADMIN') {
       where = {
         subadmins: {
           some: {
-            subadminId:
-              userId,
+            subadminId: userId,
           },
         },
       };
-    } else if (
-      userRole === 'FACULTY'
-    ) {
-      if (
-        scope ===
-        'subadmin'
-      ) {
+    } else if (userRole === 'FACULTY') {
+      if (scope === 'subadmin') {
         where = {
           subadmins: {
             some: {
-              subadminId:
-                userId,
+              subadminId: userId,
             },
           },
         };
-      } else if (
-        scope ===
-        'faculty'
-      ) {
+      } else if (scope === 'faculty') {
         where = {
           faculty: {
             some: {
-              facultyId:
-                userId,
+              facultyId: userId,
             },
           },
         };
@@ -803,53 +790,40 @@ export class PoolsService {
             {
               faculty: {
                 some: {
-                  facultyId:
-                    userId,
+                  facultyId: userId,
                 },
               },
             },
             {
               subadmins: {
                 some: {
-                  subadminId:
-                    userId,
+                  subadminId: userId,
                 },
               },
             },
           ],
         };
       }
-    } else if (
-      userRole === 'STUDENT'
-    ) {
+    } else if (userRole === 'STUDENT') {
       where = {
         students: {
           some: {
-            studentId:
-              userId,
+            studentId: userId,
           },
         },
       };
     }
 
-    const skip =
-      (params.page - 1) *
-      params.limit;
+    const skip = (params.page - 1) * params.limit;
 
-    const [
-      pools,
-      total,
-    ] = await Promise.all([
+    const [pools, total] = await Promise.all([
       prisma.pool.findMany({
         where,
         skip,
         take: params.limit,
-
         orderBy: {
-          createdAt:
-            'desc',
+          createdAt: 'desc',
         },
-
         include: {
           _count: {
             select: {
@@ -859,7 +833,6 @@ export class PoolsService {
               teams: true,
             },
           },
-
           creator: {
             select: {
               firstName: true,
@@ -874,13 +847,8 @@ export class PoolsService {
       }),
     ]);
 
-    return paginatedResult(
-      pools,
-      total,
-      params,
-    );
+    return paginatedResult(pools, total, params);
   }
-
   /**
    * Get a single pool by ID.
    */

@@ -1,4 +1,5 @@
 // frontend/src/stores/themeStore.ts
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -12,6 +13,7 @@ interface ThemeState {
 
 const applyTheme = (theme: Theme) => {
   const root = document.documentElement;
+
   if (theme === 'dark') {
     root.classList.add('dark');
   } else {
@@ -22,21 +24,37 @@ const applyTheme = (theme: Theme) => {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
-      theme: 'dark',
+      // Light mode is the default
+      theme: 'light',
+
       toggleTheme: () => {
-        const next = get().theme === 'dark' ? 'light' : 'dark';
+        const current = get().theme;
+
+        const next: Theme =
+          current === 'dark' ? 'light' : 'dark';
+
         applyTheme(next);
-        set({ theme: next });
+
+        set({
+          theme: next,
+        });
       },
+
       setTheme: (theme: Theme) => {
         applyTheme(theme);
-        set({ theme });
+
+        set({
+          theme,
+        });
       },
     }),
     {
       name: 'projectalloc-theme',
+
       onRehydrateStorage: () => (state) => {
-        if (state) applyTheme(state.theme);
+        if (state) {
+          applyTheme(state.theme);
+        }
       },
     }
   )

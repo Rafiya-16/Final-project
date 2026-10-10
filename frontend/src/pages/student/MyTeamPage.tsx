@@ -1,532 +1,2638 @@
 // frontend/src/pages/student/MyTeamPage.tsx
-import React, { useState, useEffect } from 'react';
-import { teamService } from '@/services/teamService';
-import { poolService } from '@/services/poolService';
-import { userService } from '@/services/userService';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Plus, UserPlus, LogOut, Trash2, Mail, CheckCircle2, XCircle, Users, Crown, Shield, Sparkles, TrendingUp, X, Send, BookOpen, Target, Award, Rocket } from 'lucide-react';
-import { useAuthStore } from '@/stores/authStore';
-import toast from 'react-hot-toast';
-import type { Team, TeamInvite, User, TeamMember } from '@/types';
-import { getErrorMessage } from '@/types';
 
-// Gradient brand colors - KEEPING YOUR ORIGINAL COLORS
-const gradientBrand = 'linear-gradient(135deg, #11998e 0%, #38ef7d 50%, #a8e6cf 100%)';
-const gradientCard = 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(245,255,250,0.95) 100%)';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Plus,
+  UserPlus,
+  LogOut,
+  Trash2,
+  Mail,
+  CheckCircle2,
+  XCircle,
+  Users,
+  Crown,
+  Shield,
+  Sparkles,
+  X,
+  Send,
+  BookOpen,
+  Target,
+  Rocket,
+  Clock3,
+} from 'lucide-react';
+
+import { teamService } from '@/services/teamService';
+import poolService from '@/services/poolService';
+import { userService } from '@/services/userService';
+import { useAuthStore } from '@/stores/authStore';
+
+type AnyRecord = Record<string, any>;
+
+type TeamMember = {
+  id?: string;
+  studentId?: string;
+  userId?: string;
+  name?: string;
+  fullName?: string;
+  email?: string;
+  role?: string;
+  status?: string;
+  joinedAt?: string;
+  leftAt?: string;
+  student?: AnyRecord;
+  user?: AnyRecord;
+};
+
+type TeamInvite = {
+  id: string;
+  teamId?: string;
+  studentId?: string;
+  status?: string;
+  message?: string;
+  expiresAt?: string;
+  createdAt?: string;
+  team?: AnyRecord;
+};
+
+type Team = {
+  id: string;
+  name: string;
+  poolId: string;
+  leaderId?: string;
+  projectId?: string | null;
+  isFrozen?: boolean;
+  status?: string;
+  members?: TeamMember[];
+  project?: AnyRecord;
+  leaveRequests?: AnyRecord[];
+  dissolveRequests?: AnyRecord[];
+};
+
+type Pool = {
+  id: string;
+  name?: string;
+  title?: string;
+  status?: string;
+  defaultMaxTeamSize?: number;
+};
+
+type StudentOption = {
+  id: string;
+  name?: string;
+  fullName?: string;
+  email?: string;
+  section?: string | null;
+  enrollmentNumber?: string;
+  rollNumber?: string;
+};
+
+type ConfirmState = {
+  type: 'remove';
+  id?: string;
+  name?: string;
+} | null;
+
+type RequestStatus =
+  | 'NONE'
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED';
+
+const getStudentName = (
+  student: AnyRecord | undefined
+): string => {
+  if (!student) return 'Student';
+
+  return (
+    student.fullName ||
+    student.name ||
+    `${student.firstName || ''} ${
+      student.lastName || ''
+    }`.trim() ||
+    student.email ||
+    'Student'
+  );
+};
+
+const getMemberName = (
+  member: TeamMember
+): string => {
+  if (member.student) {
+    return getStudentName(member.student);
+  }
+
+  if (member.user) {
+    return getStudentName(member.user);
+  }
+
+  return (
+    member.fullName ||
+    member.name ||
+    member.email ||
+    'Student'
+  );
+};
+
+const getMemberId = (
+  member: TeamMember
+): string | undefined =>
+  member.studentId || member.userId;
+
+const isActiveMember = (
+  member: TeamMember
+): boolean =>
+  !member.status ||
+  member.status === 'ACTIVE';
+
+const getPoolName = (
+  pool: Pool | null
+): string =>
+  pool?.name ||
+  pool?.title ||
+  'Current Pool';
+
+const getErrorMessage = (
+  error: any,
+  fallback: string
+): string => {
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    error?.message ||
+    fallback
+  );
+};
 
 const MyTeamPage: React.FC = () => {
   const { user } = useAuthStore();
-  const [poolId, setPoolId] = useState('');
-  const [team, setTeam] = useState<Team | null>(null);
-  const [invites, setInvites] = useState<TeamInvite[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [showInvite, setShowInvite] = useState(false);
-  const [teamName, setTeamName] = useState('');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [students, setStudents] = useState<User[]>([]);
-  const [confirm, setConfirm] = useState<{ action: string; id: string; msg: string } | null>(null);
-  const [hoveredMember, setHoveredMember] = useState<string | null>(null);
 
-  useEffect(() => {
-    poolService.list().then(async r => {
-      const pool = r.data?.[0];
-      if (pool) {
-        setPoolId(pool.id);
-        await load(pool.id);
-      }
-    }).finally(() => setLoading(false));
-  }, []);
+  const [pool, setPool] =
+    useState<Pool | null>(null);
 
-  const load = async (pid: string) => {
-    const [t, inv] = await Promise.all([teamService.getMyTeam(pid), teamService.getMyInvites(pid)]);
-    setTeam(t); setInvites(inv || []);
-  };
+  const [team, setTeam] =
+    useState<Team | null>(null);
 
-  // const createTeam = async () => {
-  //   if (!teamName.trim()) return;
-  //   try {
-  //     await teamService.create(poolId, teamName);
-  //     toast.success('🎉 Team created successfully!');
-  //     setShowCreate(false);
-  //     setTeamName('');
-  //     load(poolId);
-  //   }
-  //   catch (e: unknown) { toast.error(getErrorMessage(e)); }
-  // };
+  const [invites, setInvites] =
+    useState<TeamInvite[]>([]);
 
-  const createTeam = async () => {
-    // 🚫 Block if pending invites exist
-    if (hasPendingInvites) {
-      toast.error('❌ Please respond to pending invites before creating a team');
-      return;
-    }
+  const [students, setStudents] =
+    useState<StudentOption[]>([]);
 
-    if (!teamName.trim()) return;
+  const [loading, setLoading] =
+    useState(true);
 
-    try {
-      await teamService.create(poolId, teamName);
-      toast.success('🎉 Team created successfully!');
-      setShowCreate(false);
-      setTeamName('');
-      load(poolId);
-    }
-    catch (e: unknown) {
-      toast.error(getErrorMessage(e));
-    }
-  };
+  const [studentsLoading, setStudentsLoading] =
+    useState(false);
 
-  const loadStudents = async () => {
-    try {
-      if (!user?.id) {
-        toast.error('Unable to identify your account');
-        return;
-      }
+  const [saving, setSaving] =
+    useState(false);
 
-      // Get the latest logged-in user data from the backend.
-      // This ensures we use the student's current section.
-      const currentUser = await userService.getById(user.id);
+  const [showCreateModal, setShowCreateModal] =
+    useState(false);
 
-      if (!currentUser) {
-        toast.error('Unable to load your student profile');
-        return;
-      }
+  const [showInviteModal, setShowInviteModal] =
+    useState(false);
 
-      if (!currentUser.section) {
-        toast.error(
-          'Your section is not assigned. Please contact the administrator.'
-        );
-        return;
-      }
+  const [showLeaveModal, setShowLeaveModal] =
+    useState(false);
 
-      const res = await userService.list({
-        role: 'STUDENT',
-        isActive: 'true',
-        limit: '200',
+  const [showDissolveModal, setShowDissolveModal] =
+    useState(false);
+
+  const [teamName, setTeamName] =
+    useState('');
+
+  const [inviteSearch, setInviteSearch] =
+    useState('');
+
+  const [leaveReason, setLeaveReason] =
+    useState('');
+
+  const [dissolveReason, setDissolveReason] =
+    useState('');
+
+  const [leaveRequestStatus, setLeaveRequestStatus] =
+    useState<RequestStatus>('NONE');
+
+  const [leaveResponseNote, setLeaveResponseNote] =
+    useState('');
+
+  const [
+    dissolveRequestStatus,
+    setDissolveRequestStatus,
+  ] = useState<RequestStatus>('NONE');
+
+  const [
+    dissolveResponseNote,
+    setDissolveResponseNote,
+  ] = useState('');
+
+  const [confirmState, setConfirmState] =
+    useState<ConfirmState>(null);
+
+  const [toast, setToast] =
+    useState<{
+      type: 'success' | 'error' | 'info';
+      message: string;
+    } | null>(null);
+
+  const showToast = useCallback(
+    (
+      type: 'success' | 'error' | 'info',
+      message: string
+    ) => {
+      setToast({
+        type,
+        message,
       });
 
-      const allStudents = res.data || [];
+      window.setTimeout(() => {
+        setToast(null);
+      }, 3500);
+    },
+    []
+  );
 
-      /*
-       * Only students from the same section are eligible
-       * for team invitations.
-       *
-       * The backend performs the same validation, but filtering
-       * here prevents students from other sections appearing
-       * as selectable invite candidates.
-       */
-      const sameSectionStudents = allStudents.filter(
-        (student: User) =>
-          student.id !== currentUser.id &&
-          student.section &&
-          student.section === currentUser.section
+  const loadPool = useCallback(
+    async (): Promise<Pool | null> => {
+      try {
+        const result =
+          await poolService.list();
+
+        const pools: Pool[] =
+          Array.isArray(result)
+            ? result
+            : Array.isArray(result?.data)
+            ? result.data
+            : Array.isArray(result?.pools)
+            ? result.pools
+            : [];
+
+        if (!pools.length) {
+          setPool(null);
+          return null;
+        }
+
+        const preferred =
+          pools.find(
+            (item) =>
+              item.status ===
+              'TEAMS_FORMING'
+          ) ||
+          pools.find(
+            (item) =>
+              item.status ===
+              'SELECTION_OPEN'
+          ) ||
+          pools.find(
+            (item) =>
+              item.status ===
+                'SUBMISSION_OPEN' ||
+              item.status ===
+                'UNDER_REVIEW'
+          ) ||
+          pools[0];
+
+        setPool(preferred);
+
+        return preferred;
+      } catch (error) {
+        showToast(
+          'error',
+          getErrorMessage(
+            error,
+            'Unable to load active pool.'
+          )
+        );
+
+        return null;
+      }
+    },
+    [showToast]
+  );
+
+  const load = useCallback(
+    async (poolId: string) => {
+      setLoading(true);
+
+      try {
+        const [
+          teamResult,
+          inviteResult,
+        ] = await Promise.all([
+          teamService
+            .getMyTeam(poolId)
+            .catch(() => null),
+
+          teamService
+            .getMyInvites(poolId)
+            .catch(() => []),
+        ]);
+
+        const loadedTeam: Team | null =
+          teamResult?.data ||
+          teamResult?.team ||
+          teamResult ||
+          null;
+
+        setTeam(loadedTeam);
+
+        const loadedInvites: TeamInvite[] =
+          Array.isArray(inviteResult)
+            ? inviteResult
+            : Array.isArray(
+                inviteResult?.data
+              )
+            ? inviteResult.data
+            : Array.isArray(
+                inviteResult?.invites
+              )
+            ? inviteResult.invites
+            : [];
+
+        setInvites(loadedInvites);
+
+        /*
+         * ======================================================
+         * LEAVE REQUEST STATUS
+         * ======================================================
+         */
+
+        const leaveRequests =
+          Array.isArray(
+            loadedTeam?.leaveRequests
+          )
+            ? loadedTeam.leaveRequests
+            : [];
+
+        const ownLeaveRequest =
+          leaveRequests
+            .filter(
+              (request: AnyRecord) => {
+                const requesterId =
+                  request.studentId ||
+                  request.requestedById ||
+                  request.requestedBy?.id;
+
+                return (
+                  !requesterId ||
+                  requesterId === user?.id
+                );
+              }
+            )
+            .sort(
+              (
+                a: AnyRecord,
+                b: AnyRecord
+              ) =>
+                new Date(
+                  b.createdAt || 0
+                ).getTime() -
+                new Date(
+                  a.createdAt || 0
+                ).getTime()
+            )[0];
+
+        if (ownLeaveRequest?.status) {
+          setLeaveRequestStatus(
+            ownLeaveRequest.status
+          );
+
+          setLeaveResponseNote(
+            ownLeaveRequest.responseNote ||
+              ''
+          );
+        } else {
+          setLeaveRequestStatus('NONE');
+          setLeaveResponseNote('');
+        }
+
+        /*
+         * ======================================================
+         * DISSOLVE REQUEST STATUS
+         * ======================================================
+         */
+
+        const dissolveRequests =
+          Array.isArray(
+            loadedTeam?.dissolveRequests
+          )
+            ? loadedTeam.dissolveRequests
+            : [];
+
+        /*
+         * Only update the dissolve state if backend
+         * actually returned the relation.
+         *
+         * This is important because an older getMyTeam()
+         * response may not include dissolveRequests yet.
+         */
+        if (dissolveRequests.length > 0) {
+          const ownDissolveRequest =
+            dissolveRequests
+              .filter(
+                (request: AnyRecord) => {
+                  const requesterId =
+                    request.requestedById ||
+                    request.requestedBy?.id ||
+                    request.studentId;
+
+                  return (
+                    !requesterId ||
+                    requesterId === user?.id
+                  );
+                }
+              )
+              .sort(
+                (
+                  a: AnyRecord,
+                  b: AnyRecord
+                ) =>
+                  new Date(
+                    b.createdAt || 0
+                  ).getTime() -
+                  new Date(
+                    a.createdAt || 0
+                  ).getTime()
+              )[0];
+
+          if (
+            ownDissolveRequest?.status
+          ) {
+            setDissolveRequestStatus(
+              ownDissolveRequest.status
+            );
+
+            setDissolveResponseNote(
+              ownDissolveRequest.responseNote ||
+                ''
+            );
+          } else {
+            setDissolveRequestStatus(
+              'NONE'
+            );
+
+            setDissolveResponseNote('');
+          }
+        }
+      } catch (error) {
+        setTeam(null);
+        setInvites([]);
+
+        showToast(
+          'error',
+          getErrorMessage(
+            error,
+            'Unable to load your team.'
+          )
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [showToast, user?.id]
+  );
+
+  useEffect(() => {
+    const initialize =
+      async () => {
+        const currentPool =
+          await loadPool();
+
+        if (currentPool?.id) {
+          await load(
+            currentPool.id
+          );
+        } else {
+          setLoading(false);
+        }
+      };
+
+    initialize();
+  }, [loadPool, load]);
+
+  const currentMember = useMemo(() => {
+    if (
+      !team?.members ||
+      !user?.id
+    ) {
+      return undefined;
+    }
+
+    return team.members.find(
+      (member) =>
+        member.studentId ===
+          user.id ||
+        member.userId === user.id
+    );
+  }, [team?.members, user?.id]);
+
+  const activeCurrentMember =
+    useMemo(() => {
+      if (
+        !team?.members ||
+        !user?.id
+      ) {
+        return undefined;
+      }
+
+      return team.members.find(
+        (member) =>
+          (
+            member.studentId ===
+              user.id ||
+            member.userId ===
+              user.id
+          ) &&
+          isActiveMember(member)
       );
+    }, [team?.members, user?.id]);
 
-      setStudents(sameSectionStudents);
-      setShowInvite(true);
-    } catch (e: unknown) {
-      toast.error(getErrorMessage(e));
-    }
-  };
+  const activeMembers = useMemo(
+    () =>
+      (team?.members || []).filter(
+        (member) =>
+          isActiveMember(member)
+      ),
+    [team?.members]
+  );
 
-  const sendInvite = async (studentId: string) => {
-    if (!team) return;
-    try {
-      await teamService.invite(poolId, team.id, studentId);
-      toast.success('✨ Invite sent successfully!');
-      load(poolId);
-      setShowInvite(false);
-    }
-    catch (e: unknown) { toast.error(getErrorMessage(e)); }
-  };
+  const leftMembers = useMemo(
+    () =>
+      (team?.members || []).filter(
+        (member) =>
+          !isActiveMember(member)
+      ),
+    [team?.members]
+  );
 
-  const respondInvite = async (inviteId: string, accept: boolean) => {
-    try {
-      await teamService.respond(poolId, inviteId, accept);
-      toast.success(accept ? '🎊 Joined team successfully!' : 'Invite declined');
-      load(poolId);
-    }
-    catch (e: unknown) { toast.error(getErrorMessage(e)); }
-  };
+  const isLeader =
+    Boolean(user?.id) &&
+    Boolean(team) &&
+    (
+      team?.leaderId ===
+        user?.id ||
+      currentMember?.role ===
+        'LEADER'
+    );
 
-  const doConfirm = async () => {
-    if (!confirm || !team) return;
-    try {
-      if (confirm.action === 'leave') await teamService.leave(poolId, team.id);
-      else if (confirm.action === 'remove') await teamService.removeMember(poolId, team.id, confirm.id);
-      else if (confirm.action === 'dissolve') await teamService.dissolve(poolId, team.id);
-      toast.success('✅ Action completed successfully');
-      load(poolId);
-    } catch (e: unknown) { toast.error(getErrorMessage(e)); }
-    setConfirm(null);
-  };
+  const isMember =
+    Boolean(activeCurrentMember);
 
-  if (loading) return <LoadingSpinner />;
+  const hasSelectedProject =
+    Boolean(team?.projectId) ||
+    Boolean(team?.project?.id);
 
-  const isLeader = team?.leaderId === user?.id;
-  const hasPendingInvites = invites && invites.length > 0;
-  const inviteIds = new Set(team?.invites?.map(i => i.inviteeId));
-  const memberIds = new Set(team?.members?.map(m => m.studentId));
-  const takenMap = new Map(team?.allMembersInPool?.map((m: any) => [m.studentId, m.teamId]));
+  const canRequestLeave =
+    Boolean(team) &&
+    isMember &&
+    !isLeader &&
+    hasSelectedProject &&
+    !team?.isFrozen &&
+    leaveRequestStatus !==
+      'PENDING';
 
-  const activeMemberCount = team?.members?.filter((m: TeamMember) => m.status === 'ACTIVE').length || 0;
-  const maxTeamSize = (team?.project as any)?.maxTeamSize || 3;
+  const canRequestDissolve =
+    Boolean(team) &&
+    isLeader &&
+    !team?.isFrozen &&
+    team?.status !==
+      'DISSOLVED' &&
+    dissolveRequestStatus !==
+      'PENDING';
 
-  const teamStats = [
-    { label: 'Members', value: activeMemberCount, icon: <Users className="w-4 h-4" /> },
-    { label: 'Slots Available', value: maxTeamSize - activeMemberCount, icon: <Target className="w-4 h-4" /> },
-    { label: 'Pending Invites', value: team?.invites?.length || 0, icon: <Mail className="w-4 h-4" /> },
-    { label: team?.project ? 'Project Status' : 'Team Status', value: team?.project ? 'Selected' : 'Active', icon: team?.project ? <Award className="w-4 h-4" /> : <Rocket className="w-4 h-4" /> },
-  ];
+  const maxTeamSize = useMemo(() => {
+    const projectMax =
+      Number(
+        team?.project?.maxTeamSize
+      ) || 0;
+
+    const poolMax =
+      Number(
+        pool?.defaultMaxTeamSize
+      ) || 0;
+
+    return (
+      projectMax ||
+      poolMax ||
+      3
+    );
+  }, [
+    team?.project?.maxTeamSize,
+    pool?.defaultMaxTeamSize,
+  ]);
+
+  const memberCount =
+    activeMembers.length;
+
+  const freeSlots =
+    Math.max(
+      0,
+      maxTeamSize -
+        memberCount
+    );
+
+  const projectTitle =
+    team?.project?.title ||
+    team?.project?.name ||
+    'Project not selected yet';
+
+  const currentSection =
+    useMemo(() => {
+      const currentUser =
+        user as
+          | AnyRecord
+          | undefined;
+
+      return (
+        currentUser?.section ||
+        currentUser?.student
+          ?.section ||
+        currentUser?.profile
+          ?.section ||
+        null
+      );
+    }, [user]);
+
+  const loadStudents =
+    useCallback(async () => {
+      if (
+        !pool?.id ||
+        !team
+      ) {
+        return;
+      }
+
+      if (
+        memberCount >=
+        maxTeamSize
+      ) {
+        showToast(
+          'info',
+          'Your team is already full. Wait for a member to leave or remove an active member first.'
+        );
+
+        return;
+      }
+
+      if (!currentSection) {
+        showToast(
+          'error',
+          'Your account does not have a section assigned. Please ask the admin to assign your section.'
+        );
+
+        return;
+      }
+
+      setStudentsLoading(true);
+
+      try {
+        const result =
+          await userService.list({
+            role: 'STUDENT',
+          });
+
+        const rawStudents: AnyRecord[] =
+          Array.isArray(result)
+            ? result
+            : Array.isArray(
+                result?.data
+              )
+            ? result.data
+            : Array.isArray(
+                result?.users
+              )
+            ? result.users
+            : [];
+
+        /*
+         * IMPORTANT:
+         * Only ACTIVE members occupy team slots.
+         *
+         * LEFT members are intentionally not
+         * included in this set, so a previously
+         * left student can be invited again.
+         */
+        const existingStudentIds =
+          new Set(
+            (team.members || [])
+              .filter(
+                (member) =>
+                  isActiveMember(member)
+              )
+              .map(
+                (member) =>
+                  getMemberId(member)
+              )
+              .filter(Boolean)
+          );
+
+        const currentUserId =
+          user?.id;
+
+        const availableStudents:
+          StudentOption[] =
+          rawStudents
+            .map(
+              (student) => ({
+                id: student.id,
+                name: student.name,
+                fullName:
+                  student.fullName,
+                email:
+                  student.email,
+                section:
+                  student.section ||
+                  student.profile
+                    ?.section ||
+                  student.student
+                    ?.section ||
+                  null,
+                enrollmentNumber:
+                  student.enrollmentNumber ||
+                  student.student
+                    ?.enrollmentNumber,
+                rollNumber:
+                  student.rollNumber ||
+                  student.student
+                    ?.rollNumber,
+              })
+            )
+            .filter(
+              (student) =>
+                Boolean(student.id)
+            )
+            .filter(
+              (student) =>
+                student.id !==
+                currentUserId
+            )
+            .filter(
+              (student) =>
+                !existingStudentIds.has(
+                  student.id
+                )
+            )
+            .filter(
+              (student) =>
+                student.section ===
+                currentSection
+            );
+
+        setStudents(
+          availableStudents
+        );
+
+        setInviteSearch('');
+        setShowInviteModal(
+          true
+        );
+      } catch (error) {
+        showToast(
+          'error',
+          getErrorMessage(
+            error,
+            'Unable to load students for invitation.'
+          )
+        );
+      } finally {
+        setStudentsLoading(
+          false
+        );
+      }
+    }, [
+      currentSection,
+      maxTeamSize,
+      memberCount,
+      pool?.id,
+      showToast,
+      team,
+      user?.id,
+    ]);
+
+  const filteredStudents =
+    useMemo(() => {
+      const search =
+        inviteSearch
+          .trim()
+          .toLowerCase();
+
+      if (!search) {
+        return students;
+      }
+
+      return students.filter(
+        (student) => {
+          const name = (
+            student.fullName ||
+            student.name ||
+            ''
+          ).toLowerCase();
+
+          const email = (
+            student.email ||
+            ''
+          ).toLowerCase();
+
+          const enrollment = (
+            student.enrollmentNumber ||
+            ''
+          ).toLowerCase();
+
+          const roll = (
+            student.rollNumber ||
+            ''
+          ).toLowerCase();
+
+          return (
+            name.includes(search) ||
+            email.includes(search) ||
+            enrollment.includes(search) ||
+            roll.includes(search)
+          );
+        }
+      );
+    }, [
+      inviteSearch,
+      students,
+    ]);
+
+  const createTeam =
+    async () => {
+      if (!pool?.id) {
+        return;
+      }
+
+      const name =
+        teamName.trim();
+
+      if (!name) {
+        showToast(
+          'error',
+          'Please enter a team name.'
+        );
+
+        return;
+      }
+
+      if (name.length < 3) {
+        showToast(
+          'error',
+          'Team name must contain at least 3 characters.'
+        );
+
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        await teamService.create(
+          pool.id,
+          name
+        );
+
+        setTeamName('');
+        setShowCreateModal(
+          false
+        );
+
+        showToast(
+          'success',
+          'Team created successfully.'
+        );
+
+        await load(
+          pool.id
+        );
+      } catch (error) {
+        showToast(
+          'error',
+          getErrorMessage(
+            error,
+            'Unable to create team.'
+          )
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+  const sendInvite =
+    async (
+      studentId: string
+    ) => {
+      if (
+        !pool?.id ||
+        !team
+      ) {
+        return;
+      }
+
+      if (!isLeader) {
+        showToast(
+          'error',
+          'Only the team leader can invite students.'
+        );
+
+        return;
+      }
+
+      if (
+        memberCount >=
+        maxTeamSize
+      ) {
+        showToast(
+          'error',
+          'Your team is already full.'
+        );
+
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        await teamService.invite(
+          pool.id,
+          team.id,
+          studentId,
+          `You are invited to join ${team.name}.`
+        );
+
+        showToast(
+          'success',
+          'Invitation sent successfully.'
+        );
+
+        setShowInviteModal(
+          false
+        );
+
+        setInviteSearch('');
+
+        await load(
+          pool.id
+        );
+      } catch (error) {
+        showToast(
+          'error',
+          getErrorMessage(
+            error,
+            'Unable to send invitation.'
+          )
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+  const respondToInvite =
+    async (
+      inviteId: string,
+      accept: boolean
+    ) => {
+      if (!pool?.id) {
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        await teamService.respond(
+          pool.id,
+          inviteId,
+          accept
+        );
+
+        showToast(
+          accept
+            ? 'success'
+            : 'info',
+          accept
+            ? 'Invitation accepted. You have joined the team.'
+            : 'Invitation declined.'
+        );
+
+        await load(
+          pool.id
+        );
+      } catch (error) {
+        showToast(
+          'error',
+          getErrorMessage(
+            error,
+            'Unable to respond to invitation.'
+          )
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+  const removeMember =
+    async (
+      studentId: string
+    ) => {
+      if (
+        !pool?.id ||
+        !team
+      ) {
+        return;
+      }
+
+      if (!isLeader) {
+        showToast(
+          'error',
+          'Only the team leader can remove members.'
+        );
+
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        await teamService.removeMember(
+          pool.id,
+          team.id,
+          studentId
+        );
+
+        showToast(
+          'success',
+          'Member removed from the team.'
+        );
+
+        setConfirmState(
+          null
+        );
+
+        await load(
+          pool.id
+        );
+      } catch (error) {
+        showToast(
+          'error',
+          getErrorMessage(
+            error,
+            'Unable to remove member.'
+          )
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+  /*
+   * ============================================================
+   * DISSOLVE TEAM REQUEST
+   * ============================================================
+   *
+   * IMPORTANT:
+   * This NEVER calls teamService.dissolve().
+   *
+   * It creates a supervisor approval request.
+   */
+  const submitDissolveRequest =
+    async () => {
+      if (
+        !pool?.id ||
+        !team
+      ) {
+        return;
+      }
+
+      const reason =
+        dissolveReason.trim();
+
+      if (reason.length < 10) {
+        showToast(
+          'error',
+          'Please provide a reason of at least 10 characters.'
+        );
+
+        return;
+      }
+
+      if (reason.length > 1000) {
+        showToast(
+          'error',
+          'Reason cannot exceed 1000 characters.'
+        );
+
+        return;
+      }
+
+      if (!isLeader) {
+        showToast(
+          'error',
+          'Only the team leader can request team dissolution.'
+        );
+
+        return;
+      }
+
+      if (team.isFrozen) {
+        showToast(
+          'error',
+          'A frozen team cannot be dissolved.'
+        );
+
+        return;
+      }
+
+      if (
+        team.status ===
+        'DISSOLVED'
+      ) {
+        showToast(
+          'info',
+          'This team has already been dissolved.'
+        );
+
+        return;
+      }
+
+      if (
+        dissolveRequestStatus ===
+        'PENDING'
+      ) {
+        showToast(
+          'info',
+          'A dissolve request is already pending.'
+        );
+
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        /*
+         * New approval endpoint.
+         *
+         * Backend:
+         * POST /pools/:poolId/teams/:teamId/dissolve-request
+         */
+        await teamService.createDissolveRequest(
+          pool.id,
+          team.id,
+          reason
+        );
+
+        /*
+         * Keep pending status visible immediately,
+         * even before getMyTeam() returns the request.
+         */
+        setDissolveRequestStatus(
+          'PENDING'
+        );
+
+        setDissolveResponseNote(
+          ''
+        );
+
+        setDissolveReason('');
+
+        setShowDissolveModal(
+          false
+        );
+
+        showToast(
+          'success',
+          'Dissolve request sent to your supervisor for approval.'
+        );
+
+        await load(
+          pool.id
+        );
+      } catch (error) {
+        showToast(
+          'error',
+          getErrorMessage(
+            error,
+            'Unable to submit dissolve request.'
+          )
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+  const submitLeaveRequest =
+    async () => {
+      if (
+        !pool?.id ||
+        !team
+      ) {
+        return;
+      }
+
+      const reason =
+        leaveReason.trim();
+
+      if (reason.length < 10) {
+        showToast(
+          'error',
+          'Please provide a reason of at least 10 characters.'
+        );
+
+        return;
+      }
+
+      if (reason.length > 1000) {
+        showToast(
+          'error',
+          'Reason cannot exceed 1000 characters.'
+        );
+
+        return;
+      }
+
+      if (!canRequestLeave) {
+        showToast(
+          'error',
+          'You cannot submit a leave request at this stage.'
+        );
+
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        await teamService.createLeaveRequest(
+          pool.id,
+          team.id,
+          reason
+        );
+
+        setLeaveRequestStatus(
+          'PENDING'
+        );
+
+        setLeaveResponseNote(
+          ''
+        );
+
+        setLeaveReason('');
+
+        setShowLeaveModal(
+          false
+        );
+
+        showToast(
+          'success',
+          'Leave request submitted to your supervisor.'
+        );
+
+        await load(
+          pool.id
+        );
+      } catch (error) {
+        showToast(
+          'error',
+          getErrorMessage(
+            error,
+            'Unable to submit leave request.'
+          )
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+  const handleConfirmRemove =
+    async () => {
+      if (
+        !confirmState ||
+        !confirmState.id
+      ) {
+        return;
+      }
+
+      await removeMember(
+        confirmState.id
+      );
+    };
+
+  const refreshTeam =
+    async () => {
+      if (!pool?.id) {
+        return;
+      }
+
+      await load(
+        pool.id
+      );
+    };
+
+  if (loading) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-14 w-14 rounded-full border-4 border-slate-200 border-t-blue-500 animate-spin dark:border-slate-700" />
+
+            <Sparkles className="absolute inset-0 m-auto h-5 w-5 animate-pulse text-blue-500" />
+          </div>
+
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+            Loading your team...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen" style={{ background: 'radial-gradient(circle at 10% 20%, #e8f5e9 0%, #c8e6c9 50%, #a5d6a7 100%)' }}>
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+    <div className="min-h-screen px-4 py-6 md:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
 
-        {/* Hero Section */}
-        <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-green-500 rounded-2xl sm:rounded-3xl blur-2xl opacity-25 group-hover:opacity-40 transition duration-700" />
-          <div className="relative backdrop-blur-xl bg-white/30 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 border border-white/40 shadow-2xl overflow-hidden">
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full blur-3xl opacity-20" />
-            <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-              <div>
-                <div className="inline-flex items-center gap-2 text-xs font-medium px-3 sm:px-4 py-1.5 rounded-full bg-white/40 backdrop-blur-sm border border-white/60 mb-3 sm:mb-4">
-                  <Rocket className="h-3 w-3 text-emerald-600" />
-                  <span className="text-emerald-800 text-xs sm:text-sm">Team Collaboration Hub</span>
-                  <Sparkles className="h-3 w-3 text-emerald-600 animate-pulse" />
+        {/* =====================================================
+            TOAST
+        ====================================================== */}
+
+        {toast && (
+          <div
+            className={`fixed right-5 top-5 z-[100] flex max-w-sm items-start gap-3 rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur-xl ${
+              toast.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50/95 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/95 dark:text-emerald-200'
+                : toast.type === 'error'
+                ? 'border-red-200 bg-red-50/95 text-red-800 dark:border-red-800 dark:bg-red-950/95 dark:text-red-200'
+                : 'border-blue-200 bg-blue-50/95 text-blue-800 dark:border-blue-800 dark:bg-blue-950/95 dark:text-blue-200'
+            }`}
+          >
+            {toast.type ===
+            'success' ? (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+            ) : toast.type ===
+              'error' ? (
+              <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
+            ) : (
+              <Clock3 className="mt-0.5 h-5 w-5 shrink-0" />
+            )}
+
+            <p className="text-sm font-medium leading-5">
+              {toast.message}
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                setToast(null)
+              }
+              className="ml-2 rounded-lg p-1 hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* =====================================================
+            HEADER
+        ====================================================== */}
+
+        <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-blue-50/70 to-pink-50/70 p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+          <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-400/20 blur-3xl" />
+
+          <div className="absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-pink-400/20 blur-3xl" />
+
+          <div className="relative flex flex-col justify-between gap-5 md:flex-row md:items-center">
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <div className="rounded-xl bg-blue-100 p-2 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
+                  <Users className="h-5 w-5" />
                 </div>
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight leading-[1.1]">
-                  <span className="text-gray-900">Your</span>
-                  <br />
-                  <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 bg-clip-text text-transparent">Dream Team</span>
-                </h1>
-                <p className="mt-3 sm:mt-4 text-gray-600 text-sm sm:text-base lg:text-lg max-w-xl">Manage your team members, send invitations, and collaborate on your final year project.</p>
+
+                <span className="text-sm font-semibold text-blue-600 dark:text-blue-300">
+                  Student Team Management
+                </span>
               </div>
 
-              {/* {!team && !showCreate && (
-                <button onClick={() => setShowCreate(true)} className="group relative inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden shadow-2xl" style={{ background: gradientBrand, color: 'white' }}>
-                  <span className="relative z-10 flex items-center gap-2"><Plus className="w-5 h-5" />Create New Team<Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" /></span>
-                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                </button>
-              )} */}
-              {!team && !showCreate && (
-                <button
-                  onClick={() => {
-                    if (hasPendingInvites) {
-                      toast.error('⚠️ First respond to your team invite before creating a team');
-                      return;
-                    }
-                    setShowCreate(true);
-                  }}
-                  className={`group relative inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden shadow-2xl ${hasPendingInvites ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  style={{ background: gradientBrand, color: 'white' }}
-                >
-                  <span className="relative z-10 flex items-center gap-2">
-                    <Plus className="w-5 h-5" />
-                    Create New Team
-                    <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                  </span>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white md:text-3xl">
+                My Team
+              </h1>
 
-                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                </button>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                Create your project team, invite classmates, manage
+                membership and request supervisor approval when you need
+                to leave or dissolve your selected project team.
+              </p>
+
+              {pool && (
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm dark:border-blue-800 dark:bg-slate-900/70 dark:text-slate-200">
+                  <Target className="h-4 w-4 text-blue-500" />
+                  {getPoolName(pool)}
+                </div>
+              )}
+            </div>
+
+            {!team && (
+              <button
+                type="button"
+                onClick={() =>
+                  setShowCreateModal(
+                    true
+                  )
+                }
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Plus className="h-5 w-5" />
+                Create Team
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* =====================================================
+            PENDING INVITES
+        ====================================================== */}
+
+        {invites.length > 0 && (
+          <section className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm dark:border-amber-900/60 dark:from-amber-950/30 dark:to-orange-950/20">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="rounded-xl bg-amber-100 p-2 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                <Mail className="h-5 w-5" />
+              </div>
+
+              <div>
+                <h2 className="font-bold text-slate-900 dark:text-white">
+                  Team Invitations
+                </h2>
+
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  You have{' '}
+                  {invites.length}{' '}
+                  pending invitation
+                  {invites.length !==
+                  1
+                    ? 's'
+                    : ''}
+                  .
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              {invites.map(
+                (invite) => (
+                  <div
+                    key={
+                      invite.id
+                    }
+                    className="flex flex-col gap-4 rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between dark:border-slate-800 dark:bg-slate-900/70"
+                  >
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-white">
+                        {invite.team
+                          ?.name ||
+                          'Project Team'}
+                      </p>
+
+                      {invite.message && (
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                          {
+                            invite.message
+                          }
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={
+                          saving
+                        }
+                        onClick={() =>
+                          respondToInvite(
+                            invite.id,
+                            true
+                          )
+                        }
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Accept
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={
+                          saving
+                        }
+                        onClick={() =>
+                          respondToInvite(
+                            invite.id,
+                            false
+                          )
+                        }
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* =====================================================
+            NO TEAM
+        ====================================================== */}
+
+        {!team ? (
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 px-6 py-14 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-100 to-pink-100 text-blue-600 dark:from-blue-900/40 dark:to-pink-900/30 dark:text-blue-300">
+              <Users className="h-9 w-9" />
+            </div>
+
+            <h2 className="mt-5 text-xl font-bold text-slate-900 dark:text-white">
+              You are not in a team yet
+            </h2>
+
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600 dark:text-slate-300">
+              Create your own team or accept an invitation from another
+              student to start building your final-year project team.
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowCreateModal(
+                  true
+                )
+              }
+              className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5"
+            >
+              <Plus className="h-5 w-5" />
+              Create Team
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* =================================================
+                TEAM OVERVIEW
+            ================================================== */}
+
+            <section className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+              <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-blue-500/10 blur-3xl" />
+
+                <div className="relative flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                      <Rocket className="h-4 w-4" />
+                      {team.status ||
+                        'FORMING'}
+                    </div>
+
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                      {team.name}
+                    </h2>
+
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      Team ID:{' '}
+                      {team.id}
+                    </p>
+                  </div>
+
+                  {isLeader && (
+                    <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      <Crown className="h-4 w-4" />
+                      Team Leader
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/60">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                      Active Members
+                    </p>
+
+                    <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                      {memberCount}
+
+                      <span className="text-base font-medium text-slate-400">
+                        {' '}
+                        /{' '}
+                        {maxTeamSize}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                    <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                      Free Slots
+                    </p>
+
+                    <p className="mt-1 text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                      {freeSlots}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/60">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                      Project
+                    </p>
+
+                    <p className="mt-1 truncate text-sm font-bold text-slate-900 dark:text-white">
+                      {
+                        projectTitle
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Project card */}
+
+              <div className="rounded-3xl border border-pink-200 bg-gradient-to-br from-pink-50 via-white to-blue-50 p-6 shadow-sm dark:border-pink-900/50 dark:from-pink-950/20 dark:via-slate-900 dark:to-blue-950/20">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-pink-100 p-2.5 text-pink-600 dark:bg-pink-900/30 dark:text-pink-300">
+                    <BookOpen className="h-5 w-5" />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-pink-600 dark:text-pink-300">
+                      Selected Project
+                    </p>
+
+                    <h3 className="mt-1 font-bold text-slate-900 dark:text-white">
+                      {
+                        projectTitle
+                      }
+                    </h3>
+                  </div>
+                </div>
+
+                {team.project
+                  ?.projectCode && (
+                  <div className="mt-5 rounded-2xl border border-pink-100 bg-white/70 p-4 dark:border-pink-900/40 dark:bg-slate-900/50">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Project Code
+                    </p>
+
+                    <p className="mt-1 font-mono font-bold text-slate-900 dark:text-white">
+                      {
+                        team
+                          .project
+                          .projectCode
+                      }
+                    </p>
+                  </div>
+                )}
+
+                {!hasSelectedProject && (
+                  <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                      No project has been selected yet.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* =================================================
+                MEMBERS
+            ================================================== */}
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    Team Members
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    {memberCount}{' '}
+                    active member
+                    {memberCount !==
+                    1
+                      ? 's'
+                      : ''}{' '}
+                    of{' '}
+                    {maxTeamSize}
+                  </p>
+                </div>
+
+                {isLeader &&
+                  freeSlots >
+                    0 &&
+                  !team.isFrozen && (
+                    <button
+                      type="button"
+                      disabled={
+                        studentsLoading
+                      }
+                      onClick={
+                        loadStudents
+                      }
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <UserPlus className="h-4 w-4" />
+
+                      {studentsLoading
+                        ? 'Loading...'
+                        : 'Invite Student'}
+                    </button>
+                  )}
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {team.members?.map(
+                  (
+                    member,
+                    index
+                  ) => {
+                    const memberId =
+                      getMemberId(
+                        member
+                      );
+
+                    const active =
+                      isActiveMember(
+                        member
+                      );
+
+                    const isCurrentUser =
+                      memberId ===
+                      user?.id;
+
+                    const memberIsLeader =
+                      member.role ===
+                        'LEADER' ||
+                      memberId ===
+                        team.leaderId;
+
+                    return (
+                      <div
+                        key={
+                          member.id ||
+                          memberId ||
+                          `member-${index}`
+                        }
+                        className={`rounded-2xl border p-4 transition ${
+                          active
+                            ? 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50'
+                            : 'border-slate-200 bg-slate-100/60 opacity-70 dark:border-slate-800 dark:bg-slate-800/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-bold ${
+                              memberIsLeader
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                            }`}
+                          >
+                            {memberIsLeader ? (
+                              <Crown className="h-5 w-5" />
+                            ) : (
+                              <Shield className="h-5 w-5" />
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate font-bold text-slate-900 dark:text-white">
+                                {getMemberName(
+                                  member
+                                )}
+                              </p>
+
+                              {isCurrentUser && (
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                                  YOU
+                                </span>
+                              )}
+
+                              {memberIsLeader && (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                                  LEADER
+                                </span>
+                              )}
+
+                              {!active && (
+                                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                  LEFT
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                              {member.student
+                                ?.email ||
+                                member.user
+                                  ?.email ||
+                                member.email ||
+                                'Student'}
+                            </p>
+                          </div>
+
+                          {isLeader &&
+                            active &&
+                            !memberIsLeader &&
+                            memberId && (
+                              <button
+                                type="button"
+                                disabled={
+                                  saving
+                                }
+                                onClick={() =>
+                                  setConfirmState(
+                                    {
+                                      type: 'remove',
+                                      id: memberId,
+                                      name: getMemberName(
+                                        member
+                                      ),
+                                    }
+                                  )
+                                }
+                                className="rounded-xl p-2 text-red-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+                                title="Remove member"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+
+              {leftMembers.length >
+                0 && (
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                        Previous Members
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        These members have left the team and do not
+                        consume active team slots.
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                      {
+                        leftMembers.length
+                      }
+                    </span>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* =================================================
+                LEAVE REQUEST
+            ================================================== */}
+
+            {!isLeader &&
+              isMember && (
+                <section className="rounded-3xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-6 shadow-sm dark:border-orange-900/50 dark:from-orange-950/20 dark:to-amber-950/20">
+                  <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-xl bg-orange-100 p-2.5 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300">
+                          <LogOut className="h-5 w-5" />
+                        </div>
+
+                        <div>
+                          <h2 className="font-bold text-slate-900 dark:text-white">
+                            Leave Team
+                          </h2>
+
+                          <p className="text-xs text-slate-600 dark:text-slate-300">
+                            Leaving a selected project team requires
+                            supervisor approval.
+                          </p>
+                        </div>
+                      </div>
+
+                      {leaveRequestStatus ===
+                        'PENDING' && (
+                        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                          <Clock3 className="h-4 w-4" />
+                          Leave request pending
+                        </div>
+                      )}
+
+                      {leaveRequestStatus ===
+                        'APPROVED' && (
+                        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Leave request approved
+                        </div>
+                      )}
+
+                      {leaveRequestStatus ===
+                        'REJECTED' && (
+                        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
+                          <div className="flex items-center gap-2 text-xs font-bold text-red-700 dark:text-red-300">
+                            <XCircle className="h-4 w-4" />
+                            Leave request rejected
+                          </div>
+
+                          {leaveResponseNote && (
+                            <p className="mt-1 text-xs text-red-700/80 dark:text-red-300/80">
+                              {
+                                leaveResponseNote
+                              }
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={
+                        !canRequestLeave ||
+                        saving
+                      }
+                      onClick={() =>
+                        setShowLeaveModal(
+                          true
+                        )
+                      }
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-orange-300 bg-white px-5 py-3 text-sm font-bold text-orange-700 shadow-sm transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-orange-800 dark:bg-slate-900 dark:text-orange-300 dark:hover:bg-orange-950/20"
+                    >
+                      <LogOut className="h-4 w-4" />
+
+                      {leaveRequestStatus ===
+                      'PENDING'
+                        ? 'Request Pending'
+                        : leaveRequestStatus ===
+                          'REJECTED'
+                        ? 'Request Again'
+                        : 'Request to Leave'}
+                    </button>
+                  </div>
+                </section>
+              )}
+
+            {/* =================================================
+                LEADER / DISSOLVE MANAGEMENT
+            ================================================== */}
+
+            {isLeader && (
+              <section className="rounded-3xl border border-red-200 bg-red-50/60 p-6 dark:border-red-900/50 dark:bg-red-950/10">
+                <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <h2 className="font-bold text-slate-900 dark:text-white">
+                      Team Management
+                    </h2>
+
+                    <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
+                      As the team leader, you can manage active
+                      members. If the entire team needs to be dissolved,
+                      submit a request with a reason for supervisor
+                      approval.
+                    </p>
+
+                    {dissolveRequestStatus ===
+                      'PENDING' && (
+                      <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                        <Clock3 className="h-4 w-4" />
+                        Dissolve request pending supervisor approval
+                      </div>
+                    )}
+
+                    {dissolveRequestStatus ===
+                      'APPROVED' && (
+                      <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Dissolve request approved
+                      </div>
+                    )}
+
+                    {dissolveRequestStatus ===
+                      'REJECTED' && (
+                      <div className="mt-4 max-w-xl rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/20">
+                        <div className="flex items-center gap-2 text-xs font-bold text-red-700 dark:text-red-300">
+                          <XCircle className="h-4 w-4" />
+                          Dissolve request rejected
+                        </div>
+
+                        {dissolveResponseNote && (
+                          <p className="mt-2 text-xs leading-5 text-red-700/80 dark:text-red-300/80">
+                            Supervisor response:{' '}
+                            {
+                              dissolveResponseNote
+                            }
+                          </p>
+                        )}
+
+                        <p className="mt-2 text-[11px] text-red-600/70 dark:text-red-300/70">
+                          You can submit another request with a different
+                          reason if required.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {!team.isFrozen && (
+                    <button
+                      type="button"
+                      disabled={
+                        saving ||
+                        !canRequestDissolve
+                      }
+                      onClick={() => {
+                        setDissolveReason(
+                          ''
+                        );
+
+                        setShowDissolveModal(
+                          true
+                        );
+                      }}
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/50 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                    >
+                      {dissolveRequestStatus ===
+                      'PENDING' ? (
+                        <Clock3 className="h-4 w-4" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+
+                      {dissolveRequestStatus ===
+                      'PENDING'
+                        ? 'Request Pending'
+                        : dissolveRequestStatus ===
+                          'REJECTED'
+                        ? 'Request Again'
+                        : 'Request Dissolve'}
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Refresh */}
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                disabled={
+                  loading
+                }
+                onClick={
+                  refreshTeam
+                }
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Refresh Team
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* =======================================================
+          CREATE TEAM MODAL
+      ======================================================== */}
+
+      {showCreateModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Create Your Team
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Start building your final-year project team.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowCreateModal(
+                    false
+                  )
+                }
+                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-6">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Team Name
+                </label>
+
+                <input
+                  value={
+                    teamName
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setTeamName(
+                      event.target
+                        .value
+                    )
+                  }
+                  placeholder="e.g. Team Innovators"
+                  maxLength={
+                    100
+                  }
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Choose a simple and recognizable team name.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={
+                  saving
+                }
+                onClick={
+                  createTeam
+                }
+                className="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
+              >
+                {saving
+                  ? 'Creating...'
+                  : 'Create Team'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =======================================================
+          INVITE MODAL
+      ======================================================== */}
+
+      {showInviteModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Invite Student
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {freeSlots}{' '}
+                  free slot
+                  {freeSlots !==
+                  1
+                    ? 's'
+                    : ''}{' '}
+                  available in your team.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowInviteModal(
+                    false
+                  )
+                }
+                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="border-b border-slate-200 p-5 dark:border-slate-800">
+              <input
+                value={
+                  inviteSearch
+                }
+                onChange={(
+                  event
+                ) =>
+                  setInviteSearch(
+                    event.target
+                      .value
+                  )
+                }
+                placeholder="Search by name, email, roll number..."
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Only students from your section are shown.
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {filteredStudents.length ===
+              0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-10 text-center dark:border-slate-700">
+                  <Users className="mx-auto h-8 w-8 text-slate-400" />
+
+                  <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
+                    No students found
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Try another search or check whether students have
+                    been assigned to the same section.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {filteredStudents.map(
+                    (
+                      student
+                    ) => (
+                      <div
+                        key={
+                          student.id
+                        }
+                        className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-800 dark:bg-slate-800/50 dark:hover:border-blue-900/50 dark:hover:bg-blue-950/20"
+                      >
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 font-bold text-blue-700 dark:from-blue-900/40 dark:to-indigo-900/40 dark:text-blue-300">
+                          {(
+                            student.fullName ||
+                            student.name ||
+                            'S'
+                          )
+                            .charAt(
+                              0
+                            )
+                            .toUpperCase()}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-bold text-slate-900 dark:text-white">
+                            {student.fullName ||
+                              student.name ||
+                              'Student'}
+                          </p>
+
+                          <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                            {student.email ||
+                              'No email available'}
+                          </p>
+
+                          {(
+                            student.enrollmentNumber ||
+                            student.rollNumber
+                          ) && (
+                            <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                              {student.enrollmentNumber ||
+                                student.rollNumber}
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={
+                            saving
+                          }
+                          onClick={() =>
+                            sendInvite(
+                              student.id
+                            )
+                          }
+                          className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-blue-600 px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          <Send className="h-4 w-4" />
+                          Invite
+                        </button>
+                      </div>
+                    )
+                  )}
+                </div>
               )}
             </div>
           </div>
         </div>
+      )}
 
-        {/* Pending Invites Section */}
-        {invites.length > 0 && (
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-orange-500"><Mail className="w-4 h-4 text-white" /></div>
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Pending Invites</h2>
-              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">{invites.length}</span>
-            </div>
-            <div className="grid gap-3 sm:gap-4">
-              {invites.map(inv => (
-                <div key={inv.id} className="group relative rounded-xl sm:rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl" style={{ background: 'linear-gradient(135deg, #fefce8 0%, #fef3c7 100%)' }}>
-                  <div className="absolute inset-x-0 top-0 h-0.5 sm:h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-                  <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 shadow-md"><Mail className="w-5 h-5 text-white" /></div>
-                      <div>
-                        <p className="font-bold text-gray-900 text-base sm:text-lg">{inv.team?.name}</p>
-                        <p className="text-xs sm:text-sm text-gray-600 flex items-center gap-1"><Sparkles className="w-3 h-3" />From: {inv.invitedBy?.firstName} {inv.invitedBy?.lastName}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 w-full sm:w-auto">
-                      <button onClick={() => respondInvite(inv.id, true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-5 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm rounded-xl font-medium hover:scale-105 transition-all shadow-md"><CheckCircle2 className="w-4 h-4" />Accept</button>
-                      <button onClick={() => respondInvite(inv.id, false)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-5 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white text-sm rounded-xl font-medium hover:scale-105 transition-all shadow-md"><XCircle className="w-4 h-4" />Decline</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* =======================================================
+          LEAVE REQUEST MODAL
+      ======================================================== */}
 
-        {/* No Team State */}
-        {!team && (
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-green-500 rounded-2xl sm:rounded-3xl blur-2xl opacity-20" />
-            <div className="relative rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center" style={{ background: gradientCard, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)' }}>
-              <div className="relative inline-block mb-4 sm:mb-6">
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 blur-xl animate-pulse" />
-                <div className="relative w-20 h-20 sm:w-24 sm:h-24 mx-auto rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 flex items-center justify-center shadow-2xl">
-                  <Users className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
-                </div>
+      {showLeaveModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-orange-200 bg-white shadow-2xl dark:border-orange-900/50 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Request to Leave Team
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Your supervisor must approve this request.
+                </p>
               </div>
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">No Team Yet</h3>
-              <p className="text-gray-500 mb-6 max-w-md mx-auto text-sm sm:text-base">You're not part of any team. Create a new team or accept an invite from someone.</p>
 
-              {/* {showCreate ? (
-                <div className="max-w-sm mx-auto space-y-4">
-                  <input value={teamName} onChange={e => setTeamName(e.target.value)} placeholder="Enter your team name" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-                  <div className="flex gap-3">
-                    <button onClick={createTeam} className="flex-1 py-3 rounded-xl font-semibold transition-all hover:scale-105 shadow-lg" style={{ background: gradientBrand, color: 'white' }}>Create Team</button>
-                    <button onClick={() => setShowCreate(false)} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors">Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 px-8 py-3 rounded-xl font-semibold transition-all hover:scale-105 shadow-lg" style={{ background: gradientBrand, color: 'white' }}><Plus className="w-5 h-5" />Create New Team</button>
-              )} */}
-              {showCreate ? (
-                <div className="max-w-sm mx-auto space-y-4">
-                  <input
-                    value={teamName}
-                    onChange={e => setTeamName(e.target.value)}
-                    placeholder="Enter your team name"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                  />
+              <button
+                type="button"
+                onClick={() =>
+                  setShowLeaveModal(
+                    false
+                  )
+                }
+                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        if (hasPendingInvites) {
-                          toast.error('⚠️ First respond to your team invite before creating a team');
-                          return;
-                        }
-                        createTeam();
-                      }}
-                      className={`flex-1 py-3 rounded-xl font-semibold transition-all hover:scale-105 shadow-lg ${hasPendingInvites ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      style={{ background: gradientBrand, color: 'white' }}
-                    >
-                      Create Team
-                    </button>
+            <div className="space-y-5 p-6">
+              <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-900/50 dark:bg-orange-950/20">
+                <p className="text-sm font-semibold text-orange-800 dark:text-orange-200">
+                  Important
+                </p>
 
-                    <button
-                      onClick={() => setShowCreate(false)}
-                      className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                <p className="mt-1 text-xs leading-5 text-orange-700 dark:text-orange-300">
+                  Leaving is not immediate. Submit a reason and wait
+                  for supervisor approval.
+                </p>
+              </div>
 
-                  {hasPendingInvites && (
-                    <p className="text-red-500 text-sm">
-                      Please accept or reject your team invites first.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    if (hasPendingInvites) {
-                      toast.error('⚠️ First respond to your team invite before creating a team');
-                      return;
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Reason for leaving
+                </label>
+
+                <textarea
+                  value={
+                    leaveReason
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setLeaveReason(
+                      event.target
+                        .value
+                    )
+                  }
+                  rows={
+                    5
+                  }
+                  maxLength={
+                    1000
+                  }
+                  placeholder="Explain why you need to leave this team..."
+                  className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+
+                <div className="mt-2 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>
+                    Minimum 10 characters
+                  </span>
+
+                  <span>
+                    {
+                      leaveReason.length
                     }
-                    setShowCreate(true);
-                  }}
-                  className={`inline-flex items-center gap-2 px-8 py-3 rounded-xl font-semibold transition-all hover:scale-105 shadow-lg ${hasPendingInvites ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  style={{ background: gradientBrand, color: 'white' }}
+                    /1000
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowLeaveModal(
+                      false
+                    )
+                  }
+                  className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                 >
-                  <Plus className="w-5 h-5" />
-                  Create New Team
+                  Cancel
                 </button>
-              )}
 
-            </div>
-          </div>
-        )}
-
-        {/* Team Details */}
-        {team && (
-          <div className="space-y-6 sm:space-y-8">
-            {/* Team Header Card */}
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-green-500 rounded-2xl sm:rounded-3xl blur-xl opacity-0 group-hover:opacity-30 transition duration-700" />
-              <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden transition-all duration-500 group-hover:shadow-2xl" style={{ background: gradientCard }}>
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-
-                <div className="p-5 sm:p-6 lg:p-8">
-                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 shadow-lg"><Users className="w-6 h-6 text-white" /></div>
-                        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">{team.name}</h2>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border border-green-200"><CheckCircle2 className="w-3 h-3" />{team.status}</span>
-                        {team.isFrozen && <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border border-red-200"><Shield className="w-3 h-3" />FROZEN</span>}
-                      </div>
-                    </div>
-
-                    {/* ACTION BUTTONS - ALL PRESENT AND WORKING */}
-                    <div className="flex flex-wrap gap-3">
-                      {isLeader && !team.isFrozen && (
-                        <button onClick={loadStudents} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-105 shadow-lg" style={{ background: gradientBrand, color: 'white' }}>
-                          <UserPlus className="w-4 h-4" />Invite Member
-                        </button>
-                      )}
-                      {!isLeader && !team.isFrozen && (
-                        <button onClick={() => setConfirm({ action: 'leave', id: '', msg: 'Are you sure you want to leave this team?' })} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-100 to-pink-100 text-red-700 rounded-xl text-sm font-medium hover:scale-105 transition-all">
-                          <LogOut className="w-4 h-4" />Leave Team
-                        </button>
-                      )}
-                      {isLeader && !team.isFrozen && (
-                        <button onClick={() => setConfirm({ action: 'dissolve', id: '', msg: 'This will remove all members and release the project. This action cannot be undone!' })} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl text-sm font-medium hover:scale-105 transition-all shadow-lg">
-                          <Trash2 className="w-4 h-4" />Dissolve Team
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Team Stats */}
-                  <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                    {teamStats.map((stat, idx) => (
-                      <div key={idx} className="group/stat relative rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 sm:p-4 text-center hover:scale-105 transition-all duration-300 cursor-pointer border border-gray-100 shadow-sm">
-                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-xl opacity-0 group-hover/stat:opacity-10 transition-opacity" />
-                        <div className="p-1.5 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-500 inline-flex mb-2">{stat.icon}</div>
-                        <p className="text-xl sm:text-2xl font-bold text-gray-900">{stat.value}</p>
-                        <p className="text-[10px] sm:text-xs text-gray-500 font-medium">{stat.label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Selected Project */}
-                  {team.project && (
-                    <div className="mt-5 sm:mt-6 rounded-xl p-4 border border-emerald-200" style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' }}>
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 shadow-md"><BookOpen className="w-4 h-4 text-white" /></div>
-                        <div className="flex-1">
-                          <p className="text-[10px] sm:text-xs font-bold text-emerald-700 uppercase tracking-wide flex items-center gap-1"><Sparkles className="w-3 h-3" />SELECTED PROJECT</p>
-                          <p className="font-bold text-gray-900 mt-1 text-sm sm:text-base">{team.project.title}</p>
-                          <p className="mt-1 text-sm font-bold text-gray-900">{team.project.projectCode || 'Project code not assigned'}</p>
-                          <p className="text-[10px] sm:text-xs text-emerald-600 mt-0.5">{team.project.domain || 'No domain specified'}</p>
-                          <p className="text-sm sm:text-base text-gray-700 mt-2">
-                            <span className="font-semibold text-gray-900">Supervisor:</span>{' '}
-                            {team.project.faculty
-                              ? `${team.project.faculty.firstName} ${team.project.faculty.lastName || ''}`.trim()
-                              : 'Not assigned'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Members List */}
-            <div>
-              <div className="flex items-center justify-between mb-4 sm:mb-5">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-500"><Users className="w-4 h-4 text-white" /></div>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900">Team Members</h3>
-                </div>
-                <div className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs sm:text-sm font-bold">{activeMemberCount} / {maxTeamSize} Members</div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {team.members?.filter((m: TeamMember) => m.status === 'ACTIVE').map((m: TeamMember) => (
-                  <div key={m.id} className="group relative transition-all duration-300 hover:-translate-y-1">
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-xl sm:rounded-2xl blur-md opacity-0 group-hover:opacity-30 transition duration-500" />
-                    <div className="relative rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-all duration-300 group-hover:shadow-xl border border-gray-100" style={{ background: gradientCard }}>
-                      <div className="flex items-center gap-3 sm:gap-4">
-                        <div className="relative">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-lg">
-                            {m.student.firstName[0]}{m.student.lastName?.[0]}
-                          </div>
-                          {m.role === 'LEADER' && (
-                            <div className="absolute -top-1 -right-1">
-                              <div className="bg-gradient-to-r from-amber-400 to-yellow-500 rounded-full p-1 shadow-lg"><Crown className="w-3 h-3 text-white" /></div>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-gray-900 text-sm sm:text-base truncate">{m.student.firstName} {m.student.lastName}</span>
-                            {m.role === 'LEADER' && (
-                              <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 px-2 py-0.5 rounded-full font-bold"><Crown className="w-2.5 h-2.5" />Leader</span>
-                            )}
-                          </div>
-                          <p className="text-[10px] sm:text-xs text-gray-500 font-mono mt-0.5 truncate">{m.student.enrollmentNo}</p>
-                          <p className="text-[9px] sm:text-[10px] text-gray-400 truncate hidden sm:block">{m.student.email}</p>
-                        </div>
-
-                        {isLeader && m.studentId !== user?.id && !team.isFrozen && (
-                          <button onClick={() => setConfirm({ action: 'remove', id: m.studentId, msg: `Remove ${m.student.firstName} from the team?` })} className="p-2 rounded-lg hover:bg-red-50 transition-all duration-300 group/remove">
-                            <Trash2 className="w-4 h-4 text-gray-400 group-hover/remove:text-red-500 transition-colors" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                <button
+                  type="button"
+                  disabled={
+                    saving
+                  }
+                  onClick={
+                    submitLeaveRequest
+                  }
+                  className="flex-1 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
+                >
+                  {saving
+                    ? 'Submitting...'
+                    : 'Submit Request'}
+                </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Invite Modal */}
-        {showInvite && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowInvite(false)} />
+      {/* =======================================================
+          DISSOLVE REQUEST MODAL
+      ======================================================== */}
 
-            <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-              <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-100 px-5 sm:px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 shadow-md"><UserPlus className="w-5 h-5 text-white" /></div>
-                  <h2 className="text-lg sm:text-xl font-bold text-gray-900">Invite Teammate</h2>
-                </div>
-                <button onClick={() => setShowInvite(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X className="w-5 h-5" /></button>
+      {showDissolveModal && (
+        <div className="fixed inset-0 z-[92] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl dark:border-red-900/50 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Request to Dissolve Team
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Your supervisor must approve this request.
+                </p>
               </div>
 
-              <div className="p-5 sm:p-6 space-y-4">
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-3 border border-emerald-100">
-                  <p className="text-xs text-emerald-700 flex items-center gap-1"><Sparkles className="w-3 h-3" />Invite students to join your team. They will receive a notification.</p>
-                </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setShowDissolveModal(
+                    false
+                  )
+                }
+                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-                <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="🔍 Search by name or enrollment number" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
+            <div className="space-y-5 p-6">
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/20">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-lg bg-red-100 p-2 text-red-600 dark:bg-red-900/40 dark:text-red-300">
+                    <Trash2 className="h-4 w-4" />
+                  </div>
 
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {students.filter(s => (!inviteEmail || s.firstName.toLowerCase().includes(inviteEmail.toLowerCase()) || s.enrollmentNo?.includes(inviteEmail)) && s.id !== user?.id).map(s => {
-                    let statusText = 'Invite', statusClass = 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:scale-105', disabled = false;
-                    if (memberIds.has(s.id)) { statusText = 'In Team'; statusClass = 'bg-gradient-to-r from-green-500 to-emerald-500'; disabled = true; }
-                    else if (inviteIds.has(s.id)) { statusText = 'Pending'; statusClass = 'bg-gradient-to-r from-amber-500 to-orange-500'; disabled = true; }
-                    else if (takenMap.has(s.id) && takenMap.get(s.id) !== team?.id) { statusText = 'In Other Team'; statusClass = 'bg-gray-400'; disabled = true; }
-                    return (
-                      <div key={s.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                        <div><p className="text-sm font-semibold text-gray-900">{s.firstName} {s.lastName}</p><p className="text-xs text-gray-500">{s.enrollmentNo}</p></div>
-                        <button onClick={() => sendInvite(s.id)} disabled={disabled} className={`px-4 py-1.5 rounded-lg text-xs font-medium text-white transition-all ${statusClass} ${!disabled ? 'hover:scale-105' : 'cursor-not-allowed'}`}>{statusText}</button>
-                      </div>
-                    );
-                  })}
+                  <div>
+                    <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+                      Supervisor Approval Required
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-red-700 dark:text-red-300">
+                      The team will not be dissolved immediately.
+                      Your supervisor will review your reason and
+                      either approve or reject the request.
+                    </p>
+                  </div>
                 </div>
-                <button onClick={() => setShowInvite(false)} className="w-full py-2.5 bg-gray-100 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">Close</button>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Reason for dissolving the team
+                </label>
+
+                <textarea
+                  value={
+                    dissolveReason
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setDissolveReason(
+                      event.target
+                        .value
+                    )
+                  }
+                  rows={
+                    5
+                  }
+                  maxLength={
+                    1000
+                  }
+                  placeholder="Explain why the entire team needs to be dissolved..."
+                  className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+
+                <div className="mt-2 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>
+                    Minimum 10 characters
+                  </span>
+
+                  <span>
+                    {
+                      dissolveReason.length
+                    }
+                    /1000
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowDissolveModal(
+                      false
+                    )
+                  }
+                  className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    saving ||
+                    dissolveReason
+                      .trim()
+                      .length <
+                      10
+                  }
+                  onClick={
+                    submitDissolveRequest
+                  }
+                  className="flex-1 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 px-4 py-3 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving
+                    ? 'Submitting...'
+                    : 'Submit Request'}
+                </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Confirmation Dialog */}
-        {confirm && <ConfirmDialog open title="Confirm Action" message={confirm.msg} variant="warning" confirmText="Confirm" onConfirm={doConfirm} onCancel={() => setConfirm(null)} />}
-      </div>
+      {/* =======================================================
+          REMOVE MEMBER CONFIRMATION MODAL
+      ======================================================== */}
+
+      {confirmState && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300">
+              <Trash2 className="h-6 w-6" />
+            </div>
+
+            <h2 className="mt-5 text-center text-xl font-bold text-slate-900 dark:text-white">
+              Remove Member?
+            </h2>
+
+            <p className="mt-2 text-center text-sm leading-6 text-slate-600 dark:text-slate-300">
+              Are you sure you want to remove{' '}
+              <strong>
+                {
+                  confirmState.name ||
+                  'this member'
+                }
+              </strong>{' '}
+              from the team?
+            </p>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                disabled={
+                  saving
+                }
+                onClick={() =>
+                  setConfirmState(
+                    null
+                  )
+                }
+                className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  saving
+                }
+                onClick={
+                  handleConfirmRemove
+                }
+                className="flex-1 rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {saving
+                  ? 'Removing...'
+                  : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

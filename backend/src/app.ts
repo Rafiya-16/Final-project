@@ -72,40 +72,20 @@ app.get('/api/health', (_req, res) => {
 });
 
 // API Routes
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-
 app.use('/api/pools', poolRoutes);
 
-app.use(
-  '/api/pools',
-  projectRoutes
-); // /api/pools/:poolId/projects
+// Other pool-related routes
+app.use('/api/pools', teamRoutes);
+app.use('/api/pools', projectRoutes);
+app.use('/api/pools', ideaRoutes);
+app.use('/api/pools', reportRoutes);
 
-app.use(
-  '/api/pools',
-  teamRoutes
-); // /api/pools/:poolId/teams
+app.use('/api/notifications', notificationRoutes);
 
-app.use(
-  '/api/pools',
-  ideaRoutes
-); // /api/pools/:poolId/ideas
-
-app.use(
-  '/api/pools',
-  reportRoutes
-); // /api/pools/:poolId/reports
-
-app.use(
-  '/api/notifications',
-  notificationRoutes
-);
-
-app.use(
-  '/api/audit-logs',
-  auditRoutes
-);
+app.use('/api/audit-logs', auditRoutes);
 
 // 404
 app.use((_req, res) => {
