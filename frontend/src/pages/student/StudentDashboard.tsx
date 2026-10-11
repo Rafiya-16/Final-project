@@ -61,27 +61,83 @@ const gradients = {
 
 const PROJECT_POOL_ACTIVE_STATUSES = [
   'SELECTION_OPEN',
+  'IDEA_SUBMISSION',
   'TEAMS_FORMING',
 ];
 
-const JOURNEY_STAGES = [
-  'SUBMISSION_OPEN',
-  'UNDER_REVIEW',
-  'DECISION_PENDING',
-  'SELECTION_OPEN',
-  'TEAMS_FORMING',
-  'FROZEN',
+const JOURNEY_STAGES: {
+  status: string;
+  label: string;
+  emoji: string;
+  description: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    status: 'SUBMISSION_OPEN',
+    label: 'Submit',
+    emoji: '📝',
+    description: 'Faculty submits proposals',
+    icon: <Sparkles className="w-3 h-3" />,
+  },
+  {
+    status: 'UNDER_REVIEW',
+    label: 'Review',
+    emoji: '🔍',
+    description: 'Subadmins review',
+    icon: <Clock className="w-3 h-3" />,
+  },
+  {
+    status: 'DECISION_PENDING',
+    label: 'Decision',
+    emoji: '⚖️',
+    description: 'Admin decides',
+    icon: <Target className="w-3 h-3" />,
+  },
+  {
+    status: 'SELECTION_OPEN',
+    label: 'Project Select',
+    emoji: '🎯',
+    description: 'Students select',
+    icon: <CheckCircle2 className="w-3 h-3" />,
+  },
+  {
+    status: 'IDEA_SUBMISSION',
+    label: 'Idea Submit',
+    emoji: '💡',
+    description: 'Students propose ideas',
+    icon: <Lightbulb className="w-3 h-3" />,
+  },
+  {
+    status: 'TEAMS_FORMING',
+    label: 'Team',
+    emoji: '🤝',
+    description: 'Teams form',
+    icon: <Users className="w-3 h-3" />,
+  },
+  {
+    status: 'FROZEN',
+    label: 'Final',
+    emoji: '🏆',
+    description: 'Allocation complete',
+    icon: <Award className="w-3 h-3" />,
+  },
 ];
+
+const getStageIndex = (status: string) =>
+  JOURNEY_STAGES.findIndex((stage) => stage.status === status);
+
+const getProgressPercent = (status: string) => {
+  const idx = getStageIndex(status);
+
+  if (idx === -1) return 0;
+
+  return Math.round(((idx + 1) / JOURNEY_STAGES.length) * 100);
+};
 
 const StudentDashboard: React.FC = () => {
   const [pools, setPools] = useState<Pool[]>([]);
   const [activePools, setActivePools] = useState<Pool[]>([]);
 
-  /*
-   * Team information is now tracked per pool.
-   * This prevents one active pool from overwriting another pool's
-   * team/invite information.
-   */
   const [teamsByPool, setTeamsByPool] = useState<
     Record<string, Team | null>
   >({});
@@ -112,11 +168,6 @@ const StudentDashboard: React.FC = () => {
 
         setPools(allPools);
 
-        /*
-         * Students can have multiple assigned pools.
-         * Only selection/team-forming pools are considered active
-         * for project selection from this dashboard.
-         */
         const active = allPools.filter((currentPool) =>
           PROJECT_POOL_ACTIVE_STATUSES.includes(
             currentPool.status
@@ -125,12 +176,6 @@ const StudentDashboard: React.FC = () => {
 
         setActivePools(active);
 
-        /*
-         * Load team + invites independently for every relevant pool.
-         *
-         * We include active pools first and then any other assigned
-         * pools that may already contain the student's team.
-         */
         const relevantPools = Array.from(
           new Map(
             [...active, ...allPools].map((currentPool) => [
@@ -214,13 +259,6 @@ const StudentDashboard: React.FC = () => {
     };
   }, []);
 
-  /*
-   * Pool with the highest lifecycle progress is used for the
-   * large phase banner.
-   *
-   * Active pools are preferred. If there are multiple active pools,
-   * the furthest-progressed pool is shown first.
-   */
   const pool = useMemo(() => {
     const candidates =
       activePools.length > 0 ? activePools : pools;
@@ -229,42 +267,24 @@ const StudentDashboard: React.FC = () => {
       return undefined;
     }
 
-    return [...candidates].sort((a, b) => {
-      const aIndex = JOURNEY_STAGES.indexOf(a.status);
-      const bIndex = JOURNEY_STAGES.indexOf(b.status);
-
-      return bIndex - aIndex;
-    })[0];
+    return [...candidates].sort(
+      (a, b) => getStageIndex(b.status) - getStageIndex(a.status)
+    )[0];
   }, [activePools, pools]);
 
-  /*
-   * Team for the pool currently shown in the phase banner.
-   */
   const myTeam = pool
     ? teamsByPool[pool.id] || null
     : null;
 
-  /*
-   * Total pending invites across all assigned pools.
-   */
   const inviteCount = Object.values(invitesByPool).reduce(
     (total, count) => total + count,
     0
   );
 
-  /*
-   * Total active teams found across all assigned pools.
-   */
   const teamCount = Object.values(teamsByPool).filter(
     Boolean
   ).length;
 
-  /*
-   * Number of projects/pools currently available to browse.
-   *
-   * This intentionally represents active allocation pools rather
-   * than using a fake hard-coded project count.
-   */
   const activePoolCount = activePools.length;
 
   const phaseInfo = (status: string) => {
@@ -309,6 +329,16 @@ const StudentDashboard: React.FC = () => {
           desc: 'Browse and select your project!',
         };
 
+      case 'IDEA_SUBMISSION':
+        return {
+          label: 'Idea Submission',
+          gradient: gradients.lime,
+          icon: (
+            <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5" />
+          ),
+          desc: 'Submit your own project idea for approval',
+        };
+
       case 'TEAMS_FORMING':
         return {
           label: 'Teams Forming',
@@ -342,11 +372,8 @@ const StudentDashboard: React.FC = () => {
   };
 
   const phase = pool ? phaseInfo(pool.status) : null;
-
-  /*
-   * These are now meaningful dashboard stats instead of fake
-   * hard-coded numbers.
-   */
+  const currentStageIdx = pool ? getStageIndex(pool.status) : -1;
+  const progressPercent = pool ? getProgressPercent(pool.status) : 0;
   const stats = [
     {
       label: 'Active Pools',
@@ -377,6 +404,7 @@ const StudentDashboard: React.FC = () => {
     },
   ];
 
+  const isIdeaPhase = pool?.status === 'IDEA_SUBMISSION';
   const quickActions = [
     {
       id: 'browse',
@@ -387,12 +415,6 @@ const StudentDashboard: React.FC = () => {
         <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
       ),
       gradient: gradients.emerald,
-      /*
-       * If multiple pools are available, the active-pool section
-       * below gives the exact pool-specific navigation.
-       *
-       * This fallback still works when there is only one pool.
-       */
       path: pool
         ? `/projects?poolId=${encodeURIComponent(pool.id)}`
         : '/projects',
@@ -440,8 +462,10 @@ const StudentDashboard: React.FC = () => {
       ),
       gradient: gradients.gold,
       path: '/ideas',
-      badge: 'Get Approved',
-      stat: '💡 Innovation Hub',
+      badge: isIdeaPhase ? 'Open Now' : 'Get Approved',
+      stat: isIdeaPhase
+        ? '💡 Submissions Open'
+        : '💡 Innovation Hub',
     },
   ];
 
@@ -613,6 +637,10 @@ const StudentDashboard: React.FC = () => {
                     const poolInvites =
                       invitesByPool[currentPool.id] || 0;
 
+                    const poolPercent = getProgressPercent(
+                      currentPool.status
+                    );
+
                     const activeMemberCount =
                       poolTeam?.members?.filter(
                         (member) => member.status === 'ACTIVE'
@@ -678,6 +706,28 @@ const StudentDashboard: React.FC = () => {
                             <p className="text-xs text-gray-600 mt-2 leading-relaxed">
                               {currentPhase.desc}
                             </p>
+
+                            {/* Per-pool progress */}
+                            <div className="mt-3">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[9px] font-mono text-emerald-600">
+                                  PROGRESS
+                                </span>
+                                <span className="text-[10px] font-bold text-emerald-700">
+                                  {poolPercent}%
+                                </span>
+                              </div>
+
+                              <div className="h-1.5 bg-emerald-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all duration-700"
+                                  style={{
+                                    width: `${poolPercent}%`,
+                                    background: currentPhase.gradient,
+                                  }}
+                                />
+                              </div>
+                            </div>
                           </div>
 
                           {/* Pool-specific team information */}
@@ -963,176 +1013,149 @@ const StudentDashboard: React.FC = () => {
                     <div className="w-20 h-px bg-white/30" />
 
                     <span className="text-[10px] text-white/90 font-mono">
-                      6 STAGES
+                      {currentStageIdx >= 0
+                        ? `STAGE ${currentStageIdx + 1} OF ${JOURNEY_STAGES.length}`
+                        : `${JOURNEY_STAGES.length} STAGES`}
                     </span>
 
                     <div className="w-20 h-px bg-white/30" />
                   </div>
                 </div>
 
-                {/* Modern Stepper Design */}
-                <div className="relative">
-                  {/* Background Track */}
-                  <div className="absolute top-5 left-0 right-0 h-0.5 bg-white/20 rounded-full" />
+                {/* Modern Stepper Design (scrolls horizontally on very small screens) */}
+                <div className="relative overflow-x-auto pb-12 -mx-2 px-2 scrollbar-none [@media(max-width:640px)]:[&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+                  <div className="relative min-w-[640px] sm:min-w-0">
+                    {/* Background Track */}
+                    <div className="absolute top-5 sm:top-6 left-0 right-0 h-0.5 bg-white/20 rounded-full" />
 
-                  <div className="relative flex justify-between items-center">
-                    {[
-                      {
-                        label: 'Submit',
-                        icon: <Sparkles className="w-3 h-3" />,
-                        stage: 1,
-                        emoji: '📝',
-                        description: 'Faculty submits proposals',
-                      },
-                      {
-                        label: 'Review',
-                        icon: <Clock className="w-3 h-3" />,
-                        stage: 2,
-                        emoji: '🔍',
-                        description: 'Subadmins review',
-                      },
-                      {
-                        label: 'Decision',
-                        icon: <Target className="w-3 h-3" />,
-                        stage: 3,
-                        emoji: '⚖️',
-                        description: 'Admin decides',
-                      },
-                      {
-                        label: 'Project Select',
-                        icon: (
-                          <CheckCircle2 className="w-3 h-3" />
-                        ),
-                        stage: 4,
-                        emoji: '🎯',
-                        description: 'Students select',
-                      },
-                      {
-                        label: 'Team',
-                        icon: <Users className="w-3 h-3" />,
-                        stage: 5,
-                        emoji: '🤝',
-                        description: 'Teams form',
-                      },
-                      {
-                        label: 'Final',
-                        icon: <Award className="w-3 h-3" />,
-                        stage: 6,
-                        emoji: '🏆',
-                        description: 'Allocation complete',
-                      },
-                    ].map((stage, idx) => {
-                      const currentIdx = JOURNEY_STAGES.indexOf(
-                        pool.status
-                      );
+                    <div className="relative flex justify-between items-start">
+                      {JOURNEY_STAGES.map((stage, idx) => {
+                        // Finished stages
+                        const isCompleted =
+                          currentStageIdx >= 0 &&
+                          (idx < currentStageIdx ||
+                            // Frozen = whole journey finished
+                            (pool.status === 'FROZEN' &&
+                              idx === currentStageIdx));
 
-                      const isCompleted = idx < currentIdx;
-                      const isActive = idx === currentIdx;
+                        const isActive =
+                          idx === currentStageIdx &&
+                          pool.status !== 'FROZEN';
 
-                      return (
-                        <div
-                          key={stage.label}
-                          className="flex-1 relative group/step"
-                        >
-                          {/* Connector Line */}
-                          {idx > 0 && (
-                            <div
-                              className={`absolute top-5 left-0 w-full h-0.5 transition-all duration-700 ${
-                                isCompleted
-                                  ? 'bg-white shadow-lg'
-                                  : 'bg-white/20'
-                              }`}
-                              style={{
-                                left: '-50%',
-                                width: '100%',
-                              }}
-                            />
-                          )}
+                        // Line leading INTO a step is filled once that step is reached
+                        const isLineFilled =
+                          currentStageIdx >= 0 &&
+                          idx <= currentStageIdx;
 
-                          {/* Step Node */}
-                          <div className="relative z-10 flex flex-col items-center">
-                            {/* Pulse Ring for Active Step */}
-                            {isActive && (
-                              <div className="absolute -inset-2 rounded-full">
-                                <div className="absolute inset-0 rounded-full bg-white animate-ping opacity-75" />
-
-                                <div className="absolute inset-0 rounded-full bg-white animate-pulse" />
-                              </div>
+                        return (
+                          <div
+                            key={stage.status}
+                            className="flex-1 relative group/step"
+                          >
+                            {/* Connector Line */}
+                            {idx > 0 && (
+                              <div
+                                className={`absolute top-5 sm:top-6 h-0.5 transition-all duration-700 ${
+                                  isLineFilled
+                                    ? 'bg-white shadow-lg'
+                                    : 'bg-white/20'
+                                }`}
+                                style={{
+                                  left: '-50%',
+                                  width: '100%',
+                                }}
+                              />
                             )}
 
-                            {/* Node Circle */}
-                            <div
-                              className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-500 cursor-pointer group-hover/step:scale-110 ${
-                                isCompleted
-                                  ? 'bg-white shadow-xl shadow-white/50 scale-105'
-                                  : isActive
-                                    ? 'bg-white shadow-2xl shadow-white/50 scale-110 ring-4 ring-white/30'
-                                    : 'bg-white/30 backdrop-blur-sm border-2 border-white/50'
-                              }`}
-                            >
-                              {isCompleted ? (
-                                <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
-                              ) : (
-                                <span className="text-white font-bold text-sm sm:text-base">
-                                  {stage.stage}
-                                </span>
-                              )}
-                            </div>
+                            {/* Step Node */}
+                            <div className="relative z-10 flex flex-col items-center">
+                              {/* Pulse Ring for Active Step */}
+                              {isActive && (
+                                <div className="absolute -inset-2 rounded-full">
+                                  <div className="absolute inset-0 rounded-full bg-white animate-ping opacity-75" />
 
-                            {/* Label */}
-                            <div className="mt-3 text-center">
+                                  <div className="absolute inset-0 rounded-full bg-white animate-pulse" />
+                                </div>
+                              )}
+
+                              {/* Node Circle */}
                               <div
-                                className={`flex items-center gap-1 justify-center mb-1 transition-all duration-300 ${
-                                  isActive ? 'scale-110' : ''
+                                className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-500 cursor-pointer group-hover/step:scale-110 ${
+                                  isCompleted
+                                    ? 'bg-white shadow-xl shadow-white/50 scale-105'
+                                    : isActive
+                                      ? 'bg-white shadow-2xl shadow-white/50 scale-110 ring-4 ring-white/30'
+                                      : 'bg-white/30 backdrop-blur-sm border-2 border-white/50'
                                 }`}
                               >
-                                <span className="text-sm sm:text-base">
-                                  {stage.emoji}
-                                </span>
+                                {isCompleted ? (
+                                  <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
+                                ) : isActive ? (
+                                  <span className="text-emerald-700 font-bold text-sm sm:text-base">
+                                    {idx + 1}
+                                  </span>
+                                ) : (
+                                  <span className="text-white font-bold text-sm sm:text-base">
+                                    {idx + 1}
+                                  </span>
+                                )}
+                              </div>
 
-                                <span
-                                  className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider ${
-                                    isActive
-                                      ? 'text-white drop-shadow-lg'
-                                      : 'text-white/90'
+                              {/* Label */}
+                              <div className="mt-3 text-center">
+                                <div
+                                  className={`flex items-center gap-1 justify-center mb-1 transition-all duration-300 ${
+                                    isActive ? 'scale-110' : ''
                                   }`}
                                 >
-                                  {stage.label}
-                                </span>
-                              </div>
+                                  <span className="text-sm sm:text-base">
+                                    {stage.emoji}
+                                  </span>
 
-                              <p className="text-[8px] sm:text-[10px] text-white/80 hidden sm:block">
-                                {stage.description}
-                              </p>
-                            </div>
-
-                            {/* Status Badge for Active Step */}
-                            {isActive && (
-                              <div className="absolute -bottom-8 whitespace-nowrap">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm text-[8px] font-bold text-white border border-white/40">
-                                  <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
-                                  CURRENT STAGE
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Completion Checkmark */}
-                            {isCompleted && (
-                              <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3">
-                                <div className="bg-emerald-500 rounded-full p-0.5 shadow-lg">
-                                  <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                                  <span
+                                    className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${
+                                      isActive
+                                        ? 'text-white drop-shadow-lg'
+                                        : 'text-white/90'
+                                    }`}
+                                  >
+                                    {stage.label}
+                                  </span>
                                 </div>
+
+                                <p className="text-[8px] sm:text-[10px] text-white/80 hidden sm:block">
+                                  {stage.description}
+                                </p>
                               </div>
-                            )}
+
+                              {/* Status Badge for Active Step */}
+                              {isActive && (
+                                <div className="absolute -bottom-9 whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm text-[8px] font-bold text-white border border-white/40">
+                                    <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                                    CURRENT STAGE
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Completion Checkmark */}
+                              {isCompleted && (
+                                <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3">
+                                  <div className="bg-emerald-500 rounded-full p-0.5 shadow-lg">
+                                    <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                {/* Progress Bar with Percentage */}
-                <div className="mt-10 pt-4">
+                {/* Progress Bar with Percentage (starts counting from phase 1) */}
+                <div className="mt-2 pt-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] text-white/70 font-mono">
                       PROGRESS
@@ -1140,12 +1163,7 @@ const StudentDashboard: React.FC = () => {
 
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-white">
-                        {Math.round(
-                          ((JOURNEY_STAGES.indexOf(pool.status) + 1) /
-                            JOURNEY_STAGES.length) *
-                            100
-                        )}
-                        %
+                        {progressPercent}%
                       </span>
 
                       <div className="w-16 h-px bg-white/30" />
@@ -1156,20 +1174,20 @@ const StudentDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-2 bg-white/20 rounded-full overflow-hidden"
+                    role="progressbar"
+                    aria-valuenow={progressPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Allocation progress"
+                  >
                     <div
                       className="h-full bg-white rounded-full transition-all duration-1000 ease-out relative"
                       style={{
                         width: `${Math.max(
                           0,
-                          Math.min(
-                            100,
-                            ((JOURNEY_STAGES.indexOf(
-                              pool.status
-                            ) + 1) /
-                              JOURNEY_STAGES.length) *
-                              100
-                          )
+                          Math.min(100, progressPercent)
                         )}%`,
                       }}
                     >
@@ -1180,24 +1198,27 @@ const StudentDashboard: React.FC = () => {
 
                 {/* Milestone Completion Summary */}
                 <div className="mt-6 pt-3 flex flex-wrap gap-2 justify-center">
-                  {JOURNEY_STAGES.map((status, idx) => {
-                    const currentIdx = JOURNEY_STAGES.indexOf(
-                      pool.status
-                    );
+                  {JOURNEY_STAGES.map((stage, idx) => {
+                    const isCompleted =
+                      currentStageIdx >= 0 &&
+                      (idx < currentStageIdx ||
+                        (pool.status === 'FROZEN' &&
+                          idx === currentStageIdx));
 
-                    const isCompleted = idx < currentIdx;
-                    const isCurrent = idx === currentIdx;
+                    const isCurrent =
+                      idx === currentStageIdx &&
+                      pool.status !== 'FROZEN';
 
                     if (isCompleted) {
                       return (
                         <div
-                          key={status}
+                          key={stage.status}
                           className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm"
                         >
                           <CheckCircle2 className="w-2.5 h-2.5 text-white" />
 
                           <span className="text-[8px] text-white font-medium capitalize">
-                            {status
+                            {stage.status
                               .replace(/_/g, ' ')
                               .toLowerCase()}
                           </span>
@@ -1208,13 +1229,13 @@ const StudentDashboard: React.FC = () => {
                     if (isCurrent) {
                       return (
                         <div
-                          key={status}
+                          key={stage.status}
                           className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/30 backdrop-blur-sm border border-white/40 animate-pulse"
                         >
                           <div className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
 
                           <span className="text-[8px] text-white font-bold capitalize">
-                            {status
+                            {stage.status
                               .replace(/_/g, ' ')
                               .toLowerCase()}
                           </span>
@@ -1224,13 +1245,13 @@ const StudentDashboard: React.FC = () => {
 
                     return (
                       <div
-                        key={status}
+                        key={stage.status}
                         className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/10 backdrop-blur-sm opacity-50"
                       >
                         <div className="w-1 h-1 rounded-full bg-white/50" />
 
                         <span className="text-[7px] text-white/50 capitalize">
-                          {status
+                          {stage.status
                             .replace(/_/g, ' ')
                             .toLowerCase()}
                         </span>

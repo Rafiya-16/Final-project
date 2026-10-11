@@ -13,12 +13,7 @@ export type PoolListScope =
   | 'student';
 
 export const poolService = {
-  /**
-   * Get pools available to the current user.
-   *
-   * The backend may filter results based on the user's role
-   * and assigned pools. Scope can further control the result set.
-   */
+
   list: async (
     page = 1,
     scope: PoolListScope = 'all'
@@ -30,27 +25,18 @@ export const poolService = {
     return data;
   },
 
-  /**
-   * Get one pool by ID.
-   */
   getById: async (id: string) => {
     const { data } = await api.get(`/pools/${id}`);
 
     return data.data;
   },
 
-  /**
-   * Create a pool.
-   */
   create: async (body: CreatePoolInput) => {
     const { data } = await api.post('/pools', body);
 
     return data.data;
   },
 
-  /**
-   * Update a pool.
-   */
   update: async (
     id: string,
     body: Partial<Pool>
@@ -63,9 +49,6 @@ export const poolService = {
     return data;
   },
 
-  /**
-   * Activate a pool.
-   */
   activate: async (id: string) => {
     const { data } = await api.post(
       `/pools/${id}/activate`
@@ -73,10 +56,6 @@ export const poolService = {
 
     return data;
   },
-
-  /**
-   * Move a pool to the next phase.
-   */
   advancePhase: async (id: string) => {
     const { data } = await api.post(
       `/pools/${id}/advance-phase`
@@ -85,9 +64,6 @@ export const poolService = {
     return data;
   },
 
-  /**
-   * Freeze a pool.
-   */
   freeze: async (id: string) => {
     const { data } = await api.post(
       `/pools/${id}/freeze`
@@ -96,9 +72,6 @@ export const poolService = {
     return data;
   },
 
-  /**
-   * Archive a pool.
-   */
   archive: async (id: string) => {
     const { data } = await api.post(
       `/pools/${id}/archive`
@@ -107,9 +80,6 @@ export const poolService = {
     return data;
   },
 
-  /**
-   * Assign students, faculty, or subadmins to a pool.
-   */
   assignUsers: async (
     id: string,
     body: AssignUsersInput
@@ -122,9 +92,6 @@ export const poolService = {
     return data;
   },
 
-  /**
-   * Remove faculty from a pool.
-   */
   removeFaculty: async (
     poolId: string,
     facultyId: string
@@ -136,9 +103,6 @@ export const poolService = {
     return data.data;
   },
 
-  /**
-   * Remove a subadmin from a pool.
-   */
   removeSubadmin: async (
     poolId: string,
     subadminId: string
@@ -150,9 +114,6 @@ export const poolService = {
     return data.data;
   },
 
-  /**
-   * Get pool statistics.
-   */
   getStats: async (id: string) => {
     const { data } = await api.get(
       `/pools/${id}/stats`

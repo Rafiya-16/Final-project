@@ -63,6 +63,7 @@ type Team = {
   isFrozen?: boolean;
   status?: string;
   members?: TeamMember[];
+  invites?: AnyRecord[];
   project?: AnyRecord;
   leaveRequests?: AnyRecord[];
   dissolveRequests?: AnyRecord[];
@@ -406,13 +407,6 @@ const MyTeamPage: React.FC = () => {
           setLeaveRequestStatus('NONE');
           setLeaveResponseNote('');
         }
-
-        /*
-         * ======================================================
-         * DISSOLVE REQUEST STATUS
-         * ======================================================
-         */
-
         const dissolveRequests =
           Array.isArray(
             loadedTeam?.dissolveRequests
@@ -420,13 +414,6 @@ const MyTeamPage: React.FC = () => {
             ? loadedTeam.dissolveRequests
             : [];
 
-        /*
-         * Only update the dissolve state if backend
-         * actually returned the relation.
-         *
-         * This is important because an older getMyTeam()
-         * response may not include dissolveRequests yet.
-         */
         if (dissolveRequests.length > 0) {
           const ownDissolveRequest =
             dissolveRequests
@@ -556,6 +543,27 @@ const MyTeamPage: React.FC = () => {
       ),
     [team?.members]
   );
+const pendingInviteIds = useMemo(
+  () =>
+    new Set<string>(
+      (team?.invites || [])
+        .filter(
+          (invite: AnyRecord) =>
+            invite.status === 'PENDING' &&
+            (!invite.expiresAt ||
+              new Date(invite.expiresAt).getTime() > Date.now())
+        )
+        .map(
+          (invite: AnyRecord) =>
+            invite.inviteeId || invite.invitee?.id
+        )
+        .filter(
+          (id: unknown): id is string =>
+            typeof id === 'string' && id.length > 0
+        )
+    ),
+  [team?.invites]
+);
 
   const leftMembers = useMemo(
     () =>
@@ -687,32 +695,46 @@ const MyTeamPage: React.FC = () => {
       setStudentsLoading(true);
 
       try {
-        const result =
-          await userService.list({
-            role: 'STUDENT',
-          });
+       const firstPage = await userService.list({
+  role: 'STUDENT',
+  page: '1',
+  limit: '100',
+});
 
-        const rawStudents: AnyRecord[] =
-          Array.isArray(result)
-            ? result
-            : Array.isArray(
-                result?.data
-              )
-            ? result.data
-            : Array.isArray(
-                result?.users
-              )
-            ? result.users
-            : [];
+const getPageUsers = (result: AnyRecord): AnyRecord[] => {
+  if (Array.isArray(result?.data)) {
+    return result.data;
+  }
 
-        /*
-         * IMPORTANT:
-         * Only ACTIVE members occupy team slots.
-         *
-         * LEFT members are intentionally not
-         * included in this set, so a previously
-         * left student can be invited again.
-         */
+  if (Array.isArray(result?.users)) {
+    return result.users;
+  }
+
+  return Array.isArray(result) ? result : [];
+};
+
+const firstPageUsers = getPageUsers(firstPage);
+
+const totalPages = Math.max(
+  1,
+  Number(firstPage?.pagination?.totalPages) || 1
+);
+
+const remainingPages = await Promise.all(
+  Array.from({ length: totalPages - 1 }, (_, index) =>
+    userService.list({
+      role: 'STUDENT',
+      page: String(index + 2),
+      limit: '100',
+    })
+  )
+);
+
+const rawStudents: AnyRecord[] = [
+  ...firstPageUsers,
+  ...remainingPages.flatMap(getPageUsers),
+];
+
         const existingStudentIds =
           new Set(
             (team.members || [])
@@ -965,15 +987,7 @@ const MyTeamPage: React.FC = () => {
           'Invitation sent successfully.'
         );
 
-        setShowInviteModal(
-          false
-        );
-
-        setInviteSearch('');
-
-        await load(
-          pool.id
-        );
+       await load(pool.id);
       } catch (error) {
         showToast(
           'error',
@@ -1084,16 +1098,6 @@ const MyTeamPage: React.FC = () => {
       }
     };
 
-  /*
-   * ============================================================
-   * DISSOLVE TEAM REQUEST
-   * ============================================================
-   *
-   * IMPORTANT:
-   * This NEVER calls teamService.dissolve().
-   *
-   * It creates a supervisor approval request.
-   */
   const submitDissolveRequest =
     async () => {
       if (
@@ -1169,22 +1173,11 @@ const MyTeamPage: React.FC = () => {
       setSaving(true);
 
       try {
-        /*
-         * New approval endpoint.
-         *
-         * Backend:
-         * POST /pools/:poolId/teams/:teamId/dissolve-request
-         */
         await teamService.createDissolveRequest(
           pool.id,
           team.id,
           reason
         );
-
-        /*
-         * Keep pending status visible immediately,
-         * even before getMyTeam() returns the request.
-         */
         setDissolveRequestStatus(
           'PENDING'
         );
@@ -2304,8 +2297,8 @@ const MyTeamPage: React.FC = () => {
                         <button
                           type="button"
                           disabled={
-                            saving
-                          }
+  saving || pendingInviteIds.has(student.id)
+}
                           onClick={() =>
                             sendInvite(
                               student.id
@@ -2313,8 +2306,8 @@ const MyTeamPage: React.FC = () => {
                           }
                           className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-blue-600 px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
                         >
-                          <Send className="h-4 w-4" />
-                          Invite
+                         <Send className="h-4 w-4" />
+{pendingInviteIds.has(student.id) ? 'Request Sent' : 'Invite'}
                         </button>
                       </div>
                     )
