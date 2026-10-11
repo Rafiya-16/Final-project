@@ -1996,6 +1996,22 @@ export class TeamsService {
               },
             },
           },
+         
+studentIdea: {
+  select: {
+    id: true,
+    title: true,
+    supervisorId: true,
+    supervisor: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+    },
+  },
+},
 
           invites: {
             where: {
@@ -2034,11 +2050,19 @@ export class TeamsService {
       team.pool.defaultMaxTeamSize ||
       TEAM_DEFAULTS.MAX_SIZE;
 
-    return {
-      ...team,
-      maxTeamSize,
-      allMembersInPool,
-    };
+   
+const assignedSupervisor =
+  team.studentIdea?.supervisor ??
+  team.project?.faculty ??
+  null;
+
+return {
+  ...team,
+  assignedSupervisor,
+  maxTeamSize,
+  allMembersInPool,
+};
+
   }
 
   async getMyInvites(
