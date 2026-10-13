@@ -217,7 +217,7 @@ const BulkImport: React.FC = () => {
   <table className="min-w-full text-xs">
     <thead className="bg-gray-50">
       <tr>
-        {['name', 'email', 'enrollment', 'role', 'department', 'phone'].map(header => (
+        {['name', 'email', 'enrollment', 'role', 'department', 'session', 'phone'].map(header => (
           <th key={header} className="px-3 py-2 text-left">{header}</th>
         ))}
       </tr>
@@ -229,6 +229,7 @@ const BulkImport: React.FC = () => {
         <td className="px-3 py-1.5">20BCS001</td>
         <td className="px-3 py-1.5">student</td>
         <td className="px-3 py-1.5">CSE</td>
+        <td className="px-3 py-1.5">2023-2027</td>
         <td className="px-3 py-1.5">0987654321</td>
       </tr>
       <tr className="bg-purple-50">
@@ -263,7 +264,7 @@ const BulkImport: React.FC = () => {
 
 // ── CREATE USER ──
 const CreateUser: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', role: 'STUDENT', department: 'CSE', enrollmentNo: '', facultyId: '', semester: '', section: '', designation: '', phone: '', });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', role: 'STUDENT', department: 'CSE', enrollmentNo: '', facultyId: '', semester: '', session: '', section: '', designation: '', phone: '', });
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<CreatedUserResult | null>(null);
 
@@ -271,7 +272,7 @@ const CreateUser: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
     e.preventDefault(); setLoading(true);
     try {
       const body: Record<string, unknown> = { ...form, semester: form.semester ? Number(form.semester) : undefined };
-      if (form.role !== 'STUDENT') { delete body.enrollmentNo; delete body.semester; delete body.section; }
+      if (form.role !== 'STUDENT') { delete body.enrollmentNo; delete body.semester; delete body.session; delete body.section; }
       if (form.role === 'STUDENT') { delete body.designation; delete body.facultyId; }
       if (form.role === 'FACULTY' || form.role === 'SUBADMIN') { delete body.enrollmentNo; delete body.semester; delete body.section; }
       Object.keys(body).forEach(k => { if (body[k] === '') delete body[k]; });
@@ -334,8 +335,8 @@ const CreateUser: React.FC<{ onCreated: () => void }> = ({ onCreated }) => {
       {form.role === 'STUDENT' && (
         <div className="grid grid-cols-3 gap-4 bg-blue-50 p-4 rounded-lg">
           <div><label className="text-sm font-medium">Enrollment *</label><input value={form.enrollmentNo} onChange={e => set('enrollmentNo', e.target.value)} required className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none" /></div>
-          <div><label className="text-sm font-medium">Semester</label><input type="number" min={1} max={12} value={form.semester} onChange={e => set('semester', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none" /></div>
-          <div><label className="text-sm font-medium">Section</label><input value={form.section} onChange={e => set('section', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none" /></div>
+          <div><label className="text-sm font-medium">Academic Session *</label><input value={form.session}onChange={e => set('session', e.target.value)}required placeholder="e.g. 2023-2027" className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none"/></div>
+          <div><label className="text-sm font-medium">Section *</label><input value={form.section} onChange={e => set('section', e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm outline-none" /></div>
         </div>
       )}
       {(form.role === 'FACULTY' || form.role === 'SUBADMIN') && (

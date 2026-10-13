@@ -1133,24 +1133,63 @@ async getProjectsByPool(
   userRole: string,
 ) {
   const pool = await prisma.pool.findUnique({
-    where: {
-      id: poolId,
-    },
+    where: { id: poolId },
   });
 
   if (!pool) {
     throw new NotFoundError('Pool not found');
   }
-
-  const teamInclude = {
-    include: {
-      leader: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          enrollmentNo: true,
+  const projectInclude = {
+    faculty: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+    },
+    reviewedBy: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+    },
+    decidedBy: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+    },
+    team: {
+      include: {
+        leader: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            enrollmentNo: true,
+          },
+        },
+        members: {
+          where: {
+            status: 'ACTIVE' as const,
+          },
+          include: {
+            student: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                enrollmentNo: true,
+              },
+            },
+          },
         },
       },
     },
@@ -1158,37 +1197,9 @@ async getProjectsByPool(
 
   if (userRole === 'ADMIN') {
     return prisma.project.findMany({
-      where: {
-        poolId,
-      },
-      include: {
-        faculty: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        reviewedBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        decidedBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        team: teamInclude,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
+      where: { poolId },
+      include: projectInclude,
+      orderBy: { createdAt: 'asc' },
     });
   }
 
@@ -1209,20 +1220,57 @@ async getProjectsByPool(
       );
     }
 
+   
     return prisma.project.findMany({
       where: {
         poolId,
         status: 'APPROVED',
       },
+      include: {
+        faculty: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        team: {
+          include: {
+            leader: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                enrollmentNo: true,
+              },
+            },
+            members: {
+              where: {
+                status: 'ACTIVE',
+              },
+              include: {
+                student: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    enrollmentNo: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       orderBy: [
-        {
-          projectCode: 'asc',
-        },
-        {
-          createdAt: 'asc',
-        },
+        { projectCode: 'asc' },
+        { createdAt: 'asc' },
       ],
     });
+
   }
 
   if (
@@ -1241,37 +1289,9 @@ async getProjectsByPool(
 
     if (subadminAssignment) {
       return prisma.project.findMany({
-        where: {
-          poolId,
-        },
-        include: {
-          faculty: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          reviewedBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-          decidedBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-          team: teamInclude,
-        },
-        orderBy: {
-          createdAt: 'asc',
-        },
+        where: { poolId },
+        include: projectInclude,
+        orderBy: { createdAt: 'asc' },
       });
     }
   }
@@ -1298,20 +1318,8 @@ async getProjectsByPool(
         poolId,
         facultyId: userId,
       },
-      include: {
-        faculty: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        team: teamInclude,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
+      include: projectInclude,
+      orderBy: { createdAt: 'asc' },
     });
   }
 
@@ -1320,9 +1328,7 @@ async getProjectsByPool(
   );
 }
 
-  /**
-   * Get ON_HOLD projects for Admin review.
-   */
+
   async getHeldProjects(
     poolId: string
   ) {

@@ -1,135 +1,353 @@
 // frontend/src/components/layout/DashboardLayout.tsx
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState } from 'react';
+
 import { Outlet } from 'react-router-dom';
+
+import { Bell, X } from 'lucide-react';
+
 import { Sidebar } from './Sidebar';
-import { Bell, CheckCheck } from 'lucide-react';
+
 import { useAuthStore } from '@/stores/authStore';
-import { notificationService } from '@/services/notificationService';
-import { ThemeToggle } from '@/components/ui/ThemeToggle';
-import type { Notification } from '@/types';
 
-export const DashboardLayout: React.FC = () => {
+const DashboardLayout: React.FC = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
   const { user } = useAuthStore();
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [showPanel, setShowPanel] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Fetch unread count on mount and every 30s
-  useEffect(() => {
-    const fetchCount = () => {
-      notificationService.unreadCount().then(c => setUnreadCount(c)).catch(() => {});
-    };
-    fetchCount();
-    const interval = setInterval(fetchCount, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Close panel on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setShowPanel(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const openPanel = async () => {
-    if (showPanel) { setShowPanel(false); return; }
-    setShowPanel(true); setLoading(true);
-    try {
-      const res = await notificationService.list();
-      setNotifications(res.data || []);
-    } catch {}
-    finally { setLoading(false); }
-  };
-
-  const markRead = async (id: string) => {
-    await notificationService.markRead(id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    setUnreadCount(prev => Math.max(0, prev - 1));
-  };
-
-  const markAllRead = async () => {
-    await notificationService.markAllRead();
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    setUnreadCount(0);
-  };
-
-  const timeAgo = (date: string) => {
-    const ms = Date.now() - new Date(date).getTime();
-    const mins = Math.floor(ms / 60000);
-    if (mins < 1) return 'Just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
-  };
+  const displayName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
+    user?.email ||
+    'User';
 
   return (
-    <div className="min-h-screen bg-cream-100 dark:bg-slate-900 transition-colors">
+    <div className="min-h-screen bg-cream-100 dark:bg-slate-900">
+      {/* =====================================================
+          SIDEBAR
+      ===================================================== */}
+
       <Sidebar />
-      <div className="md:ml-64">
-        <header className="bg-cream-50 dark:bg-slate-800 border-b border-cream-300 dark:border-slate-700 sticky top-0 z-20 px-6 py-3 flex items-center justify-between transition-colors">
-          <div>
-            <p className="text-sm text-stone-500 dark:text-slate-400">Welcome back,</p>
-            <h2 className="text-lg font-semibold text-stone-800 dark:text-white">{user?.firstName} {user?.lastName}</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle variant="dashboard" />
-            <div className="relative" ref={panelRef}>
-              <button onClick={openPanel} className="relative p-2 hover:bg-cream-200 dark:hover:bg-slate-700 rounded-full transition-colors" id="notification-bell">
-                <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-slate-400'}`} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full animate-pulse">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
-                )}
+
+      {/* =====================================================
+          MAIN CONTENT
+
+          OPEN SIDEBAR   = 256px
+          CLOSED SIDEBAR = 76px
+
+          The sidebar itself handles its own open/close state.
+          Dashboard content follows the same layout spacing.
+      ===================================================== */}
+
+      <div
+        className={`
+          min-h-screen
+          transition-[margin-left]
+          duration-300
+          ease-in-out
+          ${
+            isSidebarOpen
+              ? 'md:ml-64'
+              : 'md:ml-[76px]'
+          }
+        `}
+      >
+        {/* ===================================================
+            HEADER
+        =================================================== */}
+
+        <header
+          className="
+            sticky
+            top-0
+            z-40
+            h-16
+            border-b
+            border-slate-200/70
+            bg-white/90
+            backdrop-blur-xl
+            dark:border-slate-700
+            dark:bg-slate-900/90
+          "
+        >
+          <div
+            className="
+              flex
+              h-full
+              items-center
+              justify-between
+              px-4
+              sm:px-6
+              lg:px-8
+            "
+          >
+            {/* ================= WELCOME ================= */}
+
+            <div className="min-w-0">
+              <p
+                className="
+                  text-xs
+                  font-medium
+                  text-slate-500
+                  dark:text-slate-400
+                "
+              >
+                Welcome back
+              </p>
+
+              <h1
+                className="
+                  truncate
+                  text-sm
+                  font-semibold
+                  text-slate-800
+                  sm:text-base
+                  dark:text-white
+                "
+              >
+                {displayName}
+              </h1>
+            </div>
+
+            {/* ================= HEADER ACTIONS ================= */}
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() =>
+                  setIsNotificationOpen(
+                    (previous) => !previous
+                  )
+                }
+                className="
+                  relative
+                  flex
+                  h-10
+                  w-10
+                  items-center
+                  justify-center
+                  rounded-xl
+                  border
+                  border-slate-200
+                  bg-white
+                  text-slate-600
+                  shadow-sm
+                  transition-all
+                  duration-200
+                  hover:-translate-y-0.5
+                  hover:border-violet-200
+                  hover:bg-violet-50
+                  hover:text-violet-600
+                  hover:shadow-md
+                  dark:border-slate-700
+                  dark:bg-slate-800
+                  dark:text-slate-300
+                  dark:hover:bg-slate-700
+                "
+                aria-label="Notifications"
+                aria-expanded={isNotificationOpen}
+              >
+                <Bell className="h-5 w-5" />
+
+                {/* Notification indicator */}
+
+                <span
+                  className="
+                    absolute
+                    right-2
+                    top-2
+                    h-2
+                    w-2
+                    rounded-full
+                    bg-pink-500
+                    ring-2
+                    ring-white
+                    dark:ring-slate-800
+                  "
+                />
               </button>
 
-              {showPanel && (
-                <div className="absolute right-0 top-12 w-96 bg-cream-50 dark:bg-slate-800 border border-cream-300 dark:border-slate-700 rounded-xl shadow-2xl z-30 overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-cream-200 dark:border-slate-700 bg-cream-100 dark:bg-slate-700/50">
-                    <h3 className="font-semibold text-stone-800 dark:text-white">Notifications</h3>
-                    {unreadCount > 0 && (
-                      <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
-                        <CheckCheck className="w-3.5 h-3.5" />Mark all read
-                      </button>
-                    )}
-                  </div>
+              {/* =================================================
+                  NOTIFICATION PANEL
+              ================================================= */}
 
-                  <div className="max-h-96 overflow-y-auto divide-y divide-cream-200 dark:divide-slate-700">
-                    {loading ? (
-                      <div className="p-8 text-center text-sm text-gray-400 dark:text-slate-500">Loading...</div>
-                    ) : notifications.length === 0 ? (
-                      <div className="p-8 text-center text-sm text-gray-400 dark:text-slate-500">No notifications</div>
-                    ) : (
-                      notifications.map(n => (
-                        <div key={n.id}
-                          onClick={() => !n.isRead && markRead(n.id)}
-                          className={`px-4 py-3 cursor-pointer transition-colors hover:bg-cream-100 dark:hover:bg-slate-700/50 ${!n.isRead ? 'bg-amber-50/50 dark:bg-blue-500/5' : ''}`}>
-                          <div className="flex items-start gap-3">
-                            <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!n.isRead ? 'bg-blue-500' : 'bg-transparent'}`} />
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm ${!n.isRead ? 'font-semibold text-stone-800 dark:text-white' : 'text-stone-600 dark:text-slate-300'}`}>{n.title}</p>
-                              <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 line-clamp-2">{n.message}</p>
-                              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{timeAgo(n.createdAt)}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
+              {isNotificationOpen && (
+                <>
+                  {/* Mobile backdrop */}
+
+                  <div
+                    className="
+                      fixed
+                      inset-0
+                      z-40
+                      bg-slate-900/10
+                      backdrop-blur-[2px]
+                      md:hidden
+                    "
+                    onClick={() =>
+                      setIsNotificationOpen(false)
+                    }
+                  />
+
+                  <div
+                    className="
+                      absolute
+                      right-0
+                      top-12
+                      z-50
+                      w-[calc(100vw-2rem)]
+                      max-w-sm
+                      overflow-hidden
+                      rounded-2xl
+                      border
+                      border-slate-200
+                      bg-white
+                      shadow-2xl
+                      shadow-slate-900/10
+                      dark:border-slate-700
+                      dark:bg-slate-800
+                    "
+                  >
+                    {/* Panel Header */}
+
+                    <div
+                      className="
+                        flex
+                        items-center
+                        justify-between
+                        border-b
+                        border-slate-100
+                        px-4
+                        py-3
+                        dark:border-slate-700
+                      "
+                    >
+                      <div>
+                        <h3
+                          className="
+                            text-sm
+                            font-semibold
+                            text-slate-800
+                            dark:text-white
+                          "
+                        >
+                          Notifications
+                        </h3>
+
+                        <p
+                          className="
+                            mt-0.5
+                            text-xs
+                            text-slate-500
+                            dark:text-slate-400
+                          "
+                        >
+                          Stay updated with ProjectAlloc
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setIsNotificationOpen(false)
+                        }
+                        className="
+                          flex
+                          h-8
+                          w-8
+                          items-center
+                          justify-center
+                          rounded-lg
+                          text-slate-400
+                          transition
+                          hover:bg-slate-100
+                          hover:text-slate-700
+                          dark:hover:bg-slate-700
+                          dark:hover:text-white
+                        "
+                        aria-label="Close notifications"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Empty notification state */}
+
+                    <div className="px-4 py-8 text-center">
+                      <div
+                        className="
+                          mx-auto
+                          mb-3
+                          flex
+                          h-12
+                          w-12
+                          items-center
+                          justify-center
+                          rounded-full
+                          bg-violet-50
+                          dark:bg-violet-500/10
+                        "
+                      >
+                        <Bell
+                          className="
+                            h-5
+                            w-5
+                            text-violet-500
+                          "
+                        />
+                      </div>
+
+                      <p
+                        className="
+                          text-sm
+                          font-medium
+                          text-slate-700
+                          dark:text-slate-200
+                        "
+                      >
+                        No new notifications
+                      </p>
+
+                      <p
+                        className="
+                          mt-1
+                          text-xs
+                          text-slate-500
+                          dark:text-slate-400
+                        "
+                      >
+                        You're all caught up!
+                      </p>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
           </div>
         </header>
-        <main className="p-6 page-enter">
+
+        {/* =====================================================
+            PAGE CONTENT
+        ===================================================== */}
+
+        <main
+          className="
+            min-h-[calc(100vh-4rem)]
+            w-full
+            overflow-x-hidden
+            p-4
+            sm:p-5
+            lg:p-6
+            page-enter
+          "
+        >
           <Outlet />
         </main>
       </div>
     </div>
   );
 };
+
+export { DashboardLayout };
+
+export default DashboardLayout;

@@ -10,6 +10,7 @@ export type PoolStatus =
   | 'UNDER_REVIEW'
   | 'DECISION_PENDING'
   | 'SELECTION_OPEN'
+  | 'IDEA_SUBMISSION'
   | 'TEAMS_FORMING'
   | 'FROZEN'
   | 'ARCHIVED';
@@ -52,8 +53,9 @@ export interface User {
   department?: string;
   semester?: number;
   section?: string | null;
+  session?: string | null;
   designation?: string;
-  phone?: string;
+  phone?: string | null;
   isActive: boolean;
   mustResetPwd: boolean;
   lastLoginAt?: string;
@@ -65,6 +67,7 @@ export interface Pool {
   name: string;
   academicYear: string;
   semester: string;
+  session?: string | null;
   department?: string;
   status: PoolStatus;
   submissionStart: string;
@@ -169,6 +172,7 @@ export interface Team {
     lastName: string;
     email?: string;
     enrollmentNo?: string;
+    phone?: string | null;
   };
 
   invites?: TeamInvite[];
@@ -432,6 +436,7 @@ export interface CreateUserInput {
   facultyId?: string;
   enrollmentNo?: string;
   semester?: number;
+  session?: string;
   section?: string;
   designation?: string;
   phone?: string;
@@ -441,6 +446,7 @@ export interface CreatePoolInput {
   name: string;
   academicYear: string;
   semester: string;
+  session: string;
   department?: string;
   submissionStart: string;
   submissionEnd: string;

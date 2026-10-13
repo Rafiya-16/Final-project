@@ -1,6 +1,14 @@
-import { Request, Response, NextFunction } from 'express';
+import {
+  Request,
+  Response,
+  NextFunction,
+} from 'express';
+
 import { poolsService } from './pools.service';
-import { parsePagination } from '../../shared/utils/pagination';
+
+import {
+  parsePagination,
+} from '../../shared/utils/pagination';
 
 export class PoolsController {
   async create(
@@ -9,15 +17,17 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const pool = await poolsService.createPool(
+        req.body,
+        req.user!.userId
+      );
+
       res.status(201).json({
         success: true,
-        data: await poolsService.createPool(
-          req.body,
-          req.user!.userId
-        ),
+        data: pool,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -49,20 +59,19 @@ export class PoolsController {
             | 'student')
         : 'all';
 
-      const result =
-        await poolsService.listPools(
-          req.user!.userId,
-          req.user!.role,
-          parsePagination(req.query),
-          scope
-        );
+      const result = await poolsService.listPools(
+        req.user!.userId,
+        req.user!.role,
+        parsePagination(req.query),
+        scope
+      );
 
       res.json({
         success: true,
         ...result,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -72,14 +81,16 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const pool = await poolsService.getPoolById(
+        String(req.params.id)
+      );
+
       res.json({
         success: true,
-        data: await poolsService.getPoolById(
-          req.params.id as string
-        ),
+        data: pool,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -89,15 +100,17 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const pool = await poolsService.updatePool(
+        String(req.params.id),
+        req.body
+      );
+
       res.json({
         success: true,
-        data: await poolsService.updatePool(
-          req.params.id as string,
-          req.body
-        ),
+        data: pool,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -107,15 +120,17 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const pool = await poolsService.activatePool(
+        String(req.params.id)
+      );
+
       res.json({
         success: true,
         message: 'Pool activated',
-        data: await poolsService.activatePool(
-          req.params.id as string
-        ),
+        data: pool,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -125,15 +140,17 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const pool = await poolsService.advancePhase(
+        String(req.params.id)
+      );
+
       res.json({
         success: true,
         message: 'Phase advanced',
-        data: await poolsService.advancePhase(
-          req.params.id as string
-        ),
+        data: pool,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -143,14 +160,16 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const pool = await poolsService.freezePool(
+        String(req.params.id)
+      );
+
       res.json({
         success: true,
-        data: await poolsService.freezePool(
-          req.params.id as string
-        ),
+        data: pool,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -160,14 +179,16 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const pool = await poolsService.archivePool(
+        String(req.params.id)
+      );
+
       res.json({
         success: true,
-        data: await poolsService.archivePool(
-          req.params.id as string
-        ),
+        data: pool,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -177,15 +198,17 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const pool = await poolsService.assignUsers(
+        String(req.params.id),
+        req.body
+      );
+
       res.json({
         success: true,
-        data: await poolsService.assignUsers(
-          req.params.id as string,
-          req.body
-        ),
+        data: pool,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -195,14 +218,16 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const stats = await poolsService.getPoolStats(
+        String(req.params.id)
+      );
+
       res.json({
         success: true,
-        data: await poolsService.getPoolStats(
-          req.params.id as string
-        ),
+        data: stats,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -212,15 +237,17 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const result = await poolsService.removeFaculty(
+        String(req.params.id),
+        String(req.params.facultyId)
+      );
+
       res.json({
         success: true,
-        data: await poolsService.removeFaculty(
-          req.params.id as string,
-          req.params.facultyId as string
-        ),
+        data: result,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -230,15 +257,17 @@ export class PoolsController {
     next: NextFunction
   ) {
     try {
+      const result = await poolsService.removeSubadmin(
+        String(req.params.id),
+        String(req.params.subadminId)
+      );
+
       res.json({
         success: true,
-        data: await poolsService.removeSubadmin(
-          req.params.id as string,
-          req.params.subadminId as string
-        ),
+        data: result,
       });
-    } catch (e) {
-      next(e);
+    } catch (error) {
+      next(error);
     }
   }
 }
