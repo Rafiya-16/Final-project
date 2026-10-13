@@ -1,13 +1,18 @@
 import { z } from 'zod';
 import { UserRole } from '@prisma/client';
 
+const sessionSchema = z
+  .string()
+  .trim()
+  .min(1, 'Academic session is required');
+
 export const createUserSchema = z.object({
   body: z
     .object({
       email: z
         .string()
         .email()
-        .transform(v => v.toLowerCase().trim()),
+        .transform((v) => v.toLowerCase().trim()),
 
       firstName: z
         .string()
@@ -33,16 +38,17 @@ export const createUserSchema = z.object({
       facultyId: z
         .string()
         .optional()
-        .transform(v =>
-          v?.trim().toUpperCase()
-        ),
+        .transform((v) => v?.trim().toUpperCase()),
 
       enrollmentNo: z
         .string()
         .optional()
-        .transform(v =>
-          v?.trim().toUpperCase()
-        ),
+        .transform((v) => v?.trim().toUpperCase()),
+
+      session: z
+        .string()
+        .optional()
+        .transform((v) => v?.trim()),
 
       semester: z
         .number()
@@ -54,25 +60,25 @@ export const createUserSchema = z.object({
       section: z
         .string()
         .optional()
-        .transform(v =>
-          v?.trim().toUpperCase()
-        ),
+        .transform((v) => v?.trim().toUpperCase()),
 
       designation: z.string().optional(),
 
       phone: z.string().optional(),
     })
     .refine(
-      d =>
-        !(
-          d.role === 'STUDENT' &&
-          !d.enrollmentNo
-        ),
+      (d) => d.role !== 'STUDENT' || Boolean(d.enrollmentNo),
       {
-        message:
-          'Enrollment required for students',
+        message: 'Enrollment required for students',
         path: ['enrollmentNo'],
-      }
+      },
+    )
+    .refine(
+      (d) => d.role !== 'STUDENT' || Boolean(d.session),
+      {
+        message: 'Academic session is required for students',
+        path: ['session'],
+      },
     ),
 });
 
@@ -81,70 +87,64 @@ export const csvRowSchema = z
     name: z
       .string()
       .min(2, 'Name is required')
-      .transform(v => v.trim()),
+      .transform((v) => v.trim()),
 
     email: z
       .string()
       .email('Invalid email')
-      .transform(v =>
-        v.toLowerCase().trim()
-      ),
+      .transform((v) => v.toLowerCase().trim()),
 
     id: z
       .string()
-      .transform(v =>
-        v.trim().toUpperCase()
-      ),
+      .transform((v) => v.trim().toUpperCase()),
 
     role: z
       .string()
-      .transform(v =>
-        v.trim().toLowerCase()
-      )
+      .transform((v) => v.trim().toLowerCase())
       .pipe(
         z.enum([
           'student',
           'faculty',
           'subadmin',
-        ])
+        ]),
       ),
 
     department: z
       .string()
       .min(1, 'Department is required')
-      .transform(v =>
-        v.trim().toUpperCase()
-      ),
+      .transform((v) => v.trim().toUpperCase()),
+
+    session: z
+      .string()
+      .optional()
+      .default('')
+      .transform((v) => (v || '').trim()),
 
     section: z
       .string()
       .optional()
       .default('')
-      .transform(v =>
-        (v || '').trim().toUpperCase()
-      ),
-  phone: z
+      .transform((v) => (v || '').trim().toUpperCase()),
+
+    phone: z
       .string()
       .optional()
       .default('')
-      .transform(v => (v || '').trim()),
+      .transform((v) => (v || '').trim()),
   })
   .refine(
-    d => {
-      if (
-        d.role === 'student' &&
-        !d.id
-      ) {
-        return false;
-      }
-
-      return true;
-    },
+    (d) => d.role !== 'student' || Boolean(d.id),
     {
-      message:
-        'Student enrollment ID is required',
+      message: 'Student enrollment ID is required',
       path: ['id'],
-    }
+    },
+  )
+  .refine(
+    (d) => d.role !== 'student' || Boolean(d.session),
+    {
+      message: 'Academic session is required for students',
+      path: ['session'],
+    },
   );
 
 export const listUsersSchema = z.object({
@@ -200,6 +200,8 @@ export const updateUserSchema = z.object({
     department: z
       .string()
       .optional(),
+
+    session: sessionSchema.optional(),
 
     semester: z
       .number()

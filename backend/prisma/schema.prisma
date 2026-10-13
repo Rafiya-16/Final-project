@@ -18,6 +18,7 @@ model User {
   department                   String?
   semester                     Int?
   section                      String?
+  session                      String?
   designation                  String?
   phone                        String?
   isActive                     Boolean                @default(true) @map("is_active")
@@ -72,6 +73,7 @@ model Pool {
   name                 String
   academicYear         String       @map("academic_year")
   semester             String
+  session              String?
   department           String?
   status               PoolStatus   @default(DRAFT)
   submissionStart      DateTime     @map("submission_start")

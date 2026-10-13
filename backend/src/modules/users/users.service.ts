@@ -54,6 +54,7 @@ export class UsersService {
         facultyId: dto.role === 'FACULTY' || dto.role === 'SUBADMIN' ? dto.facultyId : null,
         enrollmentNo: dto.role === 'STUDENT' ? dto.enrollmentNo : null,
         semester: dto.role === 'STUDENT' ? dto.semester : null,
+        session: dto.role === 'STUDENT' ? dto.session : null,
         section: dto.role === 'STUDENT' ? dto.section : null,
         designation: dto.role === 'FACULTY' || dto.role === 'SUBADMIN' ? (dto.designation || 'Assistant Professor') : null,
         phone: dto.phone || null,
@@ -108,6 +109,8 @@ export class UsersService {
                mobile: 'phone',
                contactno: 'phone',
                contactnumber: 'phone',
+               academicsession: 'session',
+               sessionyear: 'session',
             };
 
             return (
@@ -972,7 +975,10 @@ export class UsersService {
                       ? item.parsed
                           .facultyId
                       : null,
-
+                  session:
+  isStudent
+    ? item.parsed.session
+    : null,
                   section:
                     isStudent
                       ? (
@@ -1220,14 +1226,14 @@ export class UsersService {
   
 }
 
-  generateCsvTemplate() {
-    return [
-      'name,email,id,role,department,section,phone',
-      'Ali Khan,ali@example.com,20BCS001,student,CSE,A,0987654321',
-      'Dr Khan,khan@example.com,FAC001,faculty,CSE,,9876543210',
-      'Sara Ahmed,sara@example.com,SUB001,subadmin,CSE,,9876543211',
-    ].join('\n');
-  }
+ generateCsvTemplate() {
+  return [
+    'name,email,id,role,department,session,section,phone',
+    'Ali Khan,ali@example.com,20BCS001,student,CSE,2023-2027,A,0987654321',
+    'Dr Khan,khan@example.com,FAC001,faculty,CSE,,,9876543210',
+    'Sara Ahmed,sara@example.com,SUB001,subadmin,CSE,,,9876543211',
+  ].join('\n');
+}
   
   async getImportJob(jobId: string) {
     const job = await prisma.bulkImportJob.findUnique({ where: { id: jobId }, include: { rows: { orderBy: { rowNumber: 'asc' } }, creator: { select: { firstName: true, lastName: true, email: true } } } });
@@ -1260,7 +1266,7 @@ export class UsersService {
       prisma.user.findMany({
         where, skip: (params.page - 1) * params.limit, take: params.limit,
         orderBy: { [params.sortBy || 'createdAt']: params.sortOrder || 'desc' },
-        select: { id: true, email: true, role: true, firstName: true, lastName: true, enrollmentNo: true, facultyId: true, department: true, semester: true, section: true, designation: true, phone: true, isActive: true, mustResetPwd: true, lastLoginAt: true, createdAt: true },
+        select: { id: true, email: true, role: true, firstName: true, lastName: true, enrollmentNo: true, facultyId: true, department: true, semester: true, section: true, session: true, designation: true, phone: true, isActive: true, mustResetPwd: true, lastLoginAt: true, createdAt: true },
       }),
       prisma.user.count({ where }),
     ]);
@@ -1270,7 +1276,7 @@ export class UsersService {
   async getUserById(id: string) {
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, email: true, role: true, firstName: true, lastName: true, enrollmentNo: true, department: true, semester: true, section: true, designation: true, phone: true, isActive: true, mustResetPwd: true, lastLoginAt: true, createdAt: true, updatedAt: true },
+      select: { id: true, email: true, role: true, firstName: true, lastName: true, enrollmentNo: true, department: true, semester: true, section: true, session: true, designation: true, phone: true, isActive: true, mustResetPwd: true, lastLoginAt: true, createdAt: true, updatedAt: true },
     });
     if (!user) throw new NotFoundError('User not found');
     return user;

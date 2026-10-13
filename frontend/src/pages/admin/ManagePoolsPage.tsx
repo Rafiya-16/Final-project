@@ -53,6 +53,7 @@ interface CreatePoolFormState {
   academicYear: string;
   semester: string;
   department: string;
+  session: string;
   submissionStart: string;
   submissionEnd: string;
   reviewStart: string;
@@ -359,6 +360,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     name: '',
     academicYear: '2026-2027',
     semester: 'Odd',
+    session: '',
     department: 'CSE',
     submissionStart: '',
     submissionEnd: '',
@@ -664,6 +666,11 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     ),
   ];
 
+ const filteredStudents = users.students.filter(
+  (student) =>
+    Boolean(form.session.trim()) &&
+    student.session?.trim() === form.session.trim(),
+);
   const renderSelectionList = (
     list: UserSelectionKey,
     items: User[],
@@ -787,6 +794,43 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 <option>Even</option>
               </select>
             </div>
+            <div>
+  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+    Student Academic Session *
+  </label>
+  <select
+    value={form.session}
+    onChange={(event) => {
+      const session = event.target.value;
+
+      setForm((current) => ({
+        ...current,
+        session,
+        studentIds: [],
+      }));
+    }}
+    required
+    className={inputClass}
+  >
+    <option value="">Select academic session</option>
+    {Array.from(
+      new Set(
+        users.students
+          .map((student) => student.session?.trim())
+          .filter((session): session is string => Boolean(session)),
+      ),
+    )
+      .sort()
+      .map((session) => (
+        <option key={session} value={session}>
+          {session}
+        </option>
+      ))}
+  </select>
+  <p className="mt-1 text-xs text-slate-500">
+    Only students registered in this session will be available for selection.
+  </p>
+</div>
 
             <div>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -1029,16 +1073,15 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             </div>
             <div className="flex items-center gap-3 text-xs">
               <span className="text-slate-500">
-                {form.studentIds.length}/{users.students.length} selected
-              </span>
+{form.studentIds.length}/{filteredStudents.length} selected              </span>
               <button
                 type="button"
-                onClick={() =>
-                  selectAll(
-                    'studentIds',
-                    users.students.map((student) => student.id),
-                  )
-                }
+               onClick={() =>
+  selectAll(
+    'studentIds',
+    filteredStudents.map((student) => student.id),
+  )
+}
                 className="font-semibold text-blue-600 dark:text-blue-400"
               >
                 Select All
@@ -1058,12 +1101,20 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               <LoadingSpinner />
             </div>
           ) : (
-            renderSelectionList(
-              'studentIds',
-              users.students,
-              (student) =>
-                `${student.firstName} ${student.lastName} (${student.enrollmentNo || student.email})`,
-            )
+           <>
+  {!form.session && (
+    <p className="mb-3 text-sm text-amber-600">
+      Select an academic session above to view eligible students.
+    </p>
+  )}
+
+  {renderSelectionList(
+    'studentIds',
+    filteredStudents,
+    (student) =>
+      `${student.firstName} ${student.lastName} (${student.enrollmentNo || student.email})`,
+  )}
+</>
           )}
         </section>
 
