@@ -65,6 +65,8 @@ type Team = {
   members?: TeamMember[];
   invites?: AnyRecord[];
   project?: AnyRecord;
+  studentIdea?: AnyRecord | null;
+  assignedSupervisor?: AnyRecord | null;
   leaveRequests?: AnyRecord[];
   dissolveRequests?: AnyRecord[];
 };
@@ -175,7 +177,7 @@ const MyTeamPage: React.FC = () => {
 
   const [invites, setInvites] =
     useState<TeamInvite[]>([]);
-
+  const [invitesLoaded, setInvitesLoaded] = useState(false);
   const [students, setStudents] =
     useState<StudentOption[]>([]);
 
@@ -315,6 +317,7 @@ const MyTeamPage: React.FC = () => {
   const load = useCallback(
     async (poolId: string) => {
       setLoading(true);
+      setInvitesLoaded(false);
 
       try {
         const [
@@ -325,9 +328,7 @@ const MyTeamPage: React.FC = () => {
             .getMyTeam(poolId)
             .catch(() => null),
 
-          teamService
-            .getMyInvites(poolId)
-            .catch(() => []),
+          teamService.getMyInvites(poolId),
         ]);
 
         const loadedTeam: Team | null =
@@ -351,7 +352,8 @@ const MyTeamPage: React.FC = () => {
             ? inviteResult.invites
             : [];
 
-        setInvites(loadedInvites);
+setInvites(loadedInvites);
+setInvitesLoaded(true);
 
         /*
          * ======================================================
@@ -465,6 +467,7 @@ const MyTeamPage: React.FC = () => {
       } catch (error) {
         setTeam(null);
         setInvites([]);
+        setInvitesLoaded(true);
 
         showToast(
           'error',
@@ -564,6 +567,33 @@ const pendingInviteIds = useMemo(
     ),
   [team?.invites]
 );
+
+  const pendingIncomingInvites = useMemo(
+    () =>
+      invites.filter((invite) => {
+        if (invite.status !== 'PENDING') {
+          return false;
+        }
+
+        if (!invite.expiresAt) {
+          return true;
+        }
+
+        return (
+          new Date(invite.expiresAt).getTime() >
+          Date.now()
+        );
+      }),
+    [invites]
+  );
+
+  const hasPendingIncomingInvites =
+    pendingIncomingInvites.length > 0;
+
+  const canCreateTeam =
+  invitesLoaded &&
+  !team &&
+  !hasPendingIncomingInvites;
 
   const leftMembers = useMemo(
     () =>
@@ -884,6 +914,22 @@ const rawStudents: AnyRecord[] = [
       if (!pool?.id) {
         return;
       }
+       
+  if (hasPendingIncomingInvites) {
+    showToast(
+      'info',
+      'Please accept or decline your pending team invitation before creating your own team.'
+    );
+    return;
+  }
+
+  if (team) {
+    showToast(
+      'info',
+      'You are already in a team.'
+    );
+    return;
+  }
 
       const name =
         teamName.trim();
@@ -1422,20 +1468,31 @@ const rawStudents: AnyRecord[] = [
               )}
             </div>
 
-            {!team && (
-              <button
-                type="button"
-                onClick={() =>
-                  setShowCreateModal(
-                    true
-                  )
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Plus className="h-5 w-5" />
-                Create Team
-              </button>
-            )}
+           
+{!team && (
+  <button
+    type="button"
+    disabled={!canCreateTeam || saving}
+    onClick={() => {
+      if (!canCreateTeam) {
+        showToast(
+          'info',
+          'Please accept or decline your pending team invitation first.'
+        );
+        return;
+      }
+
+      setShowCreateModal(true);
+    }}
+    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    <Plus className="h-5 w-5" />
+    {hasPendingIncomingInvites
+      ? 'Respond to Invitation First'
+      : 'Create Team'}
+  </button>
+)}
+
           </div>
         </div>
 
@@ -1443,7 +1500,7 @@ const rawStudents: AnyRecord[] = [
             PENDING INVITES
         ====================================================== */}
 
-        {invites.length > 0 && (
+        {pendingIncomingInvites.length > 0 && (
           <section className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm dark:border-amber-900/60 dark:from-amber-950/30 dark:to-orange-950/20">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-xl bg-amber-100 p-2 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
@@ -1457,20 +1514,16 @@ const rawStudents: AnyRecord[] = [
 
                 <p className="text-xs text-slate-600 dark:text-slate-300">
                   You have{' '}
-                  {invites.length}{' '}
-                  pending invitation
-                  {invites.length !==
-                  1
-                    ? 's'
-                    : ''}
+                 {pendingIncomingInvites.length}{' '}
+pending invitation
+{pendingIncomingInvites.length !== 1 ? 's' : ''}.
                   .
                 </p>
               </div>
             </div>
 
             <div className="grid gap-3">
-              {invites.map(
-                (invite) => (
+              {pendingIncomingInvites.map((invite) => (
                   <div
                     key={
                       invite.id
@@ -1554,18 +1607,29 @@ const rawStudents: AnyRecord[] = [
               student to start building your final-year project team.
             </p>
 
-            <button
-              type="button"
-              onClick={() =>
-                setShowCreateModal(
-                  true
-                )
-              }
-              className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5"
-            >
-              <Plus className="h-5 w-5" />
-              Create Team
-            </button>
+           
+<button
+  type="button"
+  disabled={!canCreateTeam || saving}
+  onClick={() => {
+    if (!canCreateTeam) {
+      showToast(
+        'info',
+        'Please accept or decline your pending team invitation first.'
+      );
+      return;
+    }
+
+    setShowCreateModal(true);
+  }}
+  className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+>
+  <Plus className="h-5 w-5" />
+  {hasPendingIncomingInvites
+    ? 'Respond to Invitation First'
+    : 'Create Team'}
+</button>
+
           </div>
         ) : (
           <>
@@ -1689,6 +1753,51 @@ const rawStudents: AnyRecord[] = [
                     </p>
                   </div>
                 )}
+                
+{(() => {
+  const supervisor =
+    team.assignedSupervisor ??
+    team.studentIdea?.supervisor ??
+    team.project?.faculty ??
+    null;
+
+  const supervisorName = supervisor
+    ? [
+        supervisor.firstName,
+        supervisor.lastName,
+        supervisor.email,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : '';
+
+  return (
+    <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+      <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+        Assigned Supervisor
+      </p>
+
+      {supervisorName ? (
+        <>
+          <p className="mt-2 font-bold text-slate-900 dark:text-white">
+            {supervisorName}
+          </p>
+
+          {supervisor.email && (
+            <p className="mt-1 break-all text-xs text-slate-600 dark:text-slate-400">
+              {supervisor.email}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          Supervisor has not been assigned yet.
+        </p>
+      )}
+    </div>
+  );
+})()}
+
               </div>
             </section>
 
@@ -2156,12 +2265,10 @@ const rawStudents: AnyRecord[] = [
 
               <button
                 type="button"
-                disabled={
-                  saving
-                }
-                onClick={
-                  createTeam
-                }
+                
+disabled={saving || !canCreateTeam}
+onClick={createTeam}
+
                 className="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
               >
                 {saving
@@ -2565,11 +2672,6 @@ const rawStudents: AnyRecord[] = [
           </div>
         </div>
       )}
-
-      {/* =======================================================
-          REMOVE MEMBER CONFIRMATION MODAL
-      ======================================================== */}
-
       {confirmState && (
         <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">

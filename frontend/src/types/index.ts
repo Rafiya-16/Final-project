@@ -53,7 +53,7 @@ export interface User {
   semester?: number;
   section?: string | null;
   designation?: string;
-  phone?: string;
+  phone?: string | null;
   isActive: boolean;
   mustResetPwd: boolean;
   lastLoginAt?: string;
@@ -169,6 +169,7 @@ export interface Team {
     lastName: string;
     email?: string;
     enrollmentNo?: string;
+    phone?: string | null;
   };
 
   invites?: TeamInvite[];

@@ -122,6 +122,31 @@ export class TeamsService {
         'You are already in a team'
       );
     }
+    const pendingIncomingInvite =
+  await prisma.teamInvite.findFirst({
+    where: {
+      inviteeId: studentId,
+      status: 'PENDING',
+      expiresAt: {
+        gt: new Date(),
+      },
+      team: {
+        poolId,
+        status: {
+          not: 'DISSOLVED',
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+if (pendingIncomingInvite) {
+  throw new ConflictError(
+    'You have a pending team invitation. Accept or reject it before creating your own team.'
+  );
+}
 
     const pool = await prisma.pool.findUnique({
       where: {

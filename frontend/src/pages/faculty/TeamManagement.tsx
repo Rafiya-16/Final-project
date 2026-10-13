@@ -48,6 +48,7 @@ interface Student {
   email: string;
   enrollmentNo?: string;
   department?: string;
+  phone?: string | null;
   role?: string;
 }
 
