@@ -26,7 +26,7 @@ model User {
   lastLoginAt                  DateTime?              @map("last_login_at")
   createdBy                    String?                @map("created_by")
   createdAt                    DateTime               @default(now()) @map("created_at")
-  updatedAt                    DateTime               @default(now()) @updatedAt
+  updatedAt                    DateTime               @default(now()) @updatedAt @map("updated_at")  
   auditLogs                    AuditLog[]             @relation("AuditUser")
   importJobs                   BulkImportJob[]        @relation("ImportCreator")
   importRows                   ImportRow[]
