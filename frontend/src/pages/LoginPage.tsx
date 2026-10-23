@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '@/services/authService';
 import { useAuthStore } from '@/stores/authStore';
-import { Eye, EyeOff, LogIn, Loader2, GraduationCap, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Loader2, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/types';
 
@@ -32,7 +32,6 @@ setAuth(user, accessToken);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 dark:bg-slate-950 dark:from-slate-950 dark:to-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Ambient glow */}
       <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-blue-200/40 dark:bg-blue-600/15 rounded-full blur-[120px] animate-pulse-glow" />
       <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-violet-200/40 dark:bg-violet-600/15 rounded-full blur-[120px] animate-pulse-glow delay-700" />
       <div className="absolute inset-0 opacity-0 dark:opacity-100 bg-[linear-gradient(rgba(255,255,255,.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.015)_1px,transparent_1px)] bg-[size:64px_64px]" />
@@ -42,15 +41,23 @@ setAuth(user, accessToken);
           <ArrowLeft className="w-4 h-4" />Back to Home
         </Link>
 
-        <div className="bg-cream-50 dark:bg-white/[0.03] backdrop-blur-xl rounded-3xl border border-cream-300 dark:border-white/10 p-8 shadow-2xl shadow-amber-200/30 dark:shadow-black/20 animate-scale-in">
-          <div className="text-center mb-8">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-violet-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
-              <GraduationCap className="w-7 h-7 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-stone-800 dark:text-white">Welcome Back</h1>
-            <p className="text-stone-500 dark:text-slate-400 mt-1.5 text-sm">Sign in to your CSE ProFlow account</p>
-          </div>
+       <div className="bg-cream-50 dark:bg-white/[0.03] backdrop-blur-xl rounded-3xl border border-cream-300 dark:border-white/10 p-8 shadow-2xl shadow-amber-200/30 dark:shadow-black/20 animate-scale-in">
+  <div className="text-center mb-8">
+    <div className="w-80 h-25 rounded-2xl flex items-center justify-center mx-auto  overflow-hidden">
+      <img
+        src="/logo.jpeg"
+        alt="CSE ProFlow Logo"
+        className="w-full h-full object-contain"
+      />
+    </div>
+    <h1 className="text-2xl font-bold text-stone-800 dark:text-white">
+      Welcome Back
+    </h1>
 
+    <p className="text-stone-500 dark:text-slate-400 mt-1.5 text-sm">
+      Sign in to your CSE ProFlow account
+    </p>
+  </div>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-stone-700 dark:text-slate-300 mb-2">Email, Enrollment No. or Faculty ID</label>

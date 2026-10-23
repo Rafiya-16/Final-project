@@ -1,13 +1,7 @@
-// frontend/src/components/layout/DashboardLayout.tsx
-
 import React, { useState } from 'react';
-
 import { Outlet } from 'react-router-dom';
-
 import { Bell, X } from 'lucide-react';
-
 import { Sidebar } from './Sidebar';
-
 import { useAuthStore } from '@/stores/authStore';
 
 const DashboardLayout: React.FC = () => {
@@ -23,22 +17,7 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-cream-100 dark:bg-slate-900">
-      {/* =====================================================
-          SIDEBAR
-      ===================================================== */}
-
       <Sidebar />
-
-      {/* =====================================================
-          MAIN CONTENT
-
-          OPEN SIDEBAR   = 256px
-          CLOSED SIDEBAR = 76px
-
-          The sidebar itself handles its own open/close state.
-          Dashboard content follows the same layout spacing.
-      ===================================================== */}
-
       <div
         className={`
           min-h-screen
@@ -242,7 +221,7 @@ const DashboardLayout: React.FC = () => {
                             dark:text-slate-400
                           "
                         >
-                          Stay updated with ProjectAlloc
+                          Stay updated with CSE ProFlow
                         </p>
                       </div>
 
