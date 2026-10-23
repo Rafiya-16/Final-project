@@ -1,17 +1,13 @@
-
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Archive,
   CheckCircle2,
-  FastForward,
   FolderKanban,
   Pencil,
-  Play,
   Plus,
   Save,
   ShieldCheck,
-  Snowflake,
   UserMinus,
   UserPlus,
   UserRound,
@@ -394,13 +390,7 @@ const PoolDetailPage: React.FC = () => {
     setActionLoading(true);
 
     try {
-      if (action === 'activate') {
-        await poolService.activate(id);
-      } else if (action === 'advance') {
-        await poolService.advancePhase(id);
-      } else if (action === 'freeze') {
-        await poolService.freeze(id);
-      } else if (action === 'archive') {
+      if (action === 'archive') {
         await poolService.archive(id);
       } else if (action === 'approveAllLocked') {
         await projectService.approveAllLocked(id);
@@ -653,33 +643,10 @@ const PoolDetailPage: React.FC = () => {
                     variant="neutral"
                   />
                   <ActionButton
-                    icon={<Play className="h-4 w-4" />}
-                    label="Activate"
-                    onClick={() => showConfirm('activate', 'Activate Pool?', 'This will open submissions for faculty.')}
-                    variant="success"
-                  />
-                  <ActionButton
                     icon={<Archive className="h-4 w-4" />}
                     label="Archive"
                     onClick={() => showConfirm('archive', 'Archive Pool?', 'This will archive the draft pool. The pool will no longer be available for activation or editing.')}
                     variant="danger"
-                  />
-                </>
-              )}
-
-              {isAdmin && !['DRAFT', 'FROZEN', 'ARCHIVED'].includes(pool.status) && (
-                <>
-                  <ActionButton
-                    icon={<FastForward className="h-4 w-4" />}
-                    label="Advance"
-                    onClick={() => showConfirm('advance', 'Advance Phase?', `Move from ${pool.status} to the next phase.`)}
-                    variant="primary"
-                  />
-                  <ActionButton
-                    icon={<Snowflake className="h-4 w-4" />}
-                    label="Freeze"
-                    onClick={() => showConfirm('freeze', 'Freeze Pool?', 'All teams will be frozen. Please confirm this action.')}
-                    variant="cyan"
                   />
                 </>
               )}

@@ -48,7 +48,7 @@ setAuth(user, accessToken);
               <GraduationCap className="w-7 h-7 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-stone-800 dark:text-white">Welcome Back</h1>
-            <p className="text-stone-500 dark:text-slate-400 mt-1.5 text-sm">Sign in to your ProjectAlloc account</p>
+            <p className="text-stone-500 dark:text-slate-400 mt-1.5 text-sm">Sign in to your CSE ProFlow account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -80,16 +80,6 @@ setAuth(user, accessToken);
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-cream-200 dark:bg-white/[0.03] border border-cream-300 dark:border-white/5 rounded-xl">
-            <p className="text-xs text-stone-500 dark:text-slate-500 font-medium mb-2">Demo credentials:</p>
-            <div className="text-xs text-stone-600 dark:text-slate-400 space-y-1 font-mono">
-              <p>Admin: admin@iul.ac.in / Admin@123456</p>
-              <p>Subadmin: subadmin@iul.ac.in / Subadmin@123456</p>
-              <p>Faculty: faculty@iul.ac.in / Faculty@123456</p>
-              <p>Student: student@iul.ac.in / Student@123456</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

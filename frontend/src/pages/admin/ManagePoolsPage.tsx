@@ -1,10 +1,10 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   FolderKanban,
   ChevronRight,
+  Check, ShieldCheck,
   Users,
   Layers3,
   CalendarDays,
@@ -15,9 +15,9 @@ import {
   Clock3,
   GraduationCap,
   UserCog,
-  ShieldCheck,
-  Check,
   RotateCcw,
+  CheckCheck,
+  X,
 } from 'lucide-react';
 import { Badge } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -71,17 +71,11 @@ interface CreatePoolFormState {
 
 const addDays = (value: string, days: number): string => {
   if (!value) return '';
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-
   date.setDate(date.getDate() + days);
-
-  const localDate = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60 * 1000,
-  );
-
-  return localDate.toISOString().slice(0, 16);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
 const TIMELINE_FIELDS: TimelineFieldDefinition[] = [
@@ -124,7 +118,6 @@ const getAutomaticTimeline = (
       teamFreezeDate: '',
     };
   }
-
   const submissionEnd = addDays(submissionStart, 9);
   const reviewStart = submissionStart;
   const reviewEnd = addDays(submissionEnd, 2);
@@ -148,7 +141,7 @@ const getAutomaticTimeline = (
   };
 };
 
-const ManagePoolsPage: React.FC = () => {
+export const ManagePoolsPage: React.FC = () => {
   const [pools, setPools] = useState<Pool[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -158,7 +151,6 @@ const ManagePoolsPage: React.FC = () => {
 
   const load = async () => {
     setLoading(true);
-
     try {
       const response = await poolService.list();
       setPools(response.data || []);
@@ -189,24 +181,20 @@ const ManagePoolsPage: React.FC = () => {
       <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-[#fffdf8] via-white to-blue-50/70 p-6 shadow-sm dark:border-slate-700/80 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/30 md:p-7">
         <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-blue-200/30 blur-3xl dark:bg-blue-500/10" />
         <div className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-violet-200/20 blur-3xl dark:bg-violet-500/10" />
-
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-blue-200/80 bg-blue-50/80 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300">
               <Sparkles className="h-3.5 w-3.5" />
               Administration
             </span>
-
             <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-white md:text-3xl">
               Allocation Pools
             </h1>
-
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">
               Create and manage project allocation pools for academic sessions,
               departments, faculty, and students.
             </p>
           </div>
-
           {isAdmin && (
             <button
               onClick={() => setShowCreate(true)}
@@ -249,13 +237,11 @@ const ManagePoolsPage: React.FC = () => {
               className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/10 dark:border-slate-700/80 dark:bg-slate-900 dark:hover:border-blue-500/30 md:p-6"
             >
               <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-400 opacity-0 transition-opacity group-hover:opacity-100" />
-
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-start gap-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-violet-50 transition-transform group-hover:scale-105 dark:border-blue-500/20 dark:from-blue-500/10 dark:to-violet-500/10">
                     <FolderKanban className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
-
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="truncate text-base font-bold text-slate-800 dark:text-white md:text-lg">
@@ -263,7 +249,6 @@ const ManagePoolsPage: React.FC = () => {
                       </h3>
                       <Badge text={pool.status} />
                     </div>
-
                     <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
                       <span>{pool.academicYear}</span>
                       <span>•</span>
@@ -275,14 +260,12 @@ const ManagePoolsPage: React.FC = () => {
                         </>
                       )}
                     </p>
-
                     <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
                       <CalendarDays className="h-3.5 w-3.5" />
                       Allocation pool
                     </div>
                   </div>
                 </div>
-
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
@@ -344,13 +327,6 @@ const ManagePoolsPage: React.FC = () => {
           ))}
         </div>
       )}
-
-      <style>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 };
@@ -377,8 +353,9 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     studentIds: [],
   });
 
-  const [manualTimelineFields, setManualTimelineFields] =
-    useState<Set<TimelineKey>>(new Set());
+  const [manualTimelineFields, setManualTimelineFields] = useState<
+    Set<TimelineKey>
+  >(new Set());
 
   const [users, setUsers] = useState<{
     subadmins: User[];
@@ -389,7 +366,22 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     faculty: [],
     students: [],
   });
+  const SelectAll = (
+  field: 'facultyIds' | 'subadminIds',
+  ids: string[],
+) => {
+  setForm((prev) => ({
+    ...prev,
+    [field]: ids,
+  }));
+};
 
+const ClearAll = (field: 'facultyIds' | 'subadminIds') => {
+  setForm((prev) => ({
+    ...prev,
+    [field]: [],
+  }));
+};
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loading, setLoading] = useState(false);
 
@@ -398,25 +390,12 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     const loadUsers = async () => {
       setLoadingUsers(true);
-
       try {
         const [subadminResponse, facultyResponse, studentResponse] =
           await Promise.all([
-            userService.list({
-              role: 'SUBADMIN',
-              limit: '100',
-              isActive: 'true',
-            }),
-            userService.list({
-              role: 'FACULTY',
-              limit: '100',
-              isActive: 'true',
-            }),
-            userService.list({
-              role: 'STUDENT',
-              limit: '500',
-              isActive: 'true',
-            }),
+            userService.list({ role: 'SUBADMIN', limit: '100', isActive: 'true' }),
+            userService.list({ role: 'FACULTY', limit: '100', isActive: 'true' }),
+            userService.list({ role: 'STUDENT', limit: '500', isActive: 'true' }),
           ]);
 
         if (!active) return;
@@ -510,12 +489,18 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     });
   };
 
-  const selectAll = (list: UserSelectionKey, ids: string[]) => {
-    setForm((current) => ({ ...current, [list]: ids }));
+  const selectAllStudents = (studentIds: string[]) => {
+    setForm((current) => ({
+      ...current,
+      studentIds: Array.from(new Set([...current.studentIds, ...studentIds])),
+    }));
   };
 
-  const clearAll = (list: UserSelectionKey) => {
-    setForm((current) => ({ ...current, [list]: [] }));
+  const clearSelectedStudents = (studentIds: string[]) => {
+    setForm((current) => ({
+      ...current,
+      studentIds: current.studentIds.filter((id) => !studentIds.includes(id)),
+    }));
   };
 
   const validateTimelineBeforeSubmit = (): boolean => {
@@ -557,47 +542,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }
 
     if (date('reviewStart') >= date('reviewEnd')) {
-      toast.error('PQAC Review End must be after Review Start');
-      return false;
-    }
-
-    if (date('reviewStart') < date('submissionStart')) {
-      toast.error('PQAC Review Start cannot be before Faculty Submission Start');
-      return false;
-    }
-
-    if (date('reviewEnd') < date('submissionEnd')) {
-      toast.error('PQAC Review End cannot be before Faculty Submission End');
-      return false;
-    }
-
-    if (date('decisionDeadline') < date('reviewEnd')) {
-      toast.error('Decision Deadline cannot be before PQAC Review End');
-      return false;
-    }
-
-    if (date('selectionStart') <= date('reviewEnd')) {
-      toast.error('Student Selection must start after PQAC Review End');
-      return false;
-    }
-
-    if (date('selectionStart') >= date('selectionEnd')) {
-      toast.error('Selection End must be after Selection Start');
-      return false;
-    }
-
-    if (date('ideaSubmissionStart') <= date('selectionEnd')) {
-      toast.error('Student Idea Submission must start after Selection End');
-      return false;
-    }
-
-    if (date('ideaSubmissionStart') >= date('ideaSubmissionEnd')) {
-      toast.error('Idea Submission End must be after Idea Submission Start');
-      return false;
-    }
-
-    if (date('teamFreezeDate') <= date('ideaSubmissionEnd')) {
-      toast.error('Team Freeze must be after Idea Submission End');
+      toast.error('SubAdmin Review End must be after Review Start');
       return false;
     }
 
@@ -662,61 +607,15 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const facultyCandidates = [
     ...users.subadmins,
     ...users.faculty.filter(
-      (faculty) => !users.subadmins.some((subadmin) => subadmin.id === faculty.id),
+      (f) => !users.subadmins.some((s) => s.id === f.id),
     ),
   ];
 
- const filteredStudents = users.students.filter(
-  (student) =>
-    Boolean(form.session.trim()) &&
-    student.session?.trim() === form.session.trim(),
-);
-  const renderSelectionList = (
-    list: UserSelectionKey,
-    items: User[],
-    display: (user: User) => string,
-  ) => (
-    <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-2 dark:border-slate-700 dark:bg-slate-950/30">
-      {items.length === 0 ? (
-        <div className="flex min-h-20 items-center justify-center text-sm text-slate-400">
-          No active users available.
-        </div>
-      ) : (
-        items.map((item) => {
-          const selected = form[list].includes(item.id);
-
-          return (
-            <label
-              key={item.id}
-              className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${
-                selected
-                  ? 'border-blue-100 bg-blue-50/80 dark:border-blue-500/20 dark:bg-blue-500/10'
-                  : 'border-transparent hover:bg-white dark:hover:bg-slate-800'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={selected}
-                onChange={() => toggle(list, item.id)}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800"
-              />
-              <span
-                className={`min-w-0 text-sm ${
-                  selected
-                    ? 'font-medium text-blue-700 dark:text-blue-300'
-                    : 'text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                {display(item)}
-              </span>
-              {selected && (
-                <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-blue-500" />
-              )}
-            </label>
-          );
-        })
-      )}
-    </div>
+  // Filter students dynamically based on session entered in the Student Selection card
+  const filteredStudents = users.students.filter(
+    (student) =>
+      Boolean(form.session.trim()) &&
+      student.session?.trim().toLowerCase() === form.session.trim().toLowerCase(),
   );
 
   return (
@@ -732,22 +631,19 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               <h2 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-white md:text-3xl">
                 Create Pool
               </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                Configure the academic session, timeline, and participants.
-              </p>
             </div>
-
             <button
               type="button"
               onClick={onBack}
               className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:border-blue-200 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Back</span>
+              <span>Back</span>
             </button>
           </div>
         </section>
 
+        {/* Basic Information Section */}
         <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900 md:p-6">
           <div className="mb-5 flex items-center gap-3">
             <FolderKanban className="h-5 w-5 text-blue-600" />
@@ -755,7 +651,6 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               Basic Information
             </h3>
           </div>
-
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="md:col-span-3">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -763,31 +658,29 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </label>
               <input
                 value={form.name}
-                onChange={(event) => set('name', event.target.value)}
+                onChange={(e) => set('name', e.target.value)}
                 required
                 className={inputClass}
                 placeholder="PCS 2027 Odd"
               />
             </div>
-
             <div>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Academic Year
               </label>
               <input
                 value={form.academicYear}
-                onChange={(event) => set('academicYear', event.target.value)}
+                onChange={(e) => set('academicYear', e.target.value)}
                 className={inputClass}
               />
             </div>
-
             <div>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Semester
               </label>
               <select
                 value={form.semester}
-                onChange={(event) => set('semester', event.target.value)}
+                onChange={(e) => set('semester', e.target.value)}
                 className={inputClass}
               >
                 <option>Odd</option>
@@ -795,124 +688,68 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </select>
             </div>
             <div>
-  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-    Student Academic Session *
-  </label>
-  <select
-    value={form.session}
-    onChange={(event) => {
-      const session = event.target.value;
-
-      setForm((current) => ({
-        ...current,
-        session,
-        studentIds: [],
-      }));
-    }}
-    required
-    className={inputClass}
-  >
-    <option value="">Select academic session</option>
-    {Array.from(
-      new Set(
-        users.students
-          .map((student) => student.session?.trim())
-          .filter((session): session is string => Boolean(session)),
-      ),
-    )
-      .sort()
-      .map((session) => (
-        <option key={session} value={session}>
-          {session}
-        </option>
-      ))}
-  </select>
-  <p className="mt-1 text-xs text-slate-500">
-    Only students registered in this session will be available for selection.
-  </p>
-</div>
-
-            <div>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Department
               </label>
               <input
                 value={form.department}
-                onChange={(event) => set('department', event.target.value)}
+                onChange={(e) => set('department', e.target.value)}
                 className={inputClass}
               />
             </div>
           </div>
         </section>
 
+        {/* Timeline Section */}
         <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900 md:p-6">
           <div className="mb-5 flex items-center gap-3">
             <Clock3 className="h-5 w-5 text-violet-600" />
-            <div>
-              <h3 className="font-semibold text-slate-800 dark:text-white">
-                Allocation Timeline
-              </h3>
-              <p className="text-xs text-slate-400 dark:text-slate-500">
-                Other dates are calculated automatically and can be overridden.
-              </p>
-            </div>
+            <h3 className="font-semibold text-slate-800 dark:text-white">
+              Timeline Configuration
+            </h3>
           </div>
-
-          <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-500/20 dark:bg-blue-500/5">
+          <div className="mb-4">
             <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
               Faculty Project Submission Start *
             </label>
             <input
               type="datetime-local"
               value={form.submissionStart}
-              onChange={(event) =>
-                handleSubmissionStartChange(event.target.value)
-              }
+              onChange={(e) => handleSubmissionStartChange(e.target.value)}
               required
               className={inputClass}
             />
           </div>
-
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {TIMELINE_FIELDS.map(({ key, label }) => {
-              const isManual = manualTimelineFields.has(key);
-
-              return (
-                <div
-                  key={key}
-                  className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      {label} *
-                    </label>
-                    {isManual && (
-                      <button
-                        type="button"
-                        title="Reset to automatic"
-                        onClick={() => resetTimelineField(key)}
-                        className="rounded-md p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-500/10"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="datetime-local"
-                    value={form[key]}
-                    onChange={(event) =>
-                      handleTimelineChange(key, event.target.value)
-                    }
-                    required
-                    className={inputClass}
-                  />
+            {TIMELINE_FIELDS.map(({ key, label }) => (
+              <div key={key} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {label} *
+                  </label>
+                  {manualTimelineFields.has(key) && (
+                    <button
+                      type="button"
+                      onClick={() => resetTimelineField(key)}
+                      className="text-xs text-blue-600 dark:text-blue-400"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 inline" /> Reset
+                    </button>
+                  )}
                 </div>
-              );
-            })}
+                <input
+                  type="datetime-local"
+                  value={form[key]}
+                  onChange={(e) => handleTimelineChange(key, e.target.value)}
+                  required
+                  className={inputClass}
+                />
+              </div>
+            ))}
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900 md:p-6">
+         <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900 md:p-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-blue-600" />
@@ -920,9 +757,6 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 <h3 className="font-semibold text-slate-800 dark:text-white">
                   Faculty & SubAdmin Assignment
                 </h3>
-                <p className="text-xs text-slate-400 dark:text-slate-500">
-                  A faculty member can also be assigned as a pool SubAdmin.
-                </p>
               </div>
             </div>
             <div className="text-sm text-slate-500">
@@ -1018,7 +852,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 <button
                   type="button"
                   onClick={() =>
-                    selectAll(
+                    SelectAll(
                       'facultyIds',
                       users.faculty.map((faculty) => faculty.id),
                     )
@@ -1029,7 +863,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => clearAll('facultyIds')}
+                  onClick={() => ClearAll('facultyIds')}
                   className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                 >
                   Clear Faculty
@@ -1037,7 +871,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 <button
                   type="button"
                   onClick={() =>
-                    selectAll(
+                    SelectAll(
                       'subadminIds',
                       facultyCandidates.map((candidate) => candidate.id),
                     )
@@ -1048,7 +882,7 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => clearAll('subadminIds')}
+                  onClick={() => ClearAll('subadminIds')}
                   className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                 >
                   Clear SubAdmins
@@ -1058,121 +892,123 @@ const CreatePoolForm: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           )}
         </section>
 
+        {/* Student Selection with Session Filtering inside block */}
         <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900 md:p-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <GraduationCap className="h-5 w-5 text-emerald-600" />
+              <GraduationCap className="h-5 w-5 text-violet-600" />
               <div>
                 <h3 className="font-semibold text-slate-800 dark:text-white">
-                  Students
+                  Student Assignment
                 </h3>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
-                  Assign students who will participate in this pool.
+                  Enter student session to load and select participants for this pool.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="text-slate-500">
-{form.studentIds.length}/{filteredStudents.length} selected              </span>
-              <button
-                type="button"
-               onClick={() =>
-  selectAll(
-    'studentIds',
-    filteredStudents.map((student) => student.id),
-  )
-}
-                className="font-semibold text-blue-600 dark:text-blue-400"
-              >
-                Select All
-              </button>
-              <button
-                type="button"
-                onClick={() => clearAll('studentIds')}
-                className="text-slate-500"
-              >
-                Clear
-              </button>
+            <div className="text-sm text-slate-500">
+              Selected Students: <strong>{form.studentIds.length}</strong>
             </div>
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 items-end">
+            <div>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Student Session Filter *
+              </label>
+              <input
+                value={form.session}
+                onChange={(e) => set('session', e.target.value)}
+                placeholder="e.g. 2023-2027"
+                className={inputClass}
+              />
+            </div>
+            {filteredStudents.length > 0 && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => selectAllStudents(filteredStudents.map((s) => s.id))}
+                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" /> Select All Session ({filteredStudents.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => clearSelectedStudents(filteredStudents.map((s) => s.id))}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                >
+                  <X className="h-3.5 w-3.5" /> Clear Session Selection
+                </button>
+              </div>
+            )}
           </div>
 
           {loadingUsers ? (
-            <div className="py-8">
-              <LoadingSpinner />
+            <LoadingSpinner />
+          ) : !form.session.trim() ? (
+            <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-slate-200 p-4 text-center text-sm text-slate-400 dark:border-slate-800">
+              Type a student session (e.g. 2023-2027) above to list students.
+            </div>
+          ) : filteredStudents.length === 0 ? (
+            <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-slate-200 p-4 text-center text-sm text-slate-400 dark:border-slate-800">
+              No active students found matching session "{form.session}".
             </div>
           ) : (
-           <>
-  {!form.session && (
-    <p className="mb-3 text-sm text-amber-600">
-      Select an academic session above to view eligible students.
-    </p>
-  )}
-
-  {renderSelectionList(
-    'studentIds',
-    filteredStudents,
-    (student) =>
-      `${student.firstName} ${student.lastName} (${student.enrollmentNo || student.email})`,
-  )}
-</>
+            <div className="max-h-64 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 bg-slate-50/50 p-2 dark:border-slate-700 dark:bg-slate-950/30">
+              {filteredStudents.map((student) => {
+                const isSelected = form.studentIds.includes(student.id);
+                return (
+                  <label
+                    key={student.id}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${
+                      isSelected
+                        ? 'border-blue-100 bg-blue-50/80 dark:border-blue-500/20 dark:bg-blue-500/10'
+                        : 'border-transparent hover:bg-white dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggle('studentIds', student.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm ${isSelected ? 'font-medium text-blue-700 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300'}`}>
+                        {student.firstName} {student.lastName}
+                      </p>
+                      {student.enrollmentNo && (
+                        <p className="text-xs text-slate-400">Roll: {student.enrollmentNo}</p>
+                      )}
+                    </div>
+                    {isSelected && (
+                      <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-blue-500" />
+                    )}
+                  </label>
+                );
+              })}
+            </div>
           )}
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900/70">
-          <h3 className="mb-3 font-semibold text-slate-800 dark:text-white">
-            Assignment Summary
-          </h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {[
-              {
-                label: 'Faculty',
-                count: form.facultyIds.length,
-                color: 'text-blue-600 dark:text-blue-400',
-              },
-              {
-                label: 'SubAdmins',
-                count: form.subadminIds.length,
-                color: 'text-violet-600 dark:text-violet-400',
-              },
-              {
-                label: 'Students',
-                count: form.studentIds.length,
-                color: 'text-emerald-600 dark:text-emerald-400',
-              },
-            ].map(({ label, count, color }) => (
-              <div
-                key={label}
-                className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
-              >
-                <p className="text-xs text-slate-500">{label}</p>
-                <p className={`mt-1 text-2xl font-bold ${color}`}>{count}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-xl backdrop-blur-xl dark:border-slate-700/80 dark:bg-slate-900/90">
+        {/* Action Buttons */}
+        <div className="flex justify-end gap-3 pt-4">
+          <button
+            type="button"
+            onClick={onBack}
+            className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Cancel
+          </button>
           <button
             type="submit"
-            disabled={loading || loadingUsers}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={loading}
+            className="px-6 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 shadow-md shadow-blue-500/20"
           >
-            {loading ? (
-              <>
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Creating Pool...
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" />
-                Create Pool
-              </>
-            )}
+            {loading ? 'Creating...' : 'Create Pool'}
           </button>
         </div>
       </form>
     </div>
   );
 };
-
 export default ManagePoolsPage;
