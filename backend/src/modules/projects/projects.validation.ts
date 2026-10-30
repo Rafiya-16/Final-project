@@ -22,3 +22,32 @@ export const decideProjectSchema = z.object({
     note: z.string().optional(),
   }),
 });
+export const reviewBatchSchema = z.object({
+  body: z.object({
+    decisions: z
+      .array(
+        z.object({
+          projectId: z.string().min(1),
+          action: z.enum(["LOCK", "HOLD"]),
+          note: z.string().max(1000).optional(),
+        }),
+      )
+      .length(4)
+      .superRefine((decisions, ctx) => {
+        const holdIndex = decisions.findIndex(
+          (decision) => decision.action === "HOLD",
+        );
+
+        if (
+          holdIndex !== -1 &&
+          !decisions[holdIndex].note?.trim()
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "A reason is required for the held project.",
+            path: [holdIndex, "note"],
+          });
+        }
+      }),
+  }),
+});

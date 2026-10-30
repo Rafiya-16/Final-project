@@ -708,7 +708,21 @@ if (!subadminAssignment) {
         'Must lock exactly 3 and hold exactly 1'
       );
     }
+    const heldDecision = decisions.find(
+  (decision) => decision.action === 'HOLD'
+);
 
+if (!heldDecision?.note?.trim()) {
+  throw new BadRequestError(
+    'A reason is required when putting a project on hold'
+  );
+}
+
+if (heldDecision.note.trim().length > 1000) {
+  throw new BadRequestError(
+    'Hold reason cannot exceed 1000 characters'
+  );
+}
     const uniqueDecisionIds =
       new Set(
         decisions.map(

@@ -3,8 +3,11 @@ import { projectsController } from './projects.controller';
 import { authenticate } from '../../middleware/authenticate';
 import { authorize } from '../../middleware/authorize';
 import { validateRequest } from '../../middleware/validateRequest';
-import { submitProjectSchema, reviewProjectSchema } from './projects.validation';
-import { timelineGuard } from '../../middleware/timelineGuard';
+import {
+  submitProjectSchema,
+  reviewProjectSchema,
+  reviewBatchSchema,
+} from './projects.validation';import { timelineGuard } from '../../middleware/timelineGuard';
 import {
   requireFacultyPoolAccess,
   requireSubadminPoolAccess,
@@ -80,6 +83,7 @@ router.post(
 router.post(
   '/:poolId/faculty/:facultyId/review',
   requireSubadminPoolAccess('poolId'),
+  validateRequest(reviewBatchSchema),
   (q, s, n) => projectsController.reviewBatch(q, s, n)
 );
 

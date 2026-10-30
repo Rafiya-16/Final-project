@@ -327,6 +327,7 @@ const ReviewPage: React.FC = () => {
   const [decisions, setDecisions] = useState<
     Record<string, "LOCK" | "HOLD">
   >({});
+  const [holdNote, setHoldNote] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -353,8 +354,9 @@ const ReviewPage: React.FC = () => {
         setLoading(false);
       }
     };
-
+ 
     loadPools();
+    setHoldNote("");
   }, []);
 
   useEffect(() => {
@@ -363,6 +365,7 @@ const ReviewPage: React.FC = () => {
       setSelectedFaculty("");
       setProjects([]);
       setDecisions({});
+      setHoldNote("");
       return;
     }
 
@@ -463,27 +466,34 @@ const ReviewPage: React.FC = () => {
   }, [selectedFaculty, selectedPool]);
 
   const setDecision = (
-    projectId: string,
-    action: "LOCK" | "HOLD",
-  ) => {
-    setDecisions((previous) => {
-      const next = {
-        ...previous,
-        [projectId]: action,
-      };
+  projectId: string,
+  action: "LOCK" | "HOLD",
+) => {
+  setDecisions((previous) => {
+    const next = {
+      ...previous,
+      [projectId]: action,
+    };
 
-      const holds = Object.values(next).filter(
-        (value) => value === "HOLD",
-      ).length;
+    const holds = Object.values(next).filter(
+      (value) => value === "HOLD",
+    ).length;
 
-      if (holds > 1 && action === "HOLD") {
-        toast.error("Only 1 project can be held.");
-        return previous;
-      }
+    if (holds > 1 && action === "HOLD") {
+      toast.error("Only 1 project can be held.");
+      return previous;
+    }
 
-      return next;
-    });
-  };
+    return next;
+  });
+
+  if (
+    action === "LOCK" &&
+    decisions[projectId] === "HOLD"
+  ) {
+    setHoldNote("");
+  }
+};
 
   const submitReview = async () => {
     if (!selectedPool || !selectedFaculty) {
@@ -510,13 +520,19 @@ const ReviewPage: React.FC = () => {
       toast.error("Must lock 3 projects and hold 1 project.");
       return;
     }
-
+    if (!holdNote.trim()) {
+  toast.error("Please enter a reason for putting the project on hold.");
+  return;
+}
     const decisionsList: ReviewDecision[] = Object.entries(
-      decisions,
-    ).map(([projectId, action]) => ({
-      projectId,
-      action,
-    }));
+  decisions,
+).map(([projectId, action]) => ({
+  projectId,
+  action,
+  ...(action === "HOLD"
+    ? { note: holdNote.trim() }
+    : {}),
+}));
 
     try {
       await projectService.reviewBatch(
@@ -1128,6 +1144,52 @@ const ReviewPage: React.FC = () => {
                           : "Hold"}
                       </button>
                     </div>
+                    {decisions[project.id] === "HOLD" && (
+  <div style={{ marginTop: 16 }}>
+    <label
+      htmlFor={`hold-note-${project.id}`}
+      style={{
+        display: "block",
+        fontSize: 13,
+        fontWeight: 600,
+        marginBottom: 8,
+        color: "var(--text-primary, #374151)",
+      }}
+    >
+      Reason for putting this project on hold *
+    </label>
+
+    <textarea
+      id={`hold-note-${project.id}`}
+      value={holdNote}
+      onChange={(e) => setHoldNote(e.target.value)}
+      placeholder="Explain why this project requires further review..."
+      rows={3}
+      maxLength={1000}
+      style={{
+        width: "100%",
+        padding: 12,
+        border: "1px solid #d1d5db",
+        borderRadius: 8,
+        resize: "vertical",
+        fontSize: 14,
+        outline: "none",
+        boxSizing: "border-box",
+      }}
+    />
+
+    <div
+      style={{
+        textAlign: "right",
+        fontSize: 12,
+        color: "#6b7280",
+        marginTop: 4,
+      }}
+    >
+      {holdNote.length}/1000 characters
+    </div>
+  </div>
+)}
                   </div>
                 ))}
 
