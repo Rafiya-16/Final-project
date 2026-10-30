@@ -1,20 +1,70 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { Bell, X } from 'lucide-react';
+import { notificationService } from '@/services/notificationService';
+import type { Notification } from '@/types';
+import toast from 'react-hot-toast';
 import { Sidebar } from './Sidebar';
 import { useAuthStore } from '@/stores/authStore';
 
 const DashboardLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-
   const { user } = useAuthStore();
-
+  const navigate = useNavigate();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationLoading, setNotificationLoading] = useState(false);
   const displayName =
     [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
     user?.email ||
     'User';
+  const loadNotifications = async () => {
+  setNotificationLoading(true);
 
+  try {
+    const [listResponse, count] = await Promise.all([
+      notificationService.list(1),
+      notificationService.unreadCount(),
+    ]);
+
+    setNotifications(listResponse.data || []);
+    setUnreadCount(count || 0);
+  } catch (error) {
+    console.error('Failed to load notifications:', error);
+    toast.error('Unable to load notifications');
+  } finally {
+    setNotificationLoading(false);
+  }
+};
+useEffect(() => {
+  loadNotifications();
+}, []);
+const handleMarkRead = async (notification: Notification) => {
+  try {
+    if (!notification.isRead) {
+      await notificationService.markRead(notification.id);
+
+      setNotifications(prev =>
+        prev.map(item =>
+          item.id === notification.id
+            ? { ...item, isRead: true }
+            : item
+        )
+      );
+
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+
+    if (notification.link) {
+      setIsNotificationOpen(false);
+      navigate(notification.link);
+    }
+  } catch (error) {
+    console.error('Failed to mark notification as read:', error);
+    toast.error('Failed to update notification');
+  }
+};
   return (
     <div className="min-h-screen bg-cream-100 dark:bg-slate-900">
       <Sidebar />
@@ -128,27 +178,12 @@ const DashboardLayout: React.FC = () => {
               >
                 <Bell className="h-5 w-5" />
 
-                {/* Notification indicator */}
-
-                <span
-                  className="
-                    absolute
-                    right-2
-                    top-2
-                    h-2
-                    w-2
-                    rounded-full
-                    bg-pink-500
-                    ring-2
-                    ring-white
-                    dark:ring-slate-800
-                  "
-                />
+                {unreadCount > 0 && (
+  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-800">
+    {unreadCount > 99 ? '99+' : unreadCount}
+  </span>
+)}
               </button>
-
-              {/* =================================================
-                  NOTIFICATION PANEL
-              ================================================= */}
 
               {isNotificationOpen && (
                 <>
@@ -252,52 +287,102 @@ const DashboardLayout: React.FC = () => {
 
                     {/* Empty notification state */}
 
-                    <div className="px-4 py-8 text-center">
-                      <div
-                        className="
-                          mx-auto
-                          mb-3
-                          flex
-                          h-12
-                          w-12
-                          items-center
-                          justify-center
-                          rounded-full
-                          bg-violet-50
-                          dark:bg-violet-500/10
-                        "
-                      >
-                        <Bell
-                          className="
-                            h-5
-                            w-5
-                            text-violet-500
-                          "
-                        />
-                      </div>
+                   {/* Notification List */}
 
-                      <p
-                        className="
-                          text-sm
-                          font-medium
-                          text-slate-700
-                          dark:text-slate-200
-                        "
-                      >
-                        No new notifications
-                      </p>
+<div className="max-h-[400px] overflow-y-auto">
 
-                      <p
-                        className="
-                          mt-1
-                          text-xs
-                          text-slate-500
-                          dark:text-slate-400
-                        "
-                      >
-                        You're all caught up!
-                      </p>
-                    </div>
+  {notificationLoading ? (
+    <div className="px-4 py-10 text-center">
+      <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+      <p className="mt-3 text-sm text-slate-500">
+        Loading notifications...
+      </p>
+    </div>
+  ) : notifications.length === 0 ? (
+    <div className="px-4 py-8 text-center">
+      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-violet-50 dark:bg-violet-500/10">
+        <Bell className="h-5 w-5 text-violet-500" />
+      </div>
+
+      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+        No notifications
+      </p>
+
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        You're all caught up!
+      </p>
+    </div>
+  ) : (
+    <div className="divide-y divide-slate-100 dark:divide-slate-700">
+
+      {notifications.map(notification => (
+        <button
+          key={notification.id}
+          type="button"
+          onClick={() => handleMarkRead(notification)}
+          className={`w-full px-4 py-4 text-left transition hover:bg-violet-50 dark:hover:bg-slate-700 ${
+            !notification.isRead
+              ? 'bg-violet-50/60 dark:bg-violet-500/10'
+              : ''
+          }`}
+        >
+          <div className="flex items-start gap-3">
+
+            <div className="mt-1">
+              <Bell
+                className={`h-4 w-4 ${
+                  !notification.isRead
+                    ? 'text-violet-600'
+                    : 'text-slate-400'
+                }`}
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+
+              <div className="flex items-center justify-between gap-2">
+
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                  {notification.title}
+                </p>
+
+                {!notification.isRead && (
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-violet-500" />
+                )}
+
+              </div>
+
+              <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                {notification.message}
+              </p>
+
+              <p className="mt-2 text-[11px] text-slate-400">
+                {new Date(notification.createdAt).toLocaleString()}
+              </p>
+
+            </div>
+          </div>
+        </button>
+      ))}
+
+    </div>
+  )}
+</div>
+
+{/* Footer */}
+
+<div className="border-t border-slate-100 px-4 py-3 dark:border-slate-700">
+  <button
+    type="button"
+    onClick={() => {
+      setIsNotificationOpen(false);
+      navigate('/notifications');
+    }}
+    className="w-full text-center text-sm font-semibold text-violet-600 transition hover:text-violet-800 dark:text-violet-400"
+  >
+    View all notifications
+  </button>
+</div>
                   </div>
                 </>
               )}
