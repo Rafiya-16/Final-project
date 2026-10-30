@@ -1,26 +1,5 @@
-// frontend/src/pages/student/MyTeamPage.tsx
-
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Plus,
-  UserPlus,
-  LogOut,
-  Trash2,
-  Mail,
-  CheckCircle2,
-  XCircle,
-  Users,
-  Crown,
-  Shield,
-  Sparkles,
-  X,
-  Send,
-  BookOpen,
-  Target,
-  Rocket,
-  Clock3,
-} from 'lucide-react';
-
+import { Plus, UserPlus, LogOut, Trash2, Mail, CheckCircle2, XCircle, Users, Crown, Shield,Sparkles, X, Send, BookOpen, Target, Rocket, Clock3, } from 'lucide-react';
 import { teamService } from '@/services/teamService';
 import poolService from '@/services/poolService';
 import { userService } from '@/services/userService';
@@ -81,12 +60,13 @@ type Pool = {
 
 type StudentOption = {
   id: string;
+  firstName?: string;
+  lastName?: string;
   name?: string;
   fullName?: string;
   email?: string;
   section?: string | null;
   enrollmentNumber?: string;
-  rollNumber?: string;
 };
 
 type ConfirmState = {
@@ -765,71 +745,51 @@ const rawStudents: AnyRecord[] = [
   ...remainingPages.flatMap(getPageUsers),
 ];
 
-        const existingStudentIds =
-          new Set(
-            (team.members || [])
-              .filter(
-                (member) =>
-                  isActiveMember(member)
-              )
-              .map(
-                (member) =>
-                  getMemberId(member)
-              )
-              .filter(Boolean)
-          );
+      const existingStudentIds = new Set<string>(
+  (team.allMembersInPool || [])
+    .map((member: AnyRecord) => member.studentId)
+    .filter(
+      (id: unknown): id is string =>
+        typeof id === 'string' && id.length > 0
+    )
+);
 
         const currentUserId =
           user?.id;
 
-        const availableStudents:
-          StudentOption[] =
-          rawStudents
-            .map(
-              (student) => ({
-                id: student.id,
-                name: student.name,
-                fullName:
-                  student.fullName,
-                email:
-                  student.email,
-                section:
-                  student.section ||
-                  student.profile
-                    ?.section ||
-                  student.student
-                    ?.section ||
-                  null,
-                enrollmentNumber:
-                  student.enrollmentNumber ||
-                  student.student
-                    ?.enrollmentNumber,
-                rollNumber:
-                  student.rollNumber ||
-                  student.student
-                    ?.rollNumber,
-              })
-            )
-            .filter(
-              (student) =>
-                Boolean(student.id)
-            )
-            .filter(
-              (student) =>
-                student.id !==
-                currentUserId
-            )
-            .filter(
-              (student) =>
-                !existingStudentIds.has(
-                  student.id
-                )
-            )
-            .filter(
-              (student) =>
-                student.section ===
-                currentSection
-            );
+       const availableStudents: StudentOption[] =
+  rawStudents
+    .map((student) => ({
+      id: student.id,
+
+      firstName: student.firstName || '',
+      lastName: student.lastName || '',
+
+      name:
+        student.name ||
+        `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+
+      fullName:
+        student.fullName ||
+        `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+
+      email: student.email,
+
+      section:
+        student.section ||
+        student.profile?.section ||
+        student.student?.section ||
+        null,
+
+      enrollmentNumber:
+        student.enrollmentNumber ||
+        student.student?.enrollmentNumber ||
+        student.enrollmentNo,
+    }))
+    .filter((student) => Boolean(student.id))
+    .filter((student) => student.id !== currentUserId)
+    .filter((student) => !existingStudentIds.has(student.id))
+    .filter((student) => student.section === currentSection);
 
         setStudents(
           availableStudents
@@ -891,16 +851,10 @@ const rawStudents: AnyRecord[] = [
             ''
           ).toLowerCase();
 
-          const roll = (
-            student.rollNumber ||
-            ''
-          ).toLowerCase();
-
           return (
             name.includes(search) ||
             email.includes(search) ||
-            enrollment.includes(search) ||
-            roll.includes(search)
+            enrollment.includes(search)
           );
         }
       );
@@ -2391,12 +2345,10 @@ onClick={createTeam}
                           </p>
 
                           {(
-                            student.enrollmentNumber ||
-                            student.rollNumber
+                            student.enrollmentNumber
                           ) && (
                             <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                              {student.enrollmentNumber ||
-                                student.rollNumber}
+                              {student.enrollmentNumber}
                             </p>
                           )}
                         </div>
