@@ -1301,13 +1301,42 @@ async getProjectsByPool(
         },
       });
 
-    if (subadminAssignment) {
-      return prisma.project.findMany({
-        where: { poolId },
-        include: projectInclude,
-        orderBy: { createdAt: 'asc' },
-      });
-    }
+   if (subadminAssignment) {
+  const projects = await prisma.project.findMany({
+    where: { poolId },
+    include: projectInclude,
+    orderBy: { createdAt: 'asc' },
+  });
+  return Promise.all(
+    projects.map(async (project) => {
+      if (
+        typeof project.similarityScore !== 'number' ||
+        project.similarityScore <= 70
+      ) {
+        return {
+          ...project,
+          similarProjectTitle: null,
+        };
+      }
+
+      const similarity = await this.checkProjectSimilarity(
+        poolId,
+        {
+          title: project.title,
+          description: project.description,
+          domain: project.domain,
+        },
+        project.id
+      );
+
+      return {
+        ...project,
+        similarProjectTitle:
+          similarity.similarProjects[0]?.title ?? null,
+      };
+    })
+  );
+}
   }
 
   if (userRole === 'FACULTY') {

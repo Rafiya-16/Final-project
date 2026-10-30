@@ -119,6 +119,9 @@ export interface Project {
   maxTeamSize: number;
   expectedOutcome?: string;
   status: ProjectStatus;
+  similarityScore?: number | null;
+  similarityStatus?: string | null;
+  similarProjectTitle?: string | null;
   subadminNote?: string;
   adminNote?: string;
   createdAt: string;

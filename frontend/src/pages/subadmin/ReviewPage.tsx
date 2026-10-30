@@ -1095,7 +1095,124 @@ const ReviewPage: React.FC = () => {
                     >
                       {project.description}
                     </p>
+                   {/* PROJECT SIMILARITY INDICATOR */}
+{typeof project.similarityScore === "number" &&
+  project.similarityScore > 50 && (
+    <div
+      style={{
+        marginBottom: 18,
+        padding: "14px 16px",
+        borderRadius: 12,
+        border: "1px solid #f59e0b",
+        background: "#fffbeb",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#92400e",
+            }}
+          >
+            Project Similarity Warning
+          </p>
+        </div>
+        <span
+          style={{
+            fontSize: 21,
+            fontWeight: 800,
+            color: "#b45309",
+          }}
+        >
+          {project.similarityScore}%
+        </span>
+      </div>
+      <div
+        style={{
+          height: 7,
+          background: "#e5e7eb",
+          borderRadius: 10,
+          marginTop: 12,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${Math.min(
+              project.similarityScore,
+              100
+            )}%`,
+            background: "#f59e0b",
+            borderRadius: 10,
+          }}
+        />
+      </div>
+      {project.similarityScore > 70 && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: 10,
+            background: "#fef3c7",
+            borderRadius: 8,
+          }}
+        >
+          <p
+            style={{
+              margin: "5px 0 0",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#78350f",
+            }}
+          >
+            {project.similarProjectTitle ||
+              "Similar project title unavailable"}
+          </p>
 
+          <p
+            style={{
+              margin: "8px 0 0",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#b45309",
+            }}
+          >
+            <AlertTriangle
+              size={13}
+              style={{
+                display: "inline",
+                verticalAlign: "middle",
+                marginRight: 5,
+              }}
+            />
+            High similarity. Requires careful Subadmin review.
+          </p>
+        </div>
+      )}
+
+      {project.similarityScore <= 70 && (
+        <p
+          style={{
+            margin: "10px 0 0",
+            fontSize: 12,
+            color: "#92400e",
+            fontWeight: 600,
+          }}
+        >
+        </p>
+      )}
+    </div>
+  )}
                     <div
                       style={{
                         height: 1,

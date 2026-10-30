@@ -159,7 +159,7 @@ if (pendingIncomingInvite) {
     }
 
     if (
-      !['SELECTION_OPEN', 'TEAMS_FORMING'].includes(
+      !['SELECTION_OPEN', 'IDEA_SUBMISSION', 'TEAMS_FORMING'].includes(
         pool.status
       )
     ) {
