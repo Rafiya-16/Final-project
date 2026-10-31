@@ -41,6 +41,7 @@ type Team = {
   projectId?: string | null;
   isFrozen?: boolean;
   status?: string;
+  allMembersInPool?: { studentId: string; teamId: string; }[];
   members?: TeamMember[];
   invites?: AnyRecord[];
   project?: AnyRecord;
