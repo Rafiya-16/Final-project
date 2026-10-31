@@ -17,7 +17,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useScrollReveal } from '@/hooks/useScrollReveal';
 
-type Role = 'Admin' | 'Faculty' | 'Subadmin' | 'Student';
+type Role = 'Administrator' | 'Faculty' | 'Subadmin' | 'Students';
 
 interface Step {
   phase: string;
@@ -30,90 +30,72 @@ interface Step {
 
 const steps: Step[] = [
   {
-    phase: 'Phase 1',
-    title: 'Pool Creation',
+    phase: 'Step 1',
+    title: 'Get Started',
     icon: <FolderKanban className="h-6 w-6" />,
     color: 'from-blue-500 to-blue-600',
-    role: 'Admin',
+    role: 'Administrator',
     points: [
-      'Admin creates a new allocation pool (e.g., "FYP 2026 Spring")',
-      'Sets timeline: submission window, review period, selection dates, freeze date',
-      'Assigns subadmin(s), faculty, and eligible students to the pool',
-      'Activates the pool to open submissions',
+      'The Administrator sets up the allocation cycle, configures key deadlines, assigns participants, and opens the system portal.',
     ],
   },
   {
-    phase: 'Phase 2',
-    title: 'Faculty Proposal Submission',
+    phase: 'Step 2',
+    title: 'Submit Project Proposals',
     icon: <FileText className="h-6 w-6" />,
     color: 'from-violet-500 to-purple-600',
     role: 'Faculty',
     points: [
-      'Each faculty submits exactly 4 project proposals',
-      'Proposals include title, description, domain, prerequisites, and max team size',
-      'Faculty can edit drafts before finalizing',
-      'Once finalized, all 4 proposals are locked for review',
+      'Faculty members submit four project proposals detailing title, domain, required skillsets, and expected team size.',
     ],
   },
   {
-    phase: 'Phase 3',
-    title: 'Subadmin Review',
+    phase: 'Step 3',
+    title: 'Review Projects',
     icon: <ClipboardList className="h-6 w-6" />,
     color: 'from-amber-500 to-orange-600',
     role: 'Subadmin',
     points: [
-      "Subadmin reviews each faculty's 4 proposals",
-      'Locks (approves) 3 proposals at subadmin level',
-      'Places 1 proposal on hold — escalated to admin for final decision',
-      'Can add review notes for each proposal',
+      'Subadmins evaluate the faculty submissions, approving valid proposals directly or forwarding edge cases to the Administrator.',
     ],
   },
   {
-    phase: 'Phase 4',
-    title: 'Admin Decision',
+    phase: 'Step 4',
+    title: 'Approve Projects',
     icon: <CheckCircle2 className="h-6 w-6" />,
     color: 'from-emerald-500 to-green-600',
-    role: 'Admin',
+    role: 'Administrator',
     points: [
-      'Admin sees only ON_HOLD proposals',
-      'Approves or rejects each held project with optional feedback',
-      'Can batch-approve all locked projects',
-      'Approved projects become visible to students',
+      'The Administrator renders final decisions on pending proposals and officially publishes approved projects for student exploration.',
     ],
   },
   {
-    phase: 'Phase 5',
-    title: 'Student Selection & Team Formation',
+    phase: 'Step 5',
+    title: 'Choose Projects & Form Teams',
     icon: <Users className="h-6 w-6" />,
     color: 'from-indigo-500 to-blue-600',
-    role: 'Student',
+    role: 'Students',
     points: [
-      'Students browse approved projects (without faculty names for fairness)',
-      'One student creates a team and becomes the leader',
-      'Leader invites team members (min 3, max configurable per project)',
-      'Team leader selects one project — first come, first served with DB locking',
-      'Students can also submit their own project ideas for admin approval',
+      'Students browse approved projects, form teams, invite peers, and secure an available project.',
+      'They can also propose custom project ideas online, or submit offline proposals after the online portal closes.',
     ],
   },
   {
-    phase: 'Phase 6',
-    title: 'Freeze & Finalize',
+    phase: 'Step 6',
+    title: 'Finalize Allocation',
     icon: <Snowflake className="h-6 w-6" />,
     color: 'from-cyan-500 to-teal-600',
-    role: 'Admin',
+    role: 'Administrator',
     points: [
-      'Admin freezes the pool after the deadline',
-      'All teams are frozen — no further changes allowed',
-      'Faculty can now see their assigned teams and student contact details',
-      'Admin generates reports (printable + CSV export)',
-      'Audit logs record every action for accountability',
+      'Following the submission deadline, the Administrator locks allocations.',
+      'Faculty members can then view their assigned student teams and project details.',
     ],
   },
 ];
 
 const roleColor = (role: Role): string => {
   switch (role) {
-    case 'Admin':
+    case 'Administrator':
       return 'border-red-200 bg-red-50 text-red-600 dark:border-red-400/20 dark:bg-red-500/10 dark:text-red-300';
 
     case 'Faculty':
@@ -122,7 +104,7 @@ const roleColor = (role: Role): string => {
     case 'Subadmin':
       return 'border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-300';
 
-    case 'Student':
+    case 'Students':
       return 'border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-400/20 dark:bg-blue-500/10 dark:text-blue-300';
 
     default:
@@ -543,8 +525,7 @@ const HowItWorksPage: React.FC = () => {
           </h1>
 
           <p className="how-hero-description mx-auto mt-6 max-w-2xl text-base leading-7 text-stone-600 sm:text-lg sm:leading-8 dark:text-slate-300">
-            A 6-phase lifecycle that takes your project allocation from pool
-            creation to final team freeze.
+            The Project CSE workflow and platform architecture based on Integral University's Project Quality Assessment Committee (PQAC) system.
           </p>
 
           {/* Process Indicator */}
@@ -601,16 +582,15 @@ const HowItWorksPage: React.FC = () => {
         <div className="relative mx-auto max-w-5xl">
           <div className="mb-14 text-center">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
-              The Allocation Journey
+              The Project Alloc Journey
             </p>
 
             <h2 className="mt-3 text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl dark:text-white">
-              From setup to final allocation
+              The Project CSE Allocation Workflow
             </h2>
 
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-500 dark:text-slate-300">
-              Every stage is clearly defined so that admins, faculty,
-              subadmins, and students always know what happens next.
+              This workflow follows Integral University's Project Quality Assessment Committee (PQAC) system.
             </p>
           </div>
 
