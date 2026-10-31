@@ -64,6 +64,23 @@ interface ChatGroup {
 
 type LeaveRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
+interface TeamDissolveRequest {
+  id: string;
+  teamId: string;
+  requestedById: string;
+  reason: string;
+  status: LeaveRequestStatus;
+  createdAt: string;
+  reviewedAt?: string | null;
+  responseNote?: string | null;
+  requestedBy: { id: string; firstName: string; lastName: string; email?: string; enrollmentNo?: string };
+  team: {
+    id: string; name: string; poolId?: string; status?: string; isFrozen?: boolean;
+    project?: { id: string; title: string; projectCode?: string | null; facultyId?: string | null } | null;
+  };
+  reviewedBy?: { id: string; firstName: string; lastName: string } | null;
+}
+
 interface TeamLeaveRequest {
   id: string;
   teamId: string;
@@ -113,11 +130,13 @@ const TeamManagement: React.FC = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'compact'>('cards');
 
   const [activeTab, setActiveTab] = useState<
-    'projects' | 'groups' | 'leaveRequests'
+    'projects' | 'groups' | 'leaveRequests' | 'dissolveRequests'
   >('projects');
 
   const [leaveRequests, setLeaveRequests] = useState<TeamLeaveRequest[]>([]);
   const [loadingLeaveRequests, setLoadingLeaveRequests] = useState(false);
+  const [dissolveRequests, setDissolveRequests] = useState<TeamDissolveRequest[]>([]);
+  const [loadingDissolveRequests, setLoadingDissolveRequests] = useState(false);
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(
     null
   );
@@ -128,11 +147,13 @@ const TeamManagement: React.FC = () => {
   } | null>(null);
 
   const [responseNote, setResponseNote] = useState('');
+  const [dissolveReviewModal, setDissolveReviewModal] = useState<{ request: TeamDissolveRequest; status: 'APPROVED' | 'REJECTED' } | null>(null);
 
   useEffect(() => {
     void fetchProjectsAndStudents();
     loadExistingGroups();
     void loadLeaveRequests();
+    void loadDissolveRequests();
   }, []);
 
   const fetchProjectsAndStudents = async () => {
@@ -212,6 +233,20 @@ const TeamManagement: React.FC = () => {
     } catch (error) {
       console.error('Error loading groups:', error);
       toast.error('Failed to load saved chat groups');
+    }
+  };
+
+  const loadDissolveRequests = async () => {
+    setLoadingDissolveRequests(true);
+    try {
+      const response = await teamService.getDissolveRequestsForFaculty();
+      const data = response?.data ?? response;
+      setDissolveRequests(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading team dissolve requests:', error);
+      toast.error('Failed to load team dissolve requests');
+    } finally {
+      setLoadingDissolveRequests(false);
     }
   };
 
@@ -414,6 +449,22 @@ const TeamManagement: React.FC = () => {
       group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       group.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const filteredDissolveRequests = dissolveRequests.filter((request) => {
+    const search = searchTerm.toLowerCase();
+    const requesterName = `${request.requestedBy.firstName} ${request.requestedBy.lastName}`;
+    return (
+      requesterName.toLowerCase().includes(search) ||
+      request.requestedBy.email?.toLowerCase().includes(search) ||
+      request.requestedBy.enrollmentNo?.toLowerCase().includes(search) ||
+      request.team.name.toLowerCase().includes(search) ||
+      request.team.project?.title?.toLowerCase().includes(search) ||
+      request.team.project?.projectCode?.toLowerCase().includes(search) ||
+      request.reason.toLowerCase().includes(search)
+    );
+  });
+
+  const pendingDissolveRequests = dissolveRequests.filter((request) => request.status === 'PENDING').length;
 
   const filteredLeaveRequests = leaveRequests.filter((request) => {
     const search = searchTerm.toLowerCase();
@@ -631,6 +682,19 @@ const TeamManagement: React.FC = () => {
               </button>
 
               <button
+                onClick={() => setActiveTab('dissolveRequests')}
+                className={`px-5 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
+                  activeTab === 'dissolveRequests'
+                    ? 'bg-gradient-to-r from-[#C3BEF0] to-[#CCA8E9] text-gray-800 shadow-md'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <AlertCircle className="w-4 h-4 inline mr-2" />
+                Dissolve Requests
+                {pendingDissolveRequests > 0 && <span className="ml-2 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full">{pendingDissolveRequests}</span>}
+              </button>
+
+              <button
                 onClick={() => setActiveTab('leaveRequests')}
                 className={`px-5 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
                   activeTab === 'leaveRequests'
@@ -658,6 +722,8 @@ const TeamManagement: React.FC = () => {
                       ? 'Search projects...'
                       : activeTab === 'groups'
                       ? 'Search groups...'
+                      : activeTab === 'dissolveRequests'
+                      ? 'Search dissolve requests...'
                       : 'Search leave requests...'
                   }
                   value={searchTerm}
@@ -666,7 +732,7 @@ const TeamManagement: React.FC = () => {
                 />
               </div>
 
-              {activeTab !== 'leaveRequests' && (
+              {activeTab !== 'leaveRequests' && activeTab !== 'dissolveRequests' && (
                 <button
                   onClick={() =>
                     setViewMode(
@@ -684,13 +750,13 @@ const TeamManagement: React.FC = () => {
                 </button>
               )}
 
-              {activeTab === 'leaveRequests' && (
+              {(activeTab === 'leaveRequests' || activeTab === 'dissolveRequests') && (
                 <button
-                  onClick={() => void loadLeaveRequests()}
-                  disabled={loadingLeaveRequests}
+                  onClick={() => void (activeTab === 'dissolveRequests' ? loadDissolveRequests() : loadLeaveRequests())}
+                  disabled={activeTab === 'dissolveRequests' ? loadingDissolveRequests : loadingLeaveRequests}
                   className="px-4 py-2 bg-white/80 border border-[#CADEFC]/50 rounded-xl text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50"
                 >
-                  {loadingLeaveRequests ? 'Refreshing...' : 'Refresh'}
+                  {(activeTab === 'dissolveRequests' ? loadingDissolveRequests : loadingLeaveRequests) ? 'Refreshing...' : 'Refresh'}
                 </button>
               )}
             </div>
@@ -801,6 +867,16 @@ const TeamManagement: React.FC = () => {
           </>
         )}
 
+        {/* Team Dissolve Requests */}
+        {activeTab === 'dissolveRequests' && (
+          <DissolveRequestsSection
+            requests={filteredDissolveRequests}
+            loading={loadingDissolveRequests}
+            onApprove={(request) => setDissolveReviewModal({ request, status: 'APPROVED' })}
+            onReject={(request) => setDissolveReviewModal({ request, status: 'REJECTED' })}
+          />
+        )}
+
         {/* Leave Requests */}
         {activeTab === 'leaveRequests' && (
           <LeaveRequestsSection
@@ -827,6 +903,39 @@ const TeamManagement: React.FC = () => {
         />
       )}
 
+      {/* Team Dissolve Request Review Modal */}
+      {dissolveReviewModal && (
+        <DissolveRequestReviewModal
+          request={dissolveReviewModal.request}
+          status={dissolveReviewModal.status}
+          responseNote={responseNote}
+          loading={reviewingRequestId === dissolveReviewModal.request.id}
+          onResponseNoteChange={setResponseNote}
+          onClose={() => {
+            if (!reviewingRequestId) {
+              setDissolveReviewModal(null);
+              setResponseNote('');
+            }
+          }}
+          onConfirm={async () => {
+            const { request, status } = dissolveReviewModal;
+            setReviewingRequestId(request.id);
+            try {
+              await teamService.reviewDissolveRequest(request.id, status, responseNote.trim() || undefined);
+              toast.success(status === 'APPROVED' ? 'Team dissolution approved. The team has been dissolved.' : 'Dissolution request rejected. The team remains active.');
+              setDissolveReviewModal(null);
+              setResponseNote('');
+              await Promise.all([loadDissolveRequests(), fetchProjectsAndStudents()]);
+            } catch (error: unknown) {
+              console.error('Error reviewing team dissolve request:', error);
+              toast.error(getErrorMessage(error));
+            } finally {
+              setReviewingRequestId(null);
+            }
+          }}
+        />
+      )}
+
       {/* Leave Request Review Modal */}
       {reviewModal && (
         <LeaveRequestReviewModal
@@ -839,6 +948,67 @@ const TeamManagement: React.FC = () => {
           onClose={closeReviewModal}
         />
       )}
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Team Dissolve Requests                                                     */
+/* -------------------------------------------------------------------------- */
+
+const DissolveRequestsSection: React.FC<{
+  requests: TeamDissolveRequest[];
+  loading: boolean;
+  onApprove: (request: TeamDissolveRequest) => void;
+  onReject: (request: TeamDissolveRequest) => void;
+}> = ({ requests, loading, onApprove, onReject }) => {
+  if (loading) return <div className="bg-white/80 rounded-2xl border border-[#CADEFC]/50 py-20 flex justify-center"><LoadingSpinner /></div>;
+  if (requests.length === 0) return <EmptyState icon={<AlertCircle className="w-10 h-10 text-[#7C3AED]" />} title="No team dissolution requests found" description="Team leader requests will appear here with the reason they provided." />;
+  return <div className="space-y-5">{requests.map((request) => <DissolveRequestCard key={request.id} request={request} onApprove={() => onApprove(request)} onReject={() => onReject(request)} />)}</div>;
+};
+
+const DissolveRequestCard: React.FC<{
+  request: TeamDissolveRequest;
+  onApprove: () => void;
+  onReject: () => void;
+}> = ({ request, onApprove, onReject }) => {
+  const requester = `${request.requestedBy.firstName} ${request.requestedBy.lastName}`;
+  const pending = request.status === 'PENDING';
+  return (
+    <div className="bg-white/90 rounded-2xl border border-[#CCA8E9]/50 shadow-md overflow-hidden">
+      <div className={`h-1.5 ${pending ? 'bg-gradient-to-r from-amber-400 to-orange-400' : request.status === 'APPROVED' ? 'bg-gradient-to-r from-emerald-400 to-green-500' : 'bg-gradient-to-r from-red-400 to-rose-500'}`} />
+      <div className="p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-3">
+          <div><div className="flex items-center gap-2 flex-wrap"><h3 className="text-lg font-bold text-gray-800">{request.team.name}</h3><span className={`px-3 py-1 rounded-full text-xs font-semibold ${pending ? 'bg-amber-100 text-amber-700' : request.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{request.status}</span></div><p className="text-sm text-gray-600 mt-1">{request.team.project?.title || 'Project not available'}{request.team.project?.projectCode ? ` · ${request.team.project.projectCode}` : ''}</p></div>
+          <p className="text-xs text-gray-500 flex items-center gap-1"><CalendarDays className="w-4 h-4" />{new Date(request.createdAt).toLocaleString()}</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-xl bg-purple-50 border border-purple-100 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-1">Requested by · Team Leader</p><p className="font-semibold text-gray-800">{requester}</p>{request.requestedBy.enrollmentNo && <p className="text-xs text-gray-500 mt-1">{request.requestedBy.enrollmentNo}</p>}{request.requestedBy.email && <p className="text-xs text-gray-500">{request.requestedBy.email}</p>}</div>
+          <div className="rounded-xl bg-amber-50 border border-amber-100 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Reason for dissolving team</p><p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{request.reason}</p></div>
+        </div>
+        {request.responseNote && <div className="rounded-xl bg-gray-50 border border-gray-200 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Supervisor response</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{request.responseNote}</p></div>}
+        {pending && <div className="flex flex-wrap justify-end gap-3 pt-2"><button onClick={onReject} className="px-5 py-2.5 rounded-xl border border-red-200 text-red-700 font-semibold hover:bg-red-50"><X className="w-4 h-4 inline mr-2" />Reject Request</button><button onClick={onApprove} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold hover:shadow-lg"><CheckCircle className="w-4 h-4 inline mr-2" />Approve & Dissolve Team</button></div>}
+      </div>
+    </div>
+  );
+};
+
+const DissolveRequestReviewModal: React.FC<{
+  request: TeamDissolveRequest;
+  status: 'APPROVED' | 'REJECTED';
+  responseNote: string;
+  loading: boolean;
+  onResponseNoteChange: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}> = ({ request, status, responseNote, loading, onResponseNoteChange, onConfirm, onClose }) => {
+  const approving = status === 'APPROVED';
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden" onClick={(event) => event.stopPropagation()}>
+        <div className={`p-6 border-b ${approving ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}><div className="flex items-start justify-between gap-4"><div><h3 className="text-xl font-bold text-gray-800">{approving ? 'Approve Team Dissolution?' : 'Reject Dissolution Request?'}</h3><p className="text-sm text-gray-600 mt-1">{approving ? 'The team will be dissolved and its active members will be released.' : 'The team will remain active. You can add a rejection note.'}</p></div><button onClick={onClose} disabled={loading} className="p-2 rounded-lg hover:bg-white/80" aria-label="Close"><X className="w-5 h-5 text-gray-500" /></button></div></div>
+        <div className="p-6 space-y-4"><div className="rounded-xl bg-amber-50 border border-amber-100 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Team leader's reason</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{request.reason}</p></div><label className="block"><span className="block text-sm font-semibold text-gray-700 mb-2">Supervisor response note (optional)</span><textarea value={responseNote} onChange={(event) => onResponseNoteChange(event.target.value)} maxLength={1000} rows={3} placeholder="Add a note for the team leader..." className="w-full rounded-xl border border-gray-200 p-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-purple-200" /><span className="text-xs text-gray-400">{responseNote.length}/1000 characters</span></label><div className="flex justify-end gap-3"><button onClick={onClose} disabled={loading} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold">Cancel</button><button onClick={onConfirm} disabled={loading} className={`px-5 py-2.5 rounded-xl text-white font-semibold disabled:opacity-50 ${approving ? 'bg-emerald-600' : 'bg-red-600'}`}>{loading ? 'Submitting...' : approving ? 'Confirm & Dissolve' : 'Confirm Rejection'}</button></div></div>
+      </div>
     </div>
   );
 };
