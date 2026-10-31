@@ -149,8 +149,8 @@ const getErrorMessage = (
 const MyTeamPage: React.FC = () => {
   const { user } = useAuthStore();
 
-  const [pool, setPool] =
-    useState<Pool | null>(null);
+  const [pools, setPools] = useState<Pool[]>([]);
+const [pool, setPool] = useState<Pool | null>(null);
 
   const [team, setTeam] =
     useState<Team | null>(null);
@@ -236,64 +236,34 @@ const MyTeamPage: React.FC = () => {
     []
   );
 
-  const loadPool = useCallback(
-    async (): Promise<Pool | null> => {
-      try {
-        const result =
-          await poolService.list();
+const loadPools = useCallback(async (): Promise<Pool[]> => {
+  try {
+    const result = await poolService.list(1, 'student');
 
-        const pools: Pool[] =
-          Array.isArray(result)
-            ? result
-            : Array.isArray(result?.data)
-            ? result.data
-            : Array.isArray(result?.pools)
-            ? result.pools
-            : [];
+    const allPools: Pool[] = Array.isArray(result?.data)
+      ? result.data
+      : Array.isArray(result?.pools)
+      ? result.pools
+      : [];
 
-        if (!pools.length) {
-          setPool(null);
-          return null;
-        }
+    const activePools = allPools.filter((item) =>
+      ['SELECTION_OPEN', 'TEAMS_FORMING'].includes(
+        item.status || ''
+      )
+    );
 
-        const preferred =
-          pools.find(
-            (item) =>
-              item.status ===
-              'TEAMS_FORMING'
-          ) ||
-          pools.find(
-            (item) =>
-              item.status ===
-              'SELECTION_OPEN'
-          ) ||
-          pools.find(
-            (item) =>
-              item.status ===
-                'SUBMISSION_OPEN' ||
-              item.status ===
-                'UNDER_REVIEW'
-          ) ||
-          pools[0];
+    setPools(activePools);
 
-        setPool(preferred);
+    return activePools;
+  } catch (error) {
+    showToast(
+      'error',
+      getErrorMessage(error, 'Unable to load active pools.')
+    );
 
-        return preferred;
-      } catch (error) {
-        showToast(
-          'error',
-          getErrorMessage(
-            error,
-            'Unable to load active pool.'
-          )
-        );
-
-        return null;
-      }
-    },
-    [showToast]
-  );
-
+    return [];
+  }
+}, [showToast]);
   const load = useCallback(
     async (poolId: string) => {
       setLoading(true);
@@ -310,7 +280,7 @@ const MyTeamPage: React.FC = () => {
 
           teamService.getMyInvites(poolId),
         ]);
-
+      
         const loadedTeam: Team | null =
           teamResult?.data ||
           teamResult?.team ||
@@ -463,23 +433,72 @@ setInvitesLoaded(true);
     [showToast, user?.id]
   );
 
-  useEffect(() => {
-    const initialize =
-      async () => {
-        const currentPool =
-          await loadPool();
+useEffect(() => {
+  let cancelled = false;
 
-        if (currentPool?.id) {
-          await load(
-            currentPool.id
-          );
-        } else {
-          setLoading(false);
-        }
-      };
+  const initialize = async () => {
+    setLoading(true);
 
-    initialize();
-  }, [loadPool, load]);
+    const activePools = await loadPools();
+
+    if (cancelled) return;
+
+    if (activePools.length === 0) {
+      setPool(null);
+      setTeam(null);
+      setInvites([]);
+      setLoading(false);
+      return;
+    }
+
+    const initialPool = activePools[0];
+
+    setPool(initialPool);
+
+    await load(initialPool.id);
+  };
+
+  initialize();
+
+  return () => {
+    cancelled = true;
+  };
+}, [loadPools, load]);
+
+const handlePoolChange = async (poolId: string) => {
+  const selectedPool = pools.find(
+    (item) => item.id === poolId
+  );
+
+  if (!selectedPool || selectedPool.id === pool?.id) {
+    return;
+  }
+
+  // Update selected pool
+  setPool(selectedPool);
+
+  // Clear data belonging to the previously selected pool
+  setTeam(null);
+  setInvites([]);
+  setStudents([]);
+  setInvitesLoaded(false);
+
+  // Reset request information
+  setLeaveRequestStatus('NONE');
+  setLeaveResponseNote('');
+  setDissolveRequestStatus('NONE');
+  setDissolveResponseNote('');
+
+  // Close any open dialogs
+  setShowCreateModal(false);
+  setShowInviteModal(false);
+  setShowLeaveModal(false);
+  setShowDissolveModal(false);
+  setConfirmState(null);
+
+  // Load data for the newly selected pool
+  await load(selectedPool.id);
+};
 
   const currentMember = useMemo(() => {
     if (
@@ -1413,7 +1432,34 @@ const rawStudents: AnyRecord[] = [
                 membership and request supervisor approval when you need
                 to leave or dissolve your selected project team.
               </p>
+              {pools.length > 0 && (
+  <div className="mt-5 max-w-sm">
+    <label
+      htmlFor="team-pool-selector"
+      className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
+    >
+      Select Academic Pool
+    </label>
 
+    <select
+      id="team-pool-selector"
+      value={pool?.id || ''}
+      onChange={(e) => handlePoolChange(e.target.value)}
+      disabled={loading}
+      className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+    >
+      {pools.map((item) => (
+        <option key={item.id} value={item.id}>
+          {item.name || item.title || 'Untitled Pool'}
+        </option>
+      ))}
+    </select>
+
+    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+      Your team and invitations will be displayed for the selected pool.
+    </p>
+  </div>
+)}
               {pool && (
                 <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm dark:border-blue-800 dark:bg-slate-900/70 dark:text-slate-200">
                   <Target className="h-4 w-4 text-blue-500" />
@@ -1606,11 +1652,6 @@ pending invitation
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                       {team.name}
                     </h2>
-
-                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                      Team ID:{' '}
-                      {team.id}
-                    </p>
                   </div>
 
                   {isLeader && (

@@ -486,7 +486,7 @@ const BrowseProjectsPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [poolId, setPoolId] = useState('');
-
+  const [pools, setPools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] =
@@ -517,63 +517,61 @@ const BrowseProjectsPage: React.FC = () => {
   // LOAD PROJECTS FOR SELECTED POOL
   // ============================================================
 
-  useEffect(() => {
-    const loadPoolProjects = async () => {
-      setLoading(true);
+ useEffect(() => {
+  const loadPoolProjects = async () => {
+    setLoading(true);
 
-      try {
-        let currentPoolId = selectedPoolId;
+    try {
+      const response = await poolService.list(1, 'student');
 
-        /*
-         * If user directly opens:
-         *
-         * /projects
-         *
-         * then keep the previous behaviour and use
-         * the first available pool.
-         */
-        if (!currentPoolId) {
-          const response = await poolService.list();
+      const allPools = Array.isArray(response?.data)
+        ? response.data
+        : [];
 
-          currentPoolId = response.data?.[0]?.id || '';
-        }
+      const activePools = allPools.filter((pool: any) =>
+        ['SELECTION_OPEN', 'TEAMS_FORMING'].includes(
+          pool.status
+        )
+      );
 
-        // No pool found
-        if (!currentPoolId) {
-          setPoolId('');
-          setProjects([]);
-          setMyTeam(null);
-          return;
-        }
+      setPools(activePools);
 
-        // Save selected pool ID
-        setPoolId(currentPoolId);
+      const currentPoolId =
+        selectedPoolId &&
+        activePools.some((p: any) => p.id === selectedPoolId)
+          ? selectedPoolId
+          : activePools[0]?.id || '';
 
-        // Load projects + student's team for SAME pool
-        const [projectData, teamData] = await Promise.all([
-          projectService.listByPool(currentPoolId),
-          teamService.getMyTeam(currentPoolId),
-        ]);
-
-        setProjects(projectData || []);
-        setMyTeam(teamData || null);
-      } catch (error: unknown) {
-        console.error(
-          'Failed to load projects for selected pool:',
-          error
-        );
-
+      if (!currentPoolId) {
+        setPoolId('');
         setProjects([]);
         setMyTeam(null);
-
-        toast.error(getErrorMessage(error));
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
 
-    loadPoolProjects();
-  }, [selectedPoolId]);
+      setPoolId(currentPoolId);
+
+      const [projectData, teamData] = await Promise.all([
+        projectService.listByPool(currentPoolId),
+        teamService.getMyTeam(currentPoolId),
+      ]);
+
+      setProjects(projectData || []);
+      setMyTeam(teamData || null);
+    } catch (error: unknown) {
+      console.error('Failed to load pool projects:', error);
+
+      setProjects([]);
+      setMyTeam(null);
+
+      toast.error(getErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadPoolProjects();
+}, [selectedPoolId]);
 
   // ============================================================
   // SELECT PROJECT
@@ -737,7 +735,7 @@ const BrowseProjectsPage: React.FC = () => {
             }}
           />
 
-          <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+          <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6"/>
 
             <div className="max-w-xl">
 
@@ -769,14 +767,46 @@ const BrowseProjectsPage: React.FC = () => {
                 skills, interests and faculty preferences.
               </p>
 
-              {/* Selected Pool Indicator */}
-              {poolId && (
-                <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Showing projects for selected pool
-                </div>
-              )}
-            </div>
+             {/* Pool Selector */}
+{pools.length > 0 && (
+  <div className="mt-5 max-w-sm">
+    <label
+      htmlFor="project-pool-selector"
+      className="mb-2 block text-sm font-semibold text-gray-700"
+    >
+      Select Academic Pool
+    </label>
+
+    <select
+      id="project-pool-selector"
+      value={poolId}
+      onChange={(e) => {
+        const newPoolId = e.target.value;
+
+        setSearch('');
+        setActiveFilter('all');
+        setSelectedProjectForModal(null);
+        setSelectId(null);
+        setPendingProjectId(null);
+        setShowCaution(false);
+
+        setPoolId(newPoolId);
+
+        setLoading(true);
+
+        window.location.href =
+          `/projects?poolId=${encodeURIComponent(newPoolId)}`;
+      }}
+      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 shadow-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+    >
+      {pools.map((pool: any) => (
+        <option key={pool.id} value={pool.id}>
+          {pool.name || pool.title || 'Untitled Pool'}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3 lg:gap-4">
