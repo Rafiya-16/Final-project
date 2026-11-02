@@ -846,20 +846,10 @@ export class UsersService {
         identifier
       );
 
-    const hashedPassword =
-      await hashPassword(
-        tempPassword
-      );
-
     toInsert.push({
-      rowNumber:
-        row.rowNumber,
-
-      parsed:
-        row.parsed,
-
+      rowNumber: row.rowNumber,
+      parsed: row.parsed,
       tempPassword,
-      hashedPassword,
     });
     emailSet.add(email);
 
@@ -885,231 +875,141 @@ export class UsersService {
     }
   }
 
-  // INSERT USERS
-  for (
-    let i = 0;
-    i < toInsert.length;
-    i +=
-      IMPORT_LIMITS.BATCH_SIZE
-  ) {
-    const batch =
-      toInsert.slice(
-        i,
-        i +
-          IMPORT_LIMITS.BATCH_SIZE
-      );
+  // HASH PASSWORDS IN CONTROLLED PARALLEL BATCHES
+  // Keep the hashing concurrency bounded to avoid CPU spikes.
+  const preparedUsers: any[] = [];
+  const HASH_BATCH_SIZE = 5;
 
-    await prisma.$transaction(
-      async tx => {
-        for (const item of batch) {
-          try {
-
-            let userRole: UserRole;
-
-            switch (
-              item.parsed.role
-            ) {
-              case 'student':
-                userRole =
-                  'STUDENT';
-                break;
-
-              case 'faculty':
-                userRole =
-                  'FACULTY';
-                break;
-
-              case 'subadmin':
-                userRole =
-                  'SUBADMIN';
-                break;
-
-              default:
-                throw new Error(
-                  `Unsupported role: ${item.parsed.role}`
-                );
-            }
-
-            const isStudent =
-              userRole ===
-              'STUDENT';
-
-            const isFaculty =
-              userRole ===
-              'FACULTY';
-
-            const isSubadmin =
-              userRole ===
-              'SUBADMIN';
-
-            const created =
-              await tx.user.create({
-                data: {
-                  email:
-                    item.parsed.email,
-
-                  password:
-                    item.hashedPassword,
-
-                  role:
-                    userRole,
-
-                  firstName:
-                    item.parsed.firstName,
-
-                  lastName:
-                    item.parsed.lastName,
-
-                  department:
-                    item.parsed.department,
-                   phone: item.parsed.phone?.trim() || null,
-                  enrollmentNo:
-                    isStudent
-                      ? item.parsed
-                          .enrollment
-                      : null,
-
-                  facultyId:
-                    isFaculty ||
-                    isSubadmin
-                      ? item.parsed
-                          .facultyId
-                      : null,
-                  session:
-  isStudent
-    ? item.parsed.session
-    : null,
-                  section:
-                    isStudent
-                      ? (
-                          item.parsed
-                            .section ||
-                          null
-                        )
-                      : null,
-
-                  designation:
-                    isFaculty ||
-                    isSubadmin
-                      ? 'Assistant Professor'
-                      : null,
-
-                  mustResetPwd:
-                    true,
-
-                  createdBy:
-                    adminId,
-                },
-
-                select: {
-                  id: true,
-                  email: true,
-                  role: true,
-                  firstName: true,
-                  lastName: true,
-                  enrollmentNo: true,
-                  facultyId: true,
-                  department: true,
-                  section: true,
-                  phone: true,
-                  createdAt: true,
-                },
-              });
-
-            await tx.importRow.create({
-              data: {
-                jobId:
-                  job.id,
-
-                rowNumber:
-                  item.rowNumber,
-
-                rawData:
-                  item.parsed,
-
-                status:
-                  'SUCCESS',
-
-                userId:
-                  created.id,
-              },
-            });
-
-            successCount++;
-
-            results.push({
-              rowNumber:
-                item.rowNumber,
-
-              status:
-                'SUCCESS',
-
-              name:
-                `${item.parsed.firstName} ${item.parsed.lastName}`,
-
-              email:
-                item.parsed.email,
-
-              role:
-                item.parsed.role,
-
-              enrollment:
-                item.parsed.enrollment ||
-                null,
-
-              facultyId:
-                item.parsed.facultyId ||
-                null,
-
-              section:
-                item.parsed.section ||
-                null,
-              phone: item.parsed.phone || null,
-              tempPassword:
-                item.tempPassword,
-            });
-          } catch (err: any) {
-            failureCount++;
-
-            await tx.importRow.create({
-              data: {
-                jobId:
-                  job.id,
-
-                rowNumber:
-                  item.rowNumber,
-
-                rawData:
-                  item.parsed,
-
-                status:
-                  'FAILED',
-
-                errorMsg:
-                  err.message,
-              },
-            });
-
-            results.push({
-              rowNumber:
-                item.rowNumber,
-
-              status:
-                'FAILED',
-
-              email:
-                item.parsed.email,
-
-              error:
-                err.message,
-            });
-          }
-        }
-      }
+  for (let i = 0; i < toInsert.length; i += HASH_BATCH_SIZE) {
+    const batch = toInsert.slice(i, i + HASH_BATCH_SIZE);
+    const hashedBatch = await Promise.all(
+      batch.map(async (item) => ({
+        ...item,
+        hashedPassword: await hashPassword(item.tempPassword),
+      }))
     );
+
+    preparedUsers.push(...hashedBatch);
   }
 
-// SAVE INVALID / DUPLICATE ROWS
+  // INSERT USERS
+  // Each row has its own transaction. A failed row cannot poison
+  // the transaction used by another row.
+  for (const item of preparedUsers) {
+    try {
+      let userRole: UserRole;
+
+      switch (item.parsed.role) {
+        case 'student':
+          userRole = 'STUDENT';
+          break;
+        case 'faculty':
+          userRole = 'FACULTY';
+          break;
+        case 'subadmin':
+          userRole = 'SUBADMIN';
+          break;
+        default:
+          throw new Error(`Unsupported role: ${item.parsed.role}`);
+      }
+
+      const isStudent = userRole === 'STUDENT';
+      const isFaculty = userRole === 'FACULTY';
+      const isSubadmin = userRole === 'SUBADMIN';
+
+      const created = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email: item.parsed.email,
+            password: item.hashedPassword,
+            role: userRole,
+            firstName: item.parsed.firstName,
+            lastName: item.parsed.lastName,
+            department: item.parsed.department,
+            phone: item.parsed.phone?.trim() || null,
+            enrollmentNo: isStudent ? item.parsed.enrollment : null,
+            facultyId: isFaculty || isSubadmin ? item.parsed.facultyId : null,
+            session: isStudent ? item.parsed.session : null,
+            section: isStudent ? (item.parsed.section || null) : null,
+            designation: isFaculty || isSubadmin ? 'Assistant Professor' : null,
+            mustResetPwd: true,
+            createdBy: adminId,
+          },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            firstName: true,
+            lastName: true,
+            enrollmentNo: true,
+            facultyId: true,
+            department: true,
+            section: true,
+            phone: true,
+            createdAt: true,
+          },
+        });
+
+        await tx.importRow.create({
+          data: {
+            jobId: job.id,
+            rowNumber: item.rowNumber,
+            rawData: item.parsed,
+            status: 'SUCCESS',
+            userId: user.id,
+          },
+        });
+
+        return user;
+      });
+
+      successCount++;
+      results.push({
+        rowNumber: item.rowNumber,
+        status: 'SUCCESS',
+        name: `${item.parsed.firstName} ${item.parsed.lastName}`,
+        email: created.email,
+        role: created.role,
+        enrollment: created.enrollmentNo,
+        facultyId: created.facultyId,
+        section: created.section,
+        phone: created.phone,
+        tempPassword: item.tempPassword,
+      });
+    } catch (err: unknown) {
+      failureCount++;
+      const errorMessage = err instanceof Error
+        ? err.message
+        : 'Unknown database error';
+
+      // Record the failed row outside the failed user transaction.
+      try {
+        await prisma.importRow.create({
+          data: {
+            jobId: job.id,
+            rowNumber: item.rowNumber,
+            rawData: item.parsed,
+            status: 'FAILED',
+            errorMsg: errorMessage,
+          },
+        });
+      } catch (recordError) {
+        logger.error(
+          `Could not save import failure for row ${item.rowNumber}`,
+          recordError
+        );
+      }
+
+      results.push({
+        rowNumber: item.rowNumber,
+        status: 'FAILED',
+        email: item.parsed.email,
+        error: errorMessage,
+      });
+    }
+  }
+
+  // SAVE INVALID / DUPLICATE ROWS
 
 
   for (const row of parsedRows) {
