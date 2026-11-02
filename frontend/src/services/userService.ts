@@ -14,8 +14,13 @@ export const userService = {
   resetPassword: async (id: string) => { const { data } = await api.post(`/users/${id}/reset-password`); return data.data; },
   getStats: async () => { const { data } = await api.get('/users/stats'); return data.data; },
   bulkImport: async (file: File) => {
-    const fd = new FormData(); fd.append('file', file);
-    const { data } = await api.post('/users/bulk-import', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 });
+    const fd = new FormData();
+    fd.append('file', file);
+
+    const { data } = await api.post('/users/bulk-import', fd, {
+      timeout: 180000,
+    });
+
     return data.data;
   },
   downloadTemplate: async () => {
