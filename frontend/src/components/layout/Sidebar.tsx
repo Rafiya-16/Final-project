@@ -4,26 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useWorkplaceStore } from '@/stores/workplaceStore';
-import {
-  LayoutDashboard,
-  Users,
-  FolderKanban,
-  FileText,
-  Bell,
-  GraduationCap,
-  BookOpen,
-  Lightbulb,
-  UserCheck,
-  BarChart3,
-  ListChecks,
-  Shield,
-  LogOut,
-  User,
-  Menu,
-  X,
-  Sparkles,
-  ClipboardList,
-} from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, FileText, Bell,  GraduationCap,  BookOpen,  Lightbulb,  UserCheck,  BarChart3,  ListChecks,  Shield,  LogOut,  User,  Menu, X,  ClipboardList, } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { poolService } from '@/services/poolService';
 import { ideaService } from '@/services/ideaService';
@@ -325,16 +306,20 @@ export const Sidebar: React.FC = () => {
           <div className="absolute -top-12 -right-12 w-28 h-28 rounded-full bg-violet-200/20 dark:bg-violet-500/10 blur-2xl pointer-events-none" />
 
           <div className="relative flex items-center gap-3">
-            <div className={`p-2 rounded-xl border shadow-sm transition-all duration-300 hover:scale-105 ${theme.brandGlow}`}>
-              <Sparkles className={`w-5 h-5 ${theme.lightIcon} ${theme.darkIcon} animate-pulse`} />
-            </div>
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl border border-cream-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm flex items-center justify-center overflow-hidden">
+        <img
+          src="/logo.jpeg"
+          alt="CSE-ProFlow Logo"
+          className="w-full h-full object-contain p-1"
+        />
+      </div>
 
             <div>
               <h1 className="text-xl font-bold tracking-tight text-stone-900 dark:text-white">
-                ProjectAlloc
+                CSE-ProFlow
               </h1>
               <p className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-slate-500 mt-0.5">
-                Smart Allocation
+                 From Ideas to Impact
               </p>
             </div>
           </div>

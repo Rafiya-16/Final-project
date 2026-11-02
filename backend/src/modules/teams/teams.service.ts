@@ -29,7 +29,47 @@ export class TeamsService {
       },
     });
   }
+  private async getActiveTeamForStudentInAcademicYear(
+  poolId: string,
+  studentId: string
+) {
+  const pool = await prisma.pool.findUnique({
+    where: { id: poolId },
+    select: { academicYear: true },
+  });
 
+  if (!pool) {
+    throw new NotFoundError('Pool not found');
+  }
+
+  return prisma.teamMember.findFirst({
+    where: {
+      studentId,
+      status: 'ACTIVE',
+      team: {
+        status: {
+          not: 'DISSOLVED',
+        },
+        pool: {
+          academicYear: pool.academicYear,
+        },
+      },
+    },
+    include: {
+      team: {
+        include: {
+          pool: {
+            select: {
+              id: true,
+              name: true,
+              academicYear: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
   private async getTeamMaxSize(teamId: string): Promise<number> {
     const team = await prisma.team.findUnique({
       where: {
@@ -112,10 +152,11 @@ export class TeamsService {
       );
     }
 
-    const existing = await this.getActiveTeamForStudent(
-      poolId,
-      studentId
-    );
+   const existing =
+  await this.getActiveTeamForStudentInAcademicYear(
+    poolId,
+    studentId
+  );
 
     if (existing) {
       throw new ConflictError(
@@ -293,17 +334,11 @@ if (pendingIncomingInvite) {
       );
     }
 
-    /*
-     * Only ACTIVE team membership should block an invite.
-     *
-     * If the student was previously in a team but their
-     * TeamMember status is LEFT/REMOVED, they can be invited again.
-     */
     const inviteeTeam =
-      await this.getActiveTeamForStudent(
-        team.poolId,
-        inviteeId
-      );
+  await this.getActiveTeamForStudentInAcademicYear(
+    team.poolId,
+    inviteeId
+  );
 
     if (inviteeTeam) {
       throw new ConflictError(
@@ -496,27 +531,17 @@ if (pendingIncomingInvite) {
         'Invite expired'
       );
     }
-
-    /*
-     * ACCEPT INVITE
-     */
     if (accept) {
       if (invite.team.isFrozen) {
         throw new BadRequestError(
           'Team is frozen'
         );
       }
-
-      /*
-       * A student can only have one ACTIVE team.
-       * A previous LEFT/REMOVED membership does not block
-       * accepting this invite.
-       */
-      const existing =
-        await this.getActiveTeamForStudent(
-          invite.team.poolId,
-          studentId
-        );
+     const existing =
+  await this.getActiveTeamForStudentInAcademicYear(
+    invite.team.poolId,
+    studentId
+  );
 
       if (existing) {
         throw new ConflictError(
