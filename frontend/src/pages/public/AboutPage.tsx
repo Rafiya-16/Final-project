@@ -347,7 +347,7 @@ const AboutPage: React.FC = () => {
             >
               <Sparkles className="w-4 h-4" />
               <span className="text-sm font-semibold">
-                About ProjectAlloc
+                About CSE ProjectHub
               </span>
             </div>
 
@@ -691,7 +691,7 @@ const AboutPage: React.FC = () => {
             className="text-center max-w-3xl mx-auto mb-14"
           >
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-pink-600 dark:text-pink-400">
-              Why ProjectAlloc
+              Why CSE ProjectHub
             </p>
 
             <h2
@@ -1100,7 +1100,7 @@ const AboutPage: React.FC = () => {
                   dark:text-slate-300
                 "
               >
-                ProjectAlloc brings students, faculty, and administrators
+               CSE ProjectHub brings students, faculty, and administrators
                 together through one transparent and automated platform.
               </p>
             </div>

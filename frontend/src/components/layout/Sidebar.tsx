@@ -1,5 +1,3 @@
-// frontend/src/components/layout/Sidebar.tsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
@@ -309,14 +307,14 @@ export const Sidebar: React.FC = () => {
             <div className="flex-shrink-0 w-12 h-12 rounded-xl border border-cream-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm flex items-center justify-center overflow-hidden">
         <img
           src="/logo.jpeg"
-          alt="CSE-ProFlow Logo"
+          alt="CSE-ProjectHub Logo"
           className="w-full h-full object-contain p-1"
         />
       </div>
 
             <div>
               <h1 className="text-xl font-bold tracking-tight text-stone-900 dark:text-white">
-                CSE-ProFlow
+                CSE-ProjectHub
               </h1>
               <p className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-slate-500 mt-0.5">
                  From Ideas to Impact

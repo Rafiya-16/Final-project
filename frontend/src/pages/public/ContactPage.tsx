@@ -1,5 +1,3 @@
-// frontend/src/pages/public/ContactPage.tsx
-
 import React, { useState } from 'react';
 import {
   Mail,
@@ -510,7 +508,7 @@ const ContactPage: React.FC = () => {
             className="contact-fade-up mx-auto mt-5 max-w-2xl text-base font-medium leading-relaxed text-slate-600 dark:text-slate-300 sm:text-lg"
             style={{ animationDelay: '240ms' }}
           >
-            Have questions about ProjectAlloc? We are here to help you with
+            Have questions about CSE ProjectHub? We are here to help you with
             anything you need.
           </p>
 

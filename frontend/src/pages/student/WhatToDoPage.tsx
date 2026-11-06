@@ -1,4 +1,3 @@
-// frontend/src/pages/student/WhatToDoPage.tsx
 import React, { useState } from 'react';
 import {
   Bell, Moon, Sun, Users2, Lightbulb,
@@ -437,7 +436,7 @@ const WhatToDoPage: React.FC = () => {
           <div className="text-center pt-4">
             <div className="inline-flex items-center gap-2 text-[10px] text-emerald-600/60">
               <div className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-              <span>🎓 Powered by Project Allocation System</span>
+              <span>🎓 Powered by the Project Quality Assessment Committee (PQAC) </span>
               <div className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
             </div>
           </div>

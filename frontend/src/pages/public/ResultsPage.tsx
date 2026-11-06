@@ -1,5 +1,3 @@
-// frontend/src/pages/public/ResultsPage.tsx
-
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '@/config/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';

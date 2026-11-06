@@ -1,5 +1,3 @@
-// frontend/src/pages/public/HowItWorksPage.tsx
-
 import React from 'react';
 import {
   FolderKanban,
@@ -582,7 +580,7 @@ const HowItWorksPage: React.FC = () => {
         <div className="relative mx-auto max-w-5xl">
           <div className="mb-14 text-center">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
-              The Project Alloc Journey
+              The CSE Project Hub Journey
             </p>
 
             <h2 className="mt-3 text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl dark:text-white">

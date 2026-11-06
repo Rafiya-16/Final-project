@@ -1,39 +1,11 @@
-// frontend/src/pages/student/StudentDashboard.tsx
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { poolService } from '@/services/poolService';
 import { teamService } from '@/services/teamService';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import {
-  GraduationCap,
-  Users,
-  Lightbulb,
-  ArrowRight,
-  Sparkles,
-  BookOpen,
-  Clock,
-  CheckCircle2,
-  Zap,
-  Target,
-  Award,
-  Crown,
-  Shield,
-  Gem,
-  Trophy,
-  Brain,
-  Leaf,
-  Flower2,
-  ListChecks,
-  Trees,
-  Droplets,
-  Sun,
-  Wind,
-  Bell,
-} from 'lucide-react';
+import { GraduationCap, Users, Lightbulb, ArrowRight, Sparkles, BookOpen, Clock, CheckCircle2, Zap, Target, Award, Crown, Shield, Gem, Trophy, Brain, Leaf, Flower2, ListChecks, Trees, Droplets, Sun, Wind, Bell, } from 'lucide-react';
 import type { Pool, Team } from '@/types';
 
-// Premium Nature-Inspired Gradient Colors
 const gradients = {
   brand:
     'linear-gradient(135deg, #11998e 0%, #38ef7d 50%, #a8e6cf 100%)',
@@ -1005,7 +977,7 @@ const StudentDashboard: React.FC = () => {
                     </div>
 
                     <span className="text-xs sm:text-sm font-semibold text-white/90 uppercase tracking-wider">
-                      Your Success Journey
+                      Project Success Journey
                     </span>
                   </div>
 
@@ -1593,7 +1565,7 @@ const StudentDashboard: React.FC = () => {
             <div className="w-1 h-1 rounded-full bg-emerald-400" />
 
             <span>
-              🌿 Powered by Project Allocation System
+              🌿 Powered by the Project Quality Assessment Committee (PQAC)
             </span>
 
             <div className="w-1 h-1 rounded-full bg-emerald-400" />

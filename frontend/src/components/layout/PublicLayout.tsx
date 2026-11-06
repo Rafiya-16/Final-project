@@ -44,7 +44,7 @@ export const PublicLayout: React.FC = () => {
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-stone-800 dark:text-white">CSE-<span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent">ProFlow</span></span>
+              <span className="text-xl font-bold text-stone-800 dark:text-white">CSE-<span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent">ProjectHub</span></span>
             </Link>
 
             {/* Desktop Nav */}
@@ -129,10 +129,10 @@ export const PublicLayout: React.FC = () => {
                 <div className="w-15 h-10 bg-gradient-to-br rounded-xl flex items-center justify-center">
                    <img
         src="/logo.jpeg"
-        alt="CSE ProFlow Logo"
+        alt="CSE ProjectHub Logo"
       />
                 </div>
-                <span className="text-xl font-bold text-white">CSE ProFlow</span>
+                <span className="text-xl font-bold text-white">CSE ProjectHub</span>
               </div>
               <p className="text-sm text-gray-400 leading-relaxed max-w-md">
                 An automated project allocation platform designed for universities.
@@ -185,7 +185,7 @@ export const PublicLayout: React.FC = () => {
           </div>
 
           <div className="border-t border-gray-800 dark:border-white/5 mt-12 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-xs text-gray-500">© {new Date().getFullYear()} CSE ProFlow. All rights reserved.</p>
+            <p className="text-xs text-gray-500">© {new Date().getFullYear()} CSE ProjectHub. All rights reserved.</p>
             <div className="flex gap-6 text-xs text-gray-500">
               <Link to="/about" className="hover:text-white transition-colors">Privacy Policy</Link>
               <Link to="/about" className="hover:text-white transition-colors">Terms of Service</Link>

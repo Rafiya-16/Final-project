@@ -256,7 +256,7 @@ const handleMarkRead = async (notification: Notification) => {
                             dark:text-slate-400
                           "
                         >
-                          Stay updated with CSE ProFlow
+                          Stay updated with CSE ProjectHub
                         </p>
                       </div>
 

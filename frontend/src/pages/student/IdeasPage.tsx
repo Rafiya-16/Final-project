@@ -1,5 +1,3 @@
-// frontend/src/pages/student/IdeasPage.tsx
-
 import React, { useState, useEffect } from 'react';
 import { ideaService } from '@/services/ideaService';
 import { poolService } from '@/services/poolService';

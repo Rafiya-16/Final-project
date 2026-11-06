@@ -1,5 +1,3 @@
-// frontend/src/pages/public/FAQPage.tsx
-
 import React, { useState } from 'react';
 import {
   ChevronDown,
@@ -13,8 +11,8 @@ const faqs = [
     category: 'General',
     questions: [
       {
-        q: 'What is ProjectAlloc?',
-        a: 'ProjectAlloc is an automated project allocation platform designed for universities. It manages the entire lifecycle from faculty proposal submission to student team formation and project selection.',
+        q: 'What is CSE ProjectHub?',
+        a: 'CSE ProjectHub is an automated project allocation platform designed for universities. It manages the entire lifecycle from faculty proposal submission to student team formation and project selection.',
       },
       {
         q: 'Who can use this platform?',
