@@ -95,13 +95,6 @@ export class ProjectsService {
       );
     }
 
-    // Faculty cannot create more proposals after final submission.
-    if (assignment.hasSubmitted) {
-      throw new BadRequestError(
-        'You have already submitted your proposals'
-      );
-    }
-
     // Verify pool.
     const pool =
       await prisma.pool.findUnique({
@@ -396,6 +389,92 @@ export class ProjectsService {
   }
 
   /**
+   * Submit one proposal for review. The faculty member may submit
+   * proposals independently, up to the configured per-pool maximum.
+   */
+  async submitProposalForReview(
+    poolId: string,
+    projectId: string,
+    facultyId: string
+  ) {
+    const pool = await prisma.pool.findUnique({ where: { id: poolId } });
+    if (!pool) throw new NotFoundError('Pool not found');
+
+    if (!['SUBMISSION_OPEN', 'UNDER_REVIEW', 'DECISION_PENDING'].includes(pool.status)) {
+      throw new BadRequestError('Proposal submission or resubmission is not open');
+    }
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, poolId, facultyId },
+    });
+    if (!project) throw new NotFoundError('Proposal not found');
+
+    if (!['DRAFT', 'REJECTED'].includes(project.status)) {
+      throw new BadRequestError('Only draft or rejected proposals can be submitted');
+    }
+
+    const similarity = await this.checkProjectSimilarity(
+      poolId,
+      { title: project.title, description: project.description, domain: project.domain },
+      project.id
+    );
+    if (similarity.action === 'BLOCK') {
+      await prisma.project.update({
+        where: { id: project.id },
+        data: {
+          similarityStatus: similarity.action,
+          similarityScore: similarity.highestSimilarity,
+        },
+      });
+      throw new BadRequestError(
+        'This proposal is too similar to an existing proposal. Revise it before submitting.'
+      );
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const submitted = await tx.project.update({
+        where: { id: project.id },
+        data: {
+          status: 'SUBMITTED',
+          similarityStatus: similarity.action,
+          similarityScore: similarity.highestSimilarity,
+          // Keep the prior review notes visible to faculty as feedback.
+        },
+      });
+
+      const submittedCount = await tx.project.count({
+        where: { poolId, facultyId, status: { not: 'DRAFT' } },
+      });
+
+      await tx.poolFaculty.update({
+        where: { poolId_facultyId: { poolId, facultyId } },
+        data: {
+          hasSubmitted: submittedCount >= PROPOSALS_PER_FACULTY,
+          submittedAt: new Date(),
+        },
+      });
+
+      return submitted;
+    });
+
+    const subadmins = await prisma.poolSubadmin.findMany({
+      where: { poolId },
+      select: { subadminId: true },
+    });
+    if (subadmins.length) {
+      notificationsService.createBulk(
+        subadmins.map((item) => item.subadminId),
+        'PROPOSAL_SUBMITTED',
+        'Proposal Submitted',
+        `A faculty member has submitted "${updated.title}" for review.`,
+        `/pools/${poolId}`
+      ).catch(() => {});
+    }
+
+    return updated;
+  }
+
+  /**
    * Faculty edits own DRAFT proposal.
    */
   async editProposal(
@@ -422,9 +501,9 @@ export class ProjectsService {
       );
     }
 
-    if (project.status !== 'DRAFT') {
+    if (!['DRAFT', 'REJECTED'].includes(project.status)) {
       throw new BadRequestError(
-        'Can only edit DRAFT proposals'
+        'Only draft or rejected proposals can be edited'
       );
     }
 
@@ -673,56 +752,23 @@ if (!subadminAssignment) {
         },
       });
 
-    if (
-      projects.length !==
-      PROPOSALS_PER_FACULTY
-    ) {
-      throw new BadRequestError(
-        `Faculty must have ${PROPOSALS_PER_FACULTY} submitted proposals`
-      );
+    if (projects.length === 0 || projects.length > PROPOSALS_PER_FACULTY) {
+      throw new BadRequestError('No submitted proposals are available for review');
     }
 
-    if (
-      decisions.length !==
-      PROPOSALS_PER_FACULTY
-    ) {
-      throw new BadRequestError(
-        `Must decide on all ${PROPOSALS_PER_FACULTY} proposals`
-      );
+    if (decisions.length !== projects.length) {
+      throw new BadRequestError('A decision is required for every submitted proposal');
     }
 
-    const locks =
-      decisions.filter(
-        (d) =>
-          d.action === 'LOCK'
-      ).length;
-
-    const holds =
-      decisions.filter(
-        (d) =>
-          d.action === 'HOLD'
-      ).length;
-
-    if (locks !== 3 || holds !== 1) {
-      throw new BadRequestError(
-        'Must lock exactly 3 and hold exactly 1'
-      );
+    const heldDecisions = decisions.filter((decision) => decision.action === 'HOLD');
+    for (const heldDecision of heldDecisions) {
+      if (!heldDecision.note?.trim()) {
+        throw new BadRequestError('A reason is required when putting a project on hold');
+      }
+      if (heldDecision.note.trim().length > 1000) {
+        throw new BadRequestError('Hold reason cannot exceed 1000 characters');
+      }
     }
-    const heldDecision = decisions.find(
-  (decision) => decision.action === 'HOLD'
-);
-
-if (!heldDecision?.note?.trim()) {
-  throw new BadRequestError(
-    'A reason is required when putting a project on hold'
-  );
-}
-
-if (heldDecision.note.trim().length > 1000) {
-  throw new BadRequestError(
-    'Hold reason cannot exceed 1000 characters'
-  );
-}
     const uniqueDecisionIds =
       new Set(
         decisions.map(
@@ -1454,10 +1500,10 @@ async getProjectsByPool(
 
       let reviewStatus: "AWAITING" | "SUBMITTED" | "REVIEWED";
 
-      if (reviewedProjects.length >= PROPOSALS_PER_FACULTY) {
+      if (projects.length > 0 && submittedProjects.length === 0 && reviewedProjects.length > 0) {
         reviewStatus = "REVIEWED";
       } else if (
-        submittedProjects.length >= PROPOSALS_PER_FACULTY
+        submittedProjects.length > 0
       ) {
         reviewStatus = "SUBMITTED";
       } else if (
