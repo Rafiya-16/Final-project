@@ -54,6 +54,22 @@ export class ProjectsController {
   }
 
   /**
+   * Faculty submits one proposal for review.
+   */
+  async submitOne(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await projectsService.submitProposalForReview(
+        req.params.poolId as string,
+        req.params.projectId as string,
+        req.user!.userId
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Faculty finalizes all proposals.
    */
   async finalize(req: Request, res: Response, next: NextFunction) {
