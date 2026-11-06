@@ -507,6 +507,17 @@ export class ProjectsService {
       );
     }
 
+    const pool = await prisma.pool.findUnique({ where: { id: project.poolId } });
+    if (!pool) throw new NotFoundError('Pool not found');
+
+    if (project.status === 'DRAFT' && pool.status !== 'SUBMISSION_OPEN') {
+      throw new BadRequestError('Draft proposals can only be edited during the submission phase');
+    }
+
+    if (project.status === 'REJECTED' && !['UNDER_REVIEW', 'DECISION_PENDING'].includes(pool.status)) {
+      throw new BadRequestError('Rejected proposals can only be revised while the review/decision phase is active');
+    }
+
     /**
      * Check similarity after editing.
      */
