@@ -22,11 +22,6 @@ export const projectService = {
     return data.data;
   },
 
-  finalize: async (poolId: string) => {
-    const { data } = await api.post(`/pools/${poolId}/projects/finalize`);
-    return data;
-  },
-
   edit: async (
     poolId: string,
     id: string,
