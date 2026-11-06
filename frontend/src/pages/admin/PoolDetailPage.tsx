@@ -438,7 +438,16 @@ const PoolDetailPage: React.FC = () => {
       if (decision === 'approve') {
         await projectService.approve(id, projectId);
       } else {
-        await projectService.reject(id, projectId);
+        const rejectionNote = window.prompt(
+          'Enter the reason for rejecting this proposal (required):'
+        );
+
+        if (!rejectionNote?.trim()) {
+          toast.error('An admin rejection reason is required.');
+          return;
+        }
+
+        await projectService.reject(id, projectId, rejectionNote.trim());
       }
 
       toast.success(`Project ${decision}d`);
