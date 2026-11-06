@@ -935,7 +935,7 @@ const ReviewPage: React.FC = () => {
                             fontWeight: 700,
                           }}
                         >
-                          {lockedCount} / 3
+                          {lockedCount} / {projects.length}
                         </span>
                       </div>
 
@@ -944,7 +944,7 @@ const ReviewPage: React.FC = () => {
                           className="rp-progress-fill"
                           style={{
                             width: `${Math.min(
-                              (lockedCount / 3) * 100,
+                              (lockedCount / Math.max(projects.length, 1)) * 100,
                               100,
                             )}%`,
                           }}
@@ -975,7 +975,7 @@ const ReviewPage: React.FC = () => {
                             fontWeight: 700,
                           }}
                         >
-                          {heldCount} / 1
+                          {heldCount} / {projects.length}
                         </span>
                       </div>
 
@@ -984,7 +984,7 @@ const ReviewPage: React.FC = () => {
                           className="rp-progress-fill"
                           style={{
                             width: `${Math.min(
-                              heldCount * 100,
+                              (heldCount / Math.max(projects.length, 1)) * 100,
                               100,
                             )}%`,
                           }}
