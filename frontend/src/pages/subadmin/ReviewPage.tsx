@@ -394,9 +394,11 @@ const ReviewPage: React.FC = () => {
             );
 
             const reviewedProjects = facultyProjects.filter(
-              (project) =>
+              (project) => Boolean(project.reviewedAt) ||
                 project.status === "LOCKED" ||
-                project.status === "ON_HOLD",
+                project.status === "ON_HOLD" ||
+                project.status === "APPROVED" ||
+                project.status === "REJECTED",
             );
 
             const submittedProjects = facultyProjects.filter(
@@ -405,13 +407,10 @@ const ReviewPage: React.FC = () => {
 
             let reviewStatus: ReviewStatus = "AWAITING";
 
-            if (reviewedProjects.length === 4) {
-              reviewStatus = "REVIEWED";
-            } else if (
-              submittedProjects.length === 4 ||
-              faculty.hasSubmitted
-            ) {
+            if (submittedProjects.length > 0) {
               reviewStatus = "SUBMITTED";
+            } else if (reviewedProjects.length > 0) {
+              reviewStatus = "REVIEWED";
             }
 
             return {
@@ -475,16 +474,7 @@ const ReviewPage: React.FC = () => {
       [projectId]: action,
     };
 
-    const holds = Object.values(next).filter(
-      (value) => value === "HOLD",
-    ).length;
-
-    if (holds > 1 && action === "HOLD") {
-      toast.error("Only 1 project can be held.");
-      return previous;
-    }
-
-    return next;
+     return next;
   });
 
   if (
@@ -501,29 +491,21 @@ const ReviewPage: React.FC = () => {
       return;
     }
 
-    if (projects.length !== 4) {
-      toast.error(
-        "Exactly 4 submitted projects are required for review.",
-      );
+    if (projects.length === 0) {
+      toast.error("There are no submitted proposals to review.");
       return;
     }
 
-    const locks = Object.values(decisions).filter(
-      (value) => value === "LOCK",
-    ).length;
-
-    const holds = Object.values(decisions).filter(
-      (value) => value === "HOLD",
-    ).length;
-
-    if (locks !== 3 || holds !== 1) {
-      toast.error("Must lock 3 projects and hold 1 project.");
+    if (projects.some((project) => !decisions[project.id])) {
+      toast.error("Please choose Lock or Hold for every submitted proposal.");
       return;
     }
-    if (!holdNote.trim()) {
-  toast.error("Please enter a reason for putting the project on hold.");
-  return;
-}
+
+    const holds = Object.values(decisions).filter((value) => value === "HOLD").length;
+    if (holds > 0 && !holdNote.trim()) {
+      toast.error("Please enter a reason for every proposal being put on hold.");
+      return;
+    }
     const decisionsList: ReviewDecision[] = Object.entries(
   decisions,
 ).map(([projectId, action]) => ({
@@ -621,7 +603,7 @@ const ReviewPage: React.FC = () => {
                 fontWeight: 400,
               }}
             >
-              Review four submitted faculty proposals.
+              Review each submitted faculty proposal independently (up to four per faculty).
             </p>
           </div>
 
