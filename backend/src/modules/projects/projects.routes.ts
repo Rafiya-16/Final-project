@@ -48,15 +48,6 @@ router.post(
   (q, s, n) => projectsController.submitOne(q, s, n)
 );
 
-// Finalize all faculty proposals
-router.post(
-  '/:poolId/projects/finalize',
-  authorize('FACULTY'),
-  requireFacultyPoolAccess('poolId'),
-  timelineGuard('SUBMISSION'),
-  (q, s, n) => projectsController.finalize(q, s, n)
-);
-
 // Edit project proposal
 router.put(
   '/:poolId/projects/:projectId',
