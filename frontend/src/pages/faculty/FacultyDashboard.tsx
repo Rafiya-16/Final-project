@@ -272,6 +272,7 @@ const FacultyDashboard: React.FC = () => {
   const pool = pools.find(p => p.id === selectedPool);
   const draftCount = projects.filter(p => p.status === 'DRAFT').length;
   const canSubmit = pool?.status === 'SUBMISSION_OPEN';
+  const canRevise = canSubmit || pool?.status === 'UNDER_REVIEW' || pool?.status === 'DECISION_PENDING';
   const timeRemaining = getTimeRemaining(pool?.submissionEnd);
   const phaseDetails = getPhaseDetails();
 
@@ -689,7 +690,7 @@ const FacultyDashboard: React.FC = () => {
                 key={p.id}
                 project={p}
                 index={i}
-                canSubmit={canSubmit}
+                canSubmit={canRevise}
                 expanded={expandedProject === p.id}
                 onExpand={() => setExpandedProject(expandedProject === p.id ? null : p.id)}
                 onEdit={startEdit}
