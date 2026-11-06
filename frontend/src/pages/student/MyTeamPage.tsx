@@ -31,6 +31,10 @@ type TeamInvite = {
   expiresAt?: string;
   createdAt?: string;
   team?: AnyRecord;
+  invitedBy?: {
+    firstName?: string;
+    lastName?: string;
+  };
 };
 
 type Team = {
