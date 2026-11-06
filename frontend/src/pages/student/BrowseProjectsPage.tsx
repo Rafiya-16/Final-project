@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 
 import { projectService } from '@/services/projectService';
 import { teamService } from '@/services/teamService';
+import { useAuthStore } from '@/stores/authStore';
 import { poolService } from '@/services/poolService';
 
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -483,6 +484,7 @@ const ProjectDetailsModal: React.FC<{
 // ============================================================
 
 const BrowseProjectsPage: React.FC = () => {
+  const user = useAuthStore(state => state.user);
   const [projects, setProjects] = useState<Project[]>([]);
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [poolId, setPoolId] = useState('');
@@ -710,7 +712,8 @@ const BrowseProjectsPage: React.FC = () => {
   const canSelect =
     !!myTeam &&
     !myTeam.projectId &&
-    !!myTeam.leaderId &&
+    !!user?.id &&
+    myTeam.leaderId === user.id &&
     selectionWindowOpen;
 
   // ============================================================

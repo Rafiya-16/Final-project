@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ideaService } from '@/services/ideaService';
 import { poolService } from '@/services/poolService';
+import { teamService } from '@/services/teamService';
+import { useAuthStore } from '@/stores/authStore';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
@@ -46,6 +48,8 @@ const gradients = {
 
 const IdeasPage: React.FC = () => {
   const [poolId, setPoolId] = useState('');
+  const [isTeamLeader, setIsTeamLeader] = useState(false);
+  const user = useAuthStore(state => state.user);
   const [ideaSubmissionOpen, setIdeaSubmissionOpen] = useState(false);
   const [ideas, setIdeas] = useState<StudentIdea[]>([]);
   const [availableSupervisors, setAvailableSupervisors] =
@@ -101,8 +105,14 @@ const IdeasPage: React.FC = () => {
 
         setPoolId(pool.id);
 
-        const myIdeas = await ideaService.getMyIdeas(pool.id);
+        const [myTeam, myIdeas] = await Promise.all([
+          teamService.getMyTeam(pool.id),
+          ideaService.getMyIdeas(pool.id),
+        ]);
 
+        setIsTeamLeader(
+          Boolean(user?.id && myTeam?.leaderId === user.id)
+        );
         setIdeas(myIdeas || []);
       } catch (error: unknown) {
         toast.error(getErrorMessage(error));
@@ -112,9 +122,14 @@ const IdeasPage: React.FC = () => {
     };
 
     loadPage();
-  }, []);
+  }, [user?.id]);
 
   const openForm = async () => {
+    if (!isTeamLeader) {
+      toast.error('Only the team leader can submit a project idea.');
+      return;
+    }
+
     if (!ideaSubmissionOpen) {
       toast.error('Student idea submission is currently closed.');
       return;
@@ -160,6 +175,11 @@ const IdeasPage: React.FC = () => {
 
     if (!poolId) {
       toast.error('No active pool found.');
+      return;
+    }
+
+    if (!isTeamLeader) {
+      toast.error('Only the team leader can submit a project idea.');
       return;
     }
 
@@ -403,11 +423,13 @@ const IdeasPage: React.FC = () => {
 
               <button
                 onClick={openForm}
-                disabled={!ideaSubmissionOpen}
+                disabled={!ideaSubmissionOpen || !isTeamLeader}
                 title={
-                  ideaSubmissionOpen
-                    ? 'Submit a project idea'
-                    : 'Student idea submission is currently closed'
+                  !isTeamLeader
+                    ? 'Only the team leader can submit a project idea'
+                    : ideaSubmissionOpen
+                      ? 'Submit a project idea'
+                      : 'Student idea submission is currently closed'
                 }
                 className="group relative inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
                 style={{

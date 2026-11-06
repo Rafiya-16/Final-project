@@ -1571,6 +1571,23 @@ pending invitation
                           'Project Team'}
                       </p>
 
+                      <div className="mt-1 space-y-0.5 text-xs text-slate-600 dark:text-slate-300">
+                        <p>
+                          <span className="font-semibold">Team leader:</span>{' '}
+                          {[
+                            invite.team?.leader?.firstName,
+                            invite.team?.leader?.lastName,
+                          ].filter(Boolean).join(' ') || 'Not available'}
+                        </p>
+                        <p>
+                          <span className="font-semibold">Invited by:</span>{' '}
+                          {[
+                            invite.invitedBy?.firstName,
+                            invite.invitedBy?.lastName,
+                          ].filter(Boolean).join(' ') || 'Not available'}
+                        </p>
+                      </div>
+
                       {invite.message && (
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                           {

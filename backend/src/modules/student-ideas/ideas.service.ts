@@ -207,6 +207,12 @@ export class IdeasService {
       );
     }
 
+    if (team.leaderId !== studentId) {
+      throw new ForbiddenError(
+        'Only the team leader can submit a project idea for the team'
+      );
+    }
+
     if (team.isFrozen) {
       throw new BadRequestError(
         'Your team is frozen and can no longer submit an idea',
