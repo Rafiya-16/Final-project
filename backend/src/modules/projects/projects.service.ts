@@ -1511,17 +1511,10 @@ async getProjectsByPool(
 
       let reviewStatus: "AWAITING" | "SUBMITTED" | "REVIEWED";
 
-      if (projects.length > 0 && submittedProjects.length === 0 && reviewedProjects.length > 0) {
+      if (submittedProjects.length > 0) {
+        reviewStatus = "SUBMITTED";
+      } else if (reviewedProjects.length > 0) {
         reviewStatus = "REVIEWED";
-      } else if (
-        submittedProjects.length > 0
-      ) {
-        reviewStatus = "SUBMITTED";
-      } else if (
-        projects.length > 0 ||
-        assignment.hasSubmitted
-      ) {
-        reviewStatus = "SUBMITTED";
       } else {
         reviewStatus = "AWAITING";
       }
@@ -1529,7 +1522,7 @@ async getProjectsByPool(
       return {
         facultyId: assignment.facultyId,
         hasSubmitted:
-          assignment.hasSubmitted || projects.length > 0,
+          submittedProjects.length > 0 || reviewedProjects.length > 0,
         submittedAt: assignment.submittedAt,
         reviewStatus,
         faculty: assignment.faculty,
