@@ -52,7 +52,7 @@ const CreateProposal: React.FC = () => {
   const [editForm, setEditForm] = useState({ title: '', description: '', domain: '', prerequisites: '', expectedOutcome: '', maxTeamSize: 3 });
   
   // Confirmation modal state
-  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false); useEffect(() => {fetchActivePools();}, []);
+  useEffect(() => {fetchActivePools();}, []);
 
   // Similarity checking states
   const [checkingSimilarity, setCheckingSimilarity] = useState(false);
@@ -250,76 +250,6 @@ const CreateProposal: React.FC = () => {
       toast.error(error.response?.data?.message || 'Failed to delete project');
     }
   };
-
-  const handleFinalizeAll = async () => {
-  setShowFinalizeConfirm(false);
-
-  try {
-    await projectService.finalize(poolId!);
-
-    toast.success('All projects submitted for review!');
-
-    await refreshExistingProjects();
-
-  } catch (error: any) {
-    console.error('Finalize error:', error);
-
-    const response = error.response?.data;
-
-    const blockedProjects =
-      response?.details?.blockedProjects ||
-      response?.data?.blockedProjects ||
-      [];
-
-    if (
-      Array.isArray(blockedProjects) &&
-      blockedProjects.length > 0
-    ) {
-      const blockedTitles = blockedProjects
-        .map(
-          (project: any) =>
-            `Project ${
-              existingProjects.findIndex(
-                (p) => p.id === project.projectId
-              ) + 1
-            }: ${project.title}`
-        )
-        .join('\n');
-
-      toast.error(
-        `Please modify these proposals:\n${blockedTitles}`,
-        {
-          duration: 6000,
-        }
-      );
-
-      /*
-       * Automatically open the first blocked
-       * proposal for editing.
-       */
-      const firstBlocked = blockedProjects[0];
-
-      const blockedIndex =
-        existingProjects.findIndex(
-          (p) => p.id === firstBlocked.projectId
-        );
-
-      if (blockedIndex !== -1) {
-        const blockedProject =
-          existingProjects[blockedIndex];
-
-        handleEditProject(blockedProject);
-      }
-
-      return;
-    }
-
-    toast.error(
-      response?.message ||
-        'Failed to finalize projects'
-    );
-  }
-};
 
     /**
    * Checks the proposal against existing projects in the selected pool.
@@ -729,9 +659,7 @@ const CreateProposal: React.FC = () => {
   const remainingSlots = getRemainingSlots();
   const isAtMaxLimit = existingProjectsCount >= 4;
   const deadline = poolDetails ? formatDeadline(poolDetails.submissionEnd) : null;
-  const draftCount = existingProjects.filter(p => p.status === 'DRAFT').length;
-  const canFinalize = draftCount === 4 && existingProjectsCount === 4;
-
+ 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#DEFCF9]/30 via-[#CADEFC]/20 to-[#C3BEF0]/30">
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -846,15 +774,7 @@ const CreateProposal: React.FC = () => {
                 <CheckCircle className="w-5 h-5 text-emerald-600" />
                 Your Projects ({existingProjects.length}/4)
               </h2>
-              {canFinalize && (
-                <button
-                  onClick={() => setShowFinalizeConfirm(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg text-sm font-medium hover:from-emerald-600 hover:to-green-700 transition-all shadow-md"
-                >
-                  <Send className="w-4 h-4" />
-                  Finalize All Projects
-                </button>
-              )}
+
             </div>
             <div className="grid grid-cols-1 gap-3">
               {existingProjects.map((project, idx) => {
@@ -1552,32 +1472,6 @@ const CreateProposal: React.FC = () => {
     </div>
   </div>
 )}
-        {/* Finalize Confirmation Modal */}
-        {showFinalizeConfirm && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowFinalizeConfirm(false)}>
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="w-8 h-8 text-amber-600" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">Finalize All Projects?</h3>
-                <p className="text-gray-500 mb-6">
-                  Once finalized, you cannot edit or delete these projects. 
-                  They will be submitted for review. Are you sure you want to proceed?
-                </p>
-                <div className="flex gap-3">
-                  <button onClick={() => setShowFinalizeConfirm(false)} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                    Cancel
-                  </button>
-                  <button onClick={handleFinalizeAll} className="flex-1 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg font-medium hover:from-emerald-600 hover:to-green-700 transition-all">
-                    Yes, Finalize
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Tips Section */}
         {!isAtMaxLimit && (
           <div className="mt-6 p-4 bg-gradient-to-r from-[#DEFCF9]/50 to-[#CADEFC]/30 rounded-xl border border-[#CADEFC]/50">
