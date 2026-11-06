@@ -107,16 +107,6 @@ const FacultyDashboard: React.FC = () => {
     }
   };
 
-  const finalize = async () => {
-    try { 
-      await projectService.finalize(selectedPool); 
-      toast.success('All proposals submitted for review!');
-      await refreshData();
-    } catch (e: unknown) { 
-      toast.error(getErrorMessage(e)); 
-    }
-  };
-
   const deleteProposal = async (id: string) => {
     if (!confirm('Are you sure you want to delete this proposal?')) return;
     try { 
