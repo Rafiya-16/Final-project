@@ -99,9 +99,7 @@ const CreateProposal: React.FC = () => {
         
         try {
           const existingProjectsData = await projectService.listByPool(selectedPoolId);
-          const allProjects = existingProjectsData.filter((p: any) => 
-            p.status === 'DRAFT' || p.status === 'SUBMITTED' || p.status === 'APPROVED' || p.status === 'LOCKED'
-          );
+          const allProjects = existingProjectsData;
           setExistingProjects(allProjects);
           setExistingProjectsCount(allProjects.length);
         } catch (error) {
@@ -127,9 +125,7 @@ const CreateProposal: React.FC = () => {
     if (!poolId) return;
     try {
       const existingProjectsData = await projectService.listByPool(poolId);
-      const allProjects = existingProjectsData.filter((p: any) => 
-        p.status === 'DRAFT' || p.status === 'SUBMITTED' || p.status === 'APPROVED' || p.status === 'LOCKED'
-      );
+      const allProjects = existingProjectsData;
       setExistingProjects(allProjects);
       setExistingProjectsCount(allProjects.length);
     } catch (error) {
@@ -642,6 +638,8 @@ const CreateProposal: React.FC = () => {
       case 'SUBMITTED': return { text: 'Submitted', color: 'bg-blue-100 text-blue-700' };
       case 'APPROVED': return { text: 'Approved', color: 'bg-emerald-100 text-emerald-700' };
       case 'LOCKED': return { text: 'Locked', color: 'bg-gray-100 text-gray-700' };
+      case 'ON_HOLD': return { text: 'On Hold', color: 'bg-amber-100 text-amber-700' };
+      case 'REJECTED': return { text: 'Rejected', color: 'bg-red-100 text-red-700' };
       default: return { text: status, color: 'bg-gray-100 text-gray-700' };
     }
   };
