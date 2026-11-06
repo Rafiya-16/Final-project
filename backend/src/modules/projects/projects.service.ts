@@ -400,10 +400,6 @@ export class ProjectsService {
     const pool = await prisma.pool.findUnique({ where: { id: poolId } });
     if (!pool) throw new NotFoundError('Pool not found');
 
-    if (!['SUBMISSION_OPEN', 'UNDER_REVIEW', 'DECISION_PENDING'].includes(pool.status)) {
-      throw new BadRequestError('Proposal submission or resubmission is not open');
-    }
-
     const project = await prisma.project.findFirst({
       where: { id: projectId, poolId, facultyId },
     });
@@ -411,6 +407,13 @@ export class ProjectsService {
 
     if (!['DRAFT', 'REJECTED'].includes(project.status)) {
       throw new BadRequestError('Only draft or rejected proposals can be submitted');
+    }
+
+    if (
+      (project.status === 'DRAFT' && pool.status !== 'SUBMISSION_OPEN') ||
+      (project.status === 'REJECTED' && !['UNDER_REVIEW', 'DECISION_PENDING'].includes(pool.status))
+    ) {
+      throw new BadRequestError('This proposal cannot be submitted during the current pool phase');
     }
 
     const similarity = await this.checkProjectSimilarity(
@@ -984,6 +987,13 @@ if (!subadminAssignment) {
     adminId: string,
     note?: string
   ) {
+    if (!note?.trim()) {
+      throw new BadRequestError('An admin rejection reason is required');
+    }
+    if (note.trim().length > 1000) {
+      throw new BadRequestError('Admin rejection reason cannot exceed 1000 characters');
+    }
+
     const project =
       await prisma.project.findUnique({
         where: {
@@ -1051,7 +1061,7 @@ if (!subadminAssignment) {
             ? ` Note: ${note}`
             : ''
         }`,
-        `/pools/${updated.poolId}`
+        '/dashboard'
       )
       .catch(() => {});
 
