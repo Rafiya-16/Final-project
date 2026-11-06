@@ -983,7 +983,7 @@ const DissolveRequestCard: React.FC<{
           <p className="text-xs text-gray-500 flex items-center gap-1"><CalendarDays className="w-4 h-4" />{new Date(request.createdAt).toLocaleString()}</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="rounded-xl bg-purple-50 border border-purple-100 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-1">Requested by · Team Leader</p><p className="font-semibold text-gray-800">{requester}</p>{request.requestedBy.enrollmentNo && <p className="text-xs text-gray-500 mt-1">{request.requestedBy.enrollmentNo}</p>}{request.requestedBy.email && <p className="text-xs text-gray-500">{request.requestedBy.email}</p>}</div>
+          <div className="rounded-xl bg-purple-50 border border-purple-100 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-1">Requested by · Team Initiator</p><p className="font-semibold text-gray-800">{requester}</p>{request.requestedBy.enrollmentNo && <p className="text-xs text-gray-500 mt-1">{request.requestedBy.enrollmentNo}</p>}{request.requestedBy.email && <p className="text-xs text-gray-500">{request.requestedBy.email}</p>}</div>
           <div className="rounded-xl bg-amber-50 border border-amber-100 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Reason for dissolving team</p><p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{request.reason}</p></div>
         </div>
         {request.responseNote && <div className="rounded-xl bg-gray-50 border border-gray-200 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Supervisor response</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{request.responseNote}</p></div>}
@@ -1248,7 +1248,7 @@ const ProjectCard: React.FC<{
                         {student.role === 'LEADER' && (
                           <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
                             <Crown className="w-3 h-3" />
-                            Leader
+                            Initiator
                           </span>
                         )}
                       </div>

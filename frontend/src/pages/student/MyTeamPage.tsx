@@ -1691,7 +1691,7 @@ pending invitation
                   {isLeader && (
                     <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                       <Crown className="h-4 w-4" />
-                      Team Leader
+                      Team Initiator
                     </div>
                   )}
                 </div>
@@ -1947,7 +1947,7 @@ pending invitation
 
                               {memberIsLeader && (
                                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                                  LEADER
+                                  Initiator
                                 </span>
                               )}
 
