@@ -115,21 +115,6 @@ export class ProjectsService {
       );
     }
 
-    // Count faculty's proposals in this pool.
-    const count =
-      await prisma.project.count({
-        where: {
-          poolId,
-          facultyId,
-        },
-      });
-
-    if (count >= PROPOSALS_PER_FACULTY) {
-      throw new BadRequestError(
-        `Maximum ${PROPOSALS_PER_FACULTY} proposals allowed`
-      );
-    }
-
     const similarity =
       await this.checkProjectSimilarity(
         poolId,
@@ -140,35 +125,39 @@ export class ProjectsService {
         }
       );
 
-    return prisma.project.create({
-      data: {
-        poolId,
-        facultyId,
+    // Enforce the four-proposal cap in a serializable transaction so
+    // simultaneous create requests cannot reserve the same final slot.
+    return prisma.$transaction(
+      async (tx) => {
+        const count = await tx.project.count({
+          where: { poolId, facultyId },
+        });
 
-        title: data.title,
-        description: data.description,
-        domain: data.domain ?? null,
-        prerequisites:
-          data.prerequisites ?? null,
+        if (count >= PROPOSALS_PER_FACULTY) {
+          throw new BadRequestError(
+            `Maximum ${PROPOSALS_PER_FACULTY} proposals allowed`
+          );
+        }
 
-        maxTeamSize:
-          data.maxTeamSize ||
-          pool.defaultMaxTeamSize,
-
-        expectedOutcome:
-          data.expectedOutcome ?? null,
-
-        status: 'DRAFT',
-
-        projectCode: null,
-
-        similarityStatus:
-          similarity.action,
-
-        similarityScore:
-          similarity.highestSimilarity,
+        return tx.project.create({
+          data: {
+            poolId,
+            facultyId,
+            title: data.title,
+            description: data.description,
+            domain: data.domain ?? null,
+            prerequisites: data.prerequisites ?? null,
+            maxTeamSize: data.maxTeamSize || pool.defaultMaxTeamSize,
+            expectedOutcome: data.expectedOutcome ?? null,
+            status: 'DRAFT',
+            projectCode: null,
+            similarityStatus: similarity.action,
+            similarityScore: similarity.highestSimilarity,
+          },
+        });
       },
-    });
+      { isolationLevel: 'Serializable' }
+    );
   }
 
   async finalizeSubmission(
