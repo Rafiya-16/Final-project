@@ -1045,11 +1045,7 @@ if (!subadminAssignment) {
         updated.facultyId,
         'PROPOSAL_REJECTED',
         'Project Rejected',
-        `Your project "${updated.title}" has been rejected.${
-          note
-            ? ` Note: ${note}`
-            : ''
-        }`,
+        `Your project "${updated.title}" has been rejected. Admin note: ${note}. Subadmin note: ${updated.subadminNote?.trim() || 'No subadmin note was provided.'}`,
         '/dashboard'
       )
       .catch(() => {});
