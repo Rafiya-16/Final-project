@@ -126,9 +126,20 @@ export class IdeasService {
       );
     }
 
-   if (pool.status !== 'IDEA_SUBMISSION') {
-  throw new BadRequestError('Idea submission is not open');
-}
+    const now = new Date();
+
+    if (
+      !pool.ideaSubmissionStart ||
+      !pool.ideaSubmissionEnd ||
+      pool.status === 'FROZEN' ||
+      pool.status === 'ARCHIVED' ||
+      now < pool.ideaSubmissionStart ||
+      now >= pool.ideaSubmissionEnd
+    ) {
+      throw new BadRequestError(
+        'Idea submission is not open during the configured idea submission period',
+      );
+    }
 
     if (!data.title?.trim()) {
       throw new BadRequestError(
@@ -193,6 +204,12 @@ export class IdeasService {
     if (!team) {
       throw new NotFoundError(
         'Your team could not be found'
+      );
+    }
+
+    if (team.isFrozen) {
+      throw new BadRequestError(
+        'Your team is frozen and can no longer submit an idea',
       );
     }
 

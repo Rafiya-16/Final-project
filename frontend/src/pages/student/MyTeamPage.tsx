@@ -248,7 +248,7 @@ const loadPools = useCallback(async (): Promise<Pool[]> => {
       : [];
 
     const activePools = allPools.filter((item) =>
-      ['SELECTION_OPEN', 'TEAMS_FORMING'].includes(
+      ['SELECTION_OPEN', 'TEAMS_FORMING', 'IDEA_SUBMISSION', 'FROZEN'].includes(
         item.status || ''
       )
     );
@@ -590,10 +590,19 @@ const pendingInviteIds = useMemo(
   const hasPendingIncomingInvites =
     pendingIncomingInvites.length > 0;
 
+  const canManageTeam = Boolean(
+    pool &&
+    pool.status !== 'FROZEN' &&
+    pool.status !== 'ARCHIVED' &&
+    Date.now() >= new Date(pool.selectionStart).getTime() &&
+    Date.now() < new Date(pool.teamFreezeDate).getTime()
+  );
+
   const canCreateTeam =
-  invitesLoaded &&
-  !team &&
-  !hasPendingIncomingInvites;
+    canManageTeam &&
+    invitesLoaded &&
+    !team &&
+    !hasPendingIncomingInvites;
 
   const leftMembers = useMemo(
     () =>
@@ -622,6 +631,7 @@ const pendingInviteIds = useMemo(
     Boolean(team?.project?.id);
 
   const canRequestLeave =
+    canManageTeam &&
     Boolean(team) &&
     isMember &&
     !isLeader &&
@@ -631,6 +641,7 @@ const pendingInviteIds = useMemo(
       'PENDING';
 
   const canRequestDissolve =
+    canManageTeam &&
     Boolean(team) &&
     isLeader &&
     !team?.isFrozen &&
@@ -888,7 +899,12 @@ const rawStudents: AnyRecord[] = [
       if (!pool?.id) {
         return;
       }
-       
+
+      if (!canManageTeam) {
+        showToast('info', 'Team formation is not currently open.');
+        return;
+      }
+
   if (hasPendingIncomingInvites) {
     showToast(
       'info',
@@ -971,6 +987,11 @@ const rawStudents: AnyRecord[] = [
         return;
       }
 
+      if (!canManageTeam) {
+        showToast('info', 'Team membership changes are closed.');
+        return;
+      }
+
       if (!isLeader) {
         showToast(
           'error',
@@ -1030,6 +1051,11 @@ const rawStudents: AnyRecord[] = [
         return;
       }
 
+      if (accept && !canManageTeam) {
+        showToast('info', 'Team formation is closed. Invitations can no longer be accepted.');
+        return;
+      }
+
       setSaving(true);
 
       try {
@@ -1072,6 +1098,11 @@ const rawStudents: AnyRecord[] = [
         !pool?.id ||
         !team
       ) {
+        return;
+      }
+
+      if (!canManageTeam) {
+        showToast('info', 'Team membership changes are closed.');
         return;
       }
 
@@ -1551,7 +1582,7 @@ pending invitation
                       <button
                         type="button"
                         disabled={
-                          saving
+                          saving || !canManageTeam
                         }
                         onClick={() =>
                           respondToInvite(
@@ -1823,6 +1854,7 @@ pending invitation
                 {isLeader &&
                   freeSlots >
                     0 &&
+                  canManageTeam &&
                   !team.isFrozen && (
                     <button
                       type="button"
@@ -1937,7 +1969,8 @@ pending invitation
                           {isLeader &&
                             active &&
                             !memberIsLeader &&
-                            memberId && (
+                            memberId &&
+                            canManageTeam && (
                               <button
                                 type="button"
                                 disabled={

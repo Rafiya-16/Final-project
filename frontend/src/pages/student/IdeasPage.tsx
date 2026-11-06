@@ -48,6 +48,7 @@ const gradients = {
 
 const IdeasPage: React.FC = () => {
   const [poolId, setPoolId] = useState('');
+  const [ideaSubmissionOpen, setIdeaSubmissionOpen] = useState(false);
   const [ideas, setIdeas] = useState<StudentIdea[]>([]);
   const [availableSupervisors, setAvailableSupervisors] =
     useState<AvailableSupervisor[]>([]);
@@ -71,11 +72,34 @@ const IdeasPage: React.FC = () => {
       try {
         const response = await poolService.list();
 
-        const pool = response.data?.[0];
+        const pools = Array.isArray(response.data)
+          ? response.data
+          : [];
+        const pool =
+          pools.find((item: any) => item.allowStudentIdeas) ||
+          pools[0];
 
         if (!pool) {
           return;
         }
+
+        const now = Date.now();
+        const ideaStart = pool.ideaSubmissionStart
+          ? new Date(pool.ideaSubmissionStart).getTime()
+          : Number.NaN;
+        const ideaEnd = pool.ideaSubmissionEnd
+          ? new Date(pool.ideaSubmissionEnd).getTime()
+          : Number.NaN;
+
+        setIdeaSubmissionOpen(
+          Boolean(
+            pool.allowStudentIdeas &&
+            pool.status !== 'FROZEN' &&
+            pool.status !== 'ARCHIVED' &&
+            now >= ideaStart &&
+            now < ideaEnd
+          )
+        );
 
         setPoolId(pool.id);
 
@@ -93,6 +117,11 @@ const IdeasPage: React.FC = () => {
   }, []);
 
   const openForm = async () => {
+    if (!ideaSubmissionOpen) {
+      toast.error('Student idea submission is currently closed.');
+      return;
+    }
+
     setShowForm(true);
 
     if (!poolId) {
@@ -133,6 +162,11 @@ const IdeasPage: React.FC = () => {
 
     if (!poolId) {
       toast.error('No active pool found.');
+      return;
+    }
+
+    if (!ideaSubmissionOpen) {
+      toast.error('Student idea submission is currently closed.');
       return;
     }
 
@@ -362,11 +396,22 @@ const IdeasPage: React.FC = () => {
                   assigned before your project is finally
                   confirmed.
                 </p>
+                {!ideaSubmissionOpen && (
+                  <p className="mt-3 text-sm font-medium text-amber-700">
+                    Idea submission is available only during the configured idea submission period.
+                  </p>
+                )}
               </div>
 
               <button
                 onClick={openForm}
-                className="group relative inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden shadow-2xl"
+                disabled={!ideaSubmissionOpen}
+                title={
+                  ideaSubmissionOpen
+                    ? 'Submit a project idea'
+                    : 'Student idea submission is currently closed'
+                }
+                className="group relative inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
                   background: gradients.brand,
                   color: 'white',

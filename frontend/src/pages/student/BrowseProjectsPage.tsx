@@ -529,7 +529,7 @@ const BrowseProjectsPage: React.FC = () => {
         : [];
 
       const activePools = allPools.filter((pool: any) =>
-        ['SELECTION_OPEN', 'TEAMS_FORMING'].includes(
+        ['SELECTION_OPEN', 'TEAMS_FORMING', 'IDEA_SUBMISSION'].includes(
           pool.status
         )
       );
@@ -579,6 +579,12 @@ const BrowseProjectsPage: React.FC = () => {
 
   const selectProject = async () => {
     if (!selectId || !myTeam || !poolId) {
+      return;
+    }
+
+    if (!selectionWindowOpen) {
+      toast.error('The project selection period has closed.');
+      setSelectId(null);
       return;
     }
 
@@ -689,10 +695,23 @@ const BrowseProjectsPage: React.FC = () => {
     (project) => project.team
   ).length;
 
+  const selectedPool = pools.find(
+    (item: any) => item.id === poolId
+  );
+
+  const selectionWindowOpen = Boolean(
+    selectedPool &&
+    selectedPool.status !== 'FROZEN' &&
+    selectedPool.status !== 'ARCHIVED' &&
+    Date.now() >= new Date(selectedPool.selectionStart).getTime() &&
+    Date.now() < new Date(selectedPool.selectionEnd).getTime()
+  );
+
   const canSelect =
     !!myTeam &&
     !myTeam.projectId &&
-    !!myTeam.leaderId;
+    !!myTeam.leaderId &&
+    selectionWindowOpen;
 
   // ============================================================
   // LOADING
@@ -938,6 +957,12 @@ const BrowseProjectsPage: React.FC = () => {
             />
           </div>
         </section>
+
+        {!selectionWindowOpen && selectedPool && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Faculty project selection is currently closed. Team formation remains open until the team freeze deadline.
+          </div>
+        )}
 
         {/* ====================================================
             TEAM SELECTION STATUS

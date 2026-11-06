@@ -29,6 +29,64 @@ export class TeamsService {
       },
     });
   }
+  private async assertTeamFormationOpen(
+    poolId: string,
+    now = new Date(),
+  ) {
+    const pool = await prisma.pool.findUnique({
+      where: { id: poolId },
+      select: {
+        selectionStart: true,
+        teamFreezeDate: true,
+        status: true,
+      },
+    });
+
+    if (!pool) {
+      throw new NotFoundError('Pool not found');
+    }
+
+    if (
+      pool.status === 'FROZEN' ||
+      pool.status === 'ARCHIVED' ||
+      now < pool.selectionStart ||
+      now >= pool.teamFreezeDate
+    ) {
+      throw new BadRequestError(
+        'Team formation is open only from project selection start until the team freeze deadline',
+      );
+    }
+  }
+
+  private async assertProjectSelectionOpen(
+    poolId: string,
+    now = new Date(),
+  ) {
+    const pool = await prisma.pool.findUnique({
+      where: { id: poolId },
+      select: {
+        selectionStart: true,
+        selectionEnd: true,
+        status: true,
+      },
+    });
+
+    if (!pool) {
+      throw new NotFoundError('Pool not found');
+    }
+
+    if (
+      pool.status === 'FROZEN' ||
+      pool.status === 'ARCHIVED' ||
+      now < pool.selectionStart ||
+      now >= pool.selectionEnd
+    ) {
+      throw new BadRequestError(
+        'Faculty project selection is open only during the configured project selection period',
+      );
+    }
+  }
+
   private async getActiveTeamForStudentInAcademicYear(
   poolId: string,
   studentId: string
@@ -199,15 +257,7 @@ if (pendingIncomingInvite) {
       throw new NotFoundError('Pool not found');
     }
 
-    if (
-      !['SELECTION_OPEN', 'IDEA_SUBMISSION', 'TEAMS_FORMING'].includes(
-        pool.status
-      )
-    ) {
-      throw new BadRequestError(
-        'Team creation not allowed in current phase'
-      );
-    }
+    await this.assertTeamFormationOpen(poolId);
 
     const team = await prisma.team.create({
       data: {
@@ -287,6 +337,8 @@ if (pendingIncomingInvite) {
         'Only team leader can invite'
       );
     }
+
+    await this.assertTeamFormationOpen(team.poolId);
 
     if (team.isFrozen) {
       throw new BadRequestError(
@@ -532,6 +584,8 @@ if (pendingIncomingInvite) {
       );
     }
     if (accept) {
+      await this.assertTeamFormationOpen(invite.team.poolId);
+
       if (invite.team.isFrozen) {
         throw new BadRequestError(
           'Team is frozen'
@@ -736,6 +790,8 @@ if (pendingIncomingInvite) {
       );
     }
 
+    await this.assertProjectSelectionOpen(team.poolId);
+
     if (team.isFrozen) {
       throw new BadRequestError(
         'Team is frozen'
@@ -914,6 +970,8 @@ if (pendingIncomingInvite) {
         'You are not an active member of this team'
       );
     }
+
+    await this.assertTeamFormationOpen(member.team.poolId);
 
     if (member.team.isFrozen) {
       throw new BadRequestError(
@@ -1157,6 +1215,8 @@ if (pendingIncomingInvite) {
     }
 
     if (status === 'APPROVED') {
+      await this.assertTeamFormationOpen(request.team.poolId);
+
       if (request.team.isFrozen) {
         throw new BadRequestError(
           'Team is frozen. This leave request cannot be approved now.'
@@ -1311,6 +1371,8 @@ if (pendingIncomingInvite) {
       );
     }
 
+    await this.assertTeamFormationOpen(team.poolId);
+
     if (team.isFrozen) {
       throw new BadRequestError(
         'Team is frozen'
@@ -1425,6 +1487,8 @@ if (pendingIncomingInvite) {
         'Only team leader can request team dissolution'
       );
     }
+
+    await this.assertTeamFormationOpen(team.poolId);
 
     if (team.isFrozen) {
       throw new BadRequestError(
@@ -1651,6 +1715,8 @@ if (pendingIncomingInvite) {
     }
 
     if (status === 'APPROVED') {
+      await this.assertTeamFormationOpen(request.team.poolId);
+
       if (request.team.isFrozen) {
         throw new BadRequestError(
           'Team is frozen. This dissolve request cannot be approved.'
@@ -1859,6 +1925,8 @@ if (pendingIncomingInvite) {
         'Only leader can dissolve'
       );
     }
+
+    await this.assertTeamFormationOpen(team.poolId);
 
     if (team.isFrozen) {
       throw new BadRequestError(
