@@ -97,6 +97,16 @@ const FacultyDashboard: React.FC = () => {
     }
   };
 
+  const submitOneProposal = async (id: string) => {
+    try {
+      await projectService.submitOne(selectedPool, id);
+      toast.success('Proposal submitted for review');
+      await refreshData();
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e));
+    }
+  };
+
   const finalize = async () => {
     try { 
       await projectService.finalize(selectedPool); 
@@ -186,7 +196,7 @@ const FacultyDashboard: React.FC = () => {
     const phase = getCurrentPhase();
     const draftCount = projects.filter(p => p.status === 'DRAFT').length;
     const submittedCount = projects.filter(p => p.status === 'SUBMITTED').length;
-    const remainingSlots = 4 - projects.length;
+    const remainingSlots = Math.max(0, 4 - projects.length);
 
     switch (phase) {
       case 'submission':
@@ -195,7 +205,7 @@ const FacultyDashboard: React.FC = () => {
           icon: <Rocket className="w-6 h-6" />,
           gradient: 'from-[#C3BEF0] to-[#CCA8E9]',
           todos: [
-            { text: `Create ${remainingSlots} more proposal(s) to reach 4`, completed: projects.length === 4, action: projects.length < 4 ? 'Create Project' : null, actionHandler: handleCreateProposal },
+            { text: `${remainingSlots} proposal slot(s) remaining (maximum 4)`, completed: projects.length === 4, action: projects.length < 4 ? 'Create Project' : null, actionHandler: handleCreateProposal },
             { text: `Review and finalize ${draftCount} draft(s)`, completed: draftCount === 0 },
             {
   text: `Submit before ${
@@ -275,6 +285,9 @@ const FacultyDashboard: React.FC = () => {
       case 'DRAFT': return <Clock className="w-4 h-4 text-amber-500" />;
       case 'SUBMITTED': return <AlertCircle className="w-4 h-4 text-blue-500" />;
       case 'APPROVED': return <CheckCircle className="w-4 h-4 text-emerald-500" />;
+      case 'REJECTED': return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'ON_HOLD': return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+      case 'LOCKED': return <Shield className="w-4 h-4 text-indigo-500" />;
       default: return <Clock className="w-4 h-4 text-gray-400" />;
     }
   };
@@ -284,6 +297,9 @@ const FacultyDashboard: React.FC = () => {
       case 'DRAFT': return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'SUBMITTED': return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'APPROVED': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'REJECTED': return 'bg-red-50 text-red-700 border-red-200';
+      case 'ON_HOLD': return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'LOCKED': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
       default: return 'bg-gray-100 text-gray-600 border-gray-200';
     }
   };
@@ -612,11 +628,7 @@ const FacultyDashboard: React.FC = () => {
                     <Plus className="w-4 h-4" /> Create Projects
                   </button>
                 )}
-                {canSubmit && draftCount === 4 && (
-                  <button onClick={finalize} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 text-white rounded-xl font-semibold hover:bg-emerald-600 transition-all transform hover:scale-105 shadow-lg">
-                    <Send className="w-4 h-4" /> Finalize All
-                  </button>
-                )}
+                
               </div>
             </div>
           </div>
@@ -643,7 +655,7 @@ const FacultyDashboard: React.FC = () => {
                   active={statusFilter === 'ALL'}
                   onClick={() => setStatusFilter('ALL')}
                 />
-                {['DRAFT', 'SUBMITTED', 'APPROVED'].map(status => (
+                {['DRAFT', 'SUBMITTED', 'LOCKED', 'ON_HOLD', 'APPROVED', 'REJECTED'].map(status => (
                   statusCounts[status] > 0 && (
                     <FilterButton
                       key={status}
@@ -682,6 +694,7 @@ const FacultyDashboard: React.FC = () => {
                 onExpand={() => setExpandedProject(expandedProject === p.id ? null : p.id)}
                 onEdit={startEdit}
                 onDelete={deleteProposal}
+                onSubmit={submitOneProposal}
                 statusIcon={statusIcon}
                 statusStyle={statusStyle}
               />
@@ -816,9 +829,10 @@ const ProposalCard: React.FC<{
   onExpand: () => void;
   onEdit: (project: Project) => void;
   onDelete: (id: string) => void;
+  onSubmit: (id: string) => void;
   statusIcon: (status: string) => React.ReactNode;
   statusStyle: (status: string) => string;
-}> = ({ project, index, canSubmit, expanded, onExpand, onEdit, onDelete, statusIcon, statusStyle }) => (
+}> = ({ project, index, canSubmit, expanded, onExpand, onEdit, onDelete, onSubmit, statusIcon, statusStyle }) => (
   <div className="group bg-white/80 backdrop-blur-sm rounded-2xl border border-[#CADEFC]/50 hover:border-[#CCA8E9]/80 transition-all duration-300 hover:shadow-xl overflow-hidden">
     <div className="p-6">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -861,19 +875,30 @@ const ProposalCard: React.FC<{
             {statusIcon(project.status)}
             {project.status.replace('_', ' ')}
           </span>
-          {project.status === 'DRAFT' && canSubmit && (
+          {(project.status === 'DRAFT' || project.status === 'REJECTED') && canSubmit && (
             <div className="flex gap-1 ml-2">
               <button onClick={() => onEdit(project)} className="p-2 hover:bg-[#C3BEF0]/30 rounded-lg transition-colors">
                 <Edit3 className="w-4 h-4 text-[#7C3AED]" />
               </button>
-              <button onClick={() => onDelete(project.id)} className="p-2 hover:bg-red-50 rounded-lg transition-colors">
+              {project.status === 'DRAFT' && <button onClick={() => onDelete(project.id)} className="p-2 hover:bg-red-50 rounded-lg transition-colors">
                 <Trash2 className="w-4 h-4 text-red-400" />
+              </button>}
+              <button onClick={() => onSubmit(project.id)} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100">
+                <Send className="w-3.5 h-3.5" /> {project.status === 'REJECTED' ? 'Resubmit' : 'Submit for review'}
               </button>
             </div>
           )}
         </div>
       </div>
       
+      {project.status === 'REJECTED' && (project.subadminNote || project.adminNote) && (
+        <div className="mt-5 rounded-xl border border-red-200 bg-red-50/70 p-4 space-y-3">
+          <div className="flex items-center gap-2 text-red-800 font-semibold text-sm"><AlertTriangle className="w-4 h-4" /> Revision required</div>
+          {project.subadminNote && <div><p className="text-xs font-bold text-gray-700 mb-1">Subadmin review note</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{project.subadminNote}</p></div>}
+          {project.adminNote && <div><p className="text-xs font-bold text-gray-700 mb-1">Admin rejection note</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{project.adminNote}</p></div>}
+          <p className="text-xs text-gray-500">Edit this proposal and resubmit it for review.</p>
+        </div>
+      )}
       {project.team && project.team.members && (
         <div className="mt-6 bg-gradient-to-r from-[#DEFCF9]/50 to-[#CADEFC]/30 rounded-xl p-5 border border-[#CADEFC]/50">
           <div className="flex items-center gap-2 mb-4">
