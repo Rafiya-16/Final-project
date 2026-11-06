@@ -46,7 +46,7 @@ setAuth(user, accessToken);
     <div className="w-80 h-25 rounded-2xl flex items-center justify-center mx-auto  overflow-hidden">
       <img
         src="/logo.jpeg"
-        alt="CSE ProFlow Logo"
+        alt="CSE ProjectHub Logo"
         className="w-full h-full object-contain"
       />
     </div>
@@ -55,7 +55,7 @@ setAuth(user, accessToken);
     </h1>
 
     <p className="text-stone-500 dark:text-slate-400 mt-1.5 text-sm">
-      Sign in to your CSE ProFlow account
+      Sign in to your CSE ProjectHub account
     </p>
   </div>
           <form onSubmit={handleSubmit} className="space-y-5">
