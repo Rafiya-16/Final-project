@@ -17,6 +17,11 @@ export const projectService = {
     return data.data;
   },
 
+  submitOne: async (poolId: string, projectId: string) => {
+    const { data } = await api.post(`/pools/${poolId}/projects/${projectId}/submit`);
+    return data.data;
+  },
+
   finalize: async (poolId: string) => {
     const { data } = await api.post(`/pools/${poolId}/projects/finalize`);
     return data;
