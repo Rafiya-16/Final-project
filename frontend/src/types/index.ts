@@ -124,6 +124,8 @@ export interface Project {
   similarProjectTitle?: string | null;
   subadminNote?: string;
   adminNote?: string;
+  reviewedAt?: string | null;
+  decidedAt?: string | null;
   createdAt: string;
 
   faculty?: {
