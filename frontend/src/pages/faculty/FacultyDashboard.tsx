@@ -690,7 +690,8 @@ const FacultyDashboard: React.FC = () => {
                 key={p.id}
                 project={p}
                 index={i}
-                canSubmit={canRevise}
+                canSubmit={canSubmit}
+                canRevise={canRevise}
                 expanded={expandedProject === p.id}
                 onExpand={() => setExpandedProject(expandedProject === p.id ? null : p.id)}
                 onEdit={startEdit}
@@ -826,6 +827,7 @@ const ProposalCard: React.FC<{
   project: Project;
   index: number;
   canSubmit: boolean;
+  canRevise: boolean;
   expanded: boolean;
   onExpand: () => void;
   onEdit: (project: Project) => void;
@@ -833,7 +835,7 @@ const ProposalCard: React.FC<{
   onSubmit: (id: string) => void;
   statusIcon: (status: string) => React.ReactNode;
   statusStyle: (status: string) => string;
-}> = ({ project, index, canSubmit, expanded, onExpand, onEdit, onDelete, onSubmit, statusIcon, statusStyle }) => (
+}> = ({ project, index, canSubmit, canRevise, expanded, onExpand, onEdit, onDelete, onSubmit, statusIcon, statusStyle }) => (
   <div className="group bg-white/80 backdrop-blur-sm rounded-2xl border border-[#CADEFC]/50 hover:border-[#CCA8E9]/80 transition-all duration-300 hover:shadow-xl overflow-hidden">
     <div className="p-6">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -876,7 +878,7 @@ const ProposalCard: React.FC<{
             {statusIcon(project.status)}
             {project.status.replace('_', ' ')}
           </span>
-          {(project.status === 'DRAFT' || project.status === 'REJECTED') && canSubmit && (
+          {((project.status === 'DRAFT' && canSubmit) || (project.status === 'REJECTED' && canRevise)) && (
             <div className="flex gap-1 ml-2">
               <button onClick={() => onEdit(project)} className="p-2 hover:bg-[#C3BEF0]/30 rounded-lg transition-colors">
                 <Edit3 className="w-4 h-4 text-[#7C3AED]" />
