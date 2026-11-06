@@ -8,7 +8,7 @@ import {
 AlertTriangle,
 Eye, Layers, Sparkles, ArrowRight, Shield,
   Info, Clock, Calendar as CalendarIcon, Gift, TrendingUp,
-  Lightbulb, Crown, Edit3, Send, XCircle
+  Lightbulb, Crown, Edit3, XCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { projectService } from '@/services/projectService';
