@@ -56,6 +56,8 @@ type Pool = {
   name?: string;
   title?: string;
   status?: string;
+  selectionStart: string;
+  teamFreezeDate: string;
   defaultMaxTeamSize?: number;
 };
 
