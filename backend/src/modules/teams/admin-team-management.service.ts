@@ -109,15 +109,16 @@ export class AdminTeamManagementService {
       if (current && current.team.poolId !== input.poolId) throw new ForbiddenError('Cross-pool transfers are not permitted through team management. Use the authorized academic reassignment process.');
       if (current?.team.projectId) throw new ForbiddenError('This student belongs to a team that has already acquired a project. Project-linked transfers require the authorized academic reassignment process.');
       if (current) {
-        await tx.teamMember.update({ where: { teamId_studentId: { teamId: current.team.id, studentId: input.studentId } }, data: { status: 'REMOVED', leftAt: new Date() } });
         if (current.teamId === input.teamId) throw new ConflictError('Student is already in this team.');
-        if (current.teamId) {
-          await tx.teamMember.updateMany({ where: { teamId: current.team.id, studentId: input.studentId, status: 'ACTIVE' }, data: { status: 'REMOVED', leftAt: new Date() } });
-        }
+        await tx.teamMember.update({ where: { teamId_studentId: { teamId: current.team.id, studentId: input.studentId } }, data: { status: 'REMOVED', leftAt: new Date() } });
+        const oldActiveCount = await tx.teamMember.count({ where: { teamId: current.team.id, status: 'ACTIVE' } });
+        await tx.team.update({ where: { id: current.team.id }, data: { status: oldActiveCount === 0 ? 'DISSOLVED' : (await tx.team.findUnique({ where: { id: current.team.id }, select: { isFrozen: true } }))?.isFrozen ? 'FROZEN' : 'FORMING' } });
       }
       const prior = await tx.teamMember.findUnique({ where: { teamId_studentId: { teamId: target.id, studentId: input.studentId } } });
       if (prior) await tx.teamMember.update({ where: { id: prior.id }, data: { status: 'ACTIVE', role: 'MEMBER', joinedAt: new Date(), leftAt: null } });
       else await tx.teamMember.create({ data: { teamId: target.id, studentId: input.studentId, role: 'MEMBER', status: 'ACTIVE' } });
+      const newActiveCount = await tx.teamMember.count({ where: { teamId: target.id, status: 'ACTIVE' } });
+      await tx.team.update({ where: { id: target.id }, data: { status: target.isFrozen ? 'FROZEN' : (newActiveCount >= maxSize ? 'COMPLETE' : 'FORMING') } });
       await tx.auditLog.create({ data: { userId: input.actorId, action: current ? 'ADMIN_TEAM_MEMBER_TRANSFERRED' : 'ADMIN_TEAM_MEMBER_ADDED', entityType: 'TEAM', entityId: target.id, oldValue: current ? { teamId: current.team.id, teamName: current.team.name } : undefined, newValue: { poolId: input.poolId, studentId: input.studentId, reason } } });
       return { targetTeamId: target.id, oldTeamId: current?.team.id || null };
     });
@@ -139,6 +140,20 @@ export class AdminTeamManagementService {
     });
     await notificationsService.create(input.studentId, 'TEAM_REMOVED', 'Removed from team', `You have been removed from your team by a Subadmin. Reason: ${reason}`, '/my-team').catch(() => {});
     return result;
+  }
+
+
+  async renameTeam(poolId: string, teamId: string, actorId: string, name: string, reason: string) {
+    const nextName = typeof name === 'string' ? name.trim() : '';
+    if (!nextName || nextName.length > 100) throw new BadRequestError('Team name is required and must be at most 100 characters.');
+    const note = this.validateReason(reason);
+    return prisma.$transaction(async (tx) => {
+      const team = await tx.team.findFirst({ where: { id: teamId, poolId, status: { not: 'DISSOLVED' } } });
+      if (!team) throw new NotFoundError('Team not found in this pool.');
+      const updated = await tx.team.update({ where: { id: teamId }, data: { name: nextName } });
+      await tx.auditLog.create({ data: { userId: actorId, action: 'ADMIN_TEAM_RENAMED', entityType: 'TEAM', entityId: teamId, oldValue: { name: team.name }, newValue: { name: nextName, reason: note } } });
+      return updated;
+    });
   }
 
   async setLeader(poolId: string, teamId: string, actorId: string, leaderId: string, reason: string) {
