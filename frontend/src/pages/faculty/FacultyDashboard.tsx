@@ -261,8 +261,10 @@ const FacultyDashboard: React.FC = () => {
 
   const pool = pools.find(p => p.id === selectedPool);
   const draftCount = projects.filter(p => p.status === 'DRAFT').length;
-  const canSubmit = pool?.status === 'SUBMISSION_OPEN';
-  const canRevise = canSubmit || pool?.status === 'UNDER_REVIEW' || pool?.status === 'DECISION_PENDING';
+  // Use the fully fetched pool record for phase checks; the pool list can be stale or omit status.
+  const currentPoolStatus = fullPool?.status ?? pool?.status;
+  const canSubmit = currentPoolStatus === 'SUBMISSION_OPEN';
+  const canRevise = canSubmit || currentPoolStatus === 'UNDER_REVIEW' || currentPoolStatus === 'DECISION_PENDING';
   const timeRemaining = getTimeRemaining(pool?.submissionEnd);
   const phaseDetails = getPhaseDetails();
 
@@ -671,7 +673,7 @@ const FacultyDashboard: React.FC = () => {
               </div>
               <h3 className="text-lg font-semibold text-gray-800 mb-2">No proposals found</h3>
               <p className="text-gray-500">
-                {canSubmit ? 'Click "Create Proposals" to get started' : 'Submissions are not open'}
+                {canSubmit ? 'Click "Create Project" to get started' : 'Submissions are not open'}
               </p>
             </div>
           ) : (
