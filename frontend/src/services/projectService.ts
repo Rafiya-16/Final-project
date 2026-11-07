@@ -2,8 +2,10 @@ import api from '@/config/api';
 import type { ProjectInput, ReviewDecision } from '@/types';
 
 export const projectService = {
-  listByPool: async (poolId: string) => {
-    const { data } = await api.get(`/pools/${poolId}/projects`);
+  listByPool: async (poolId: string, scope?: 'review') => {
+    const { data } = await api.get(`/pools/${poolId}/projects`, {
+      params: scope ? { scope } : undefined,
+    });
     return data.data;
   },
 
