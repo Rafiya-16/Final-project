@@ -86,6 +86,7 @@ const PoolDetailPage: React.FC = () => {
   const [tab, setTab] = useState<PoolTab>('overview');
   const [editing, setEditing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [rejectionNotes, setRejectionNotes] = useState<Record<string, string>>({});
 
   // Assignment management
   const [showAddFaculty, setShowAddFaculty] = useState(false);
@@ -430,27 +431,29 @@ const PoolDetailPage: React.FC = () => {
 
   const decideProject = async (
     projectId: string,
-    decision: 'approve' | 'reject'
+    decision: 'approve' | 'reject',
+    rejectionNote?: string
   ) => {
     if (!id) return;
+
+    if (decision === 'reject' && !rejectionNote?.trim()) {
+      toast.error('An admin rejection reason is required.');
+      return;
+    }
 
     try {
       if (decision === 'approve') {
         await projectService.approve(id, projectId);
       } else {
-        const rejectionNote = window.prompt(
-          'Enter the reason for rejecting this proposal (required):'
-        );
-
-        if (!rejectionNote?.trim()) {
-          toast.error('An admin rejection reason is required.');
-          return;
-        }
-
-        await projectService.reject(id, projectId, rejectionNote.trim());
+        await projectService.reject(id, projectId, rejectionNote!.trim());
       }
 
       toast.success(`Project ${decision}d`);
+      setRejectionNotes((previous) => {
+        const next = { ...previous };
+        delete next[projectId];
+        return next;
+      });
       await load();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error) || 'Failed to update project');
@@ -894,11 +897,32 @@ const PoolDetailPage: React.FC = () => {
                         <p className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">
                           SubAdmin Note
                         </p>
-                        <p className="mt-1 text-sm leading-6 text-amber-800 dark:text-amber-200">
+                        <p className="mt-1 text-sm leading-6 text-amber-800 dark:text-amber-200 whitespace-pre-wrap">
                           {project.subadminNote}
                         </p>
                       </div>
                     )}
+
+                    <div className="mt-4 rounded-2xl border border-rose-200/80 bg-rose-50 p-4 dark:border-rose-900/60 dark:bg-rose-950/25">
+                      <label htmlFor={`admin-rejection-${project.id}`} className="text-xs font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300">
+                        Admin Rejection Note
+                      </label>
+                      <textarea
+                        id={`admin-rejection-${project.id}`}
+                        value={rejectionNotes[project.id] || ''}
+                        onChange={(event) => setRejectionNotes((previous) => ({
+                          ...previous,
+                          [project.id]: event.target.value.slice(0, 1000),
+                        }))}
+                        maxLength={1000}
+                        rows={3}
+                        placeholder="Enter the reason for rejecting this proposal..."
+                        className="mt-2 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-rose-800 dark:bg-slate-900 dark:text-slate-200"
+                      />
+                      <p className="mt-1 text-right text-xs text-rose-600 dark:text-rose-300">
+                        {(rejectionNotes[project.id] || '').length}/1000
+                      </p>
+                    </div>
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-3 border-t border-slate-100 pt-5 dark:border-slate-800">
@@ -910,8 +934,9 @@ const PoolDetailPage: React.FC = () => {
                       Approve
                     </button>
                     <button
-                      onClick={() => decideProject(project.id, 'reject')}
-                      className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+                      onClick={() => decideProject(project.id, 'reject', rejectionNotes[project.id])}
+                      disabled={!rejectionNotes[project.id]?.trim()}
+                      className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <XCircle className="h-4 w-4" />
                       Reject
