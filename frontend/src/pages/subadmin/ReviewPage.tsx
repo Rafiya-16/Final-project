@@ -374,7 +374,7 @@ const ReviewPage: React.FC = () => {
         const [facultyStatusResponse, projectsResponse] =
           await Promise.all([
             projectService.getFacultyStatus(selectedPool),
-            projectService.listByPool(selectedPool),
+            projectService.listByPool(selectedPool, 'review'),
           ]);
 
         const facultyStatus: FacultyStatus[] = Array.isArray(
