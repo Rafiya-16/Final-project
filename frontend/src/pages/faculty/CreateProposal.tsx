@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Plus, Trash2, CheckCircle, AlertCircle, 
+  Plus, Trash2, CheckCircle, AlertCircle, Send,
   ChevronLeft, FileText, Tag, Users, Target,
   BookOpen, ShieldAlert,
 AlertTriangle,
@@ -39,6 +39,7 @@ const CreateProposal: React.FC = () => {
     }
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingProjectId, setSubmittingProjectId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [errors, setErrors] = useState<Record<number, Record<string, string>>>({});
   const [poolDetails, setPoolDetails] = useState<any>(null);
@@ -132,6 +133,24 @@ const CreateProposal: React.FC = () => {
       console.error('Error refreshing projects:', error);
     }
   };
+
+  const submitExistingProject = async (projectId: string) => {
+    if (!poolId) return;
+    setSubmittingProjectId(projectId);
+    try {
+      await projectService.submitOne(poolId, projectId);
+      toast.success('Proposal submitted for review');
+      await refreshExistingProjects();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to submit proposal');
+    } finally {
+      setSubmittingProjectId(null);
+    }
+  };
+
+  const canSubmitExistingProject = (project: any) =>
+    (project.status === 'DRAFT' && poolDetails?.status === 'SUBMISSION_OPEN') ||
+    (project.status === 'REJECTED' && ['UNDER_REVIEW', 'DECISION_PENDING'].includes(poolDetails?.status));
 
   const getRemainingSlots = () => 4 - existingProjectsCount;
   const canAddMoreProposals = () => proposals.length < getRemainingSlots();
@@ -656,7 +675,6 @@ const CreateProposal: React.FC = () => {
     );
   }
 
-  const remainingSlots = getRemainingSlots();
   const isAtMaxLimit = existingProjectsCount >= 4;
   const deadline = poolDetails ? formatDeadline(poolDetails.submissionEnd) : null;
  
@@ -812,7 +830,7 @@ const CreateProposal: React.FC = () => {
                         <span className={`text-xs px-2 py-1 rounded-full ${statusBadge.color}`}>
                           {statusBadge.text}
                         </span>
-                        {isDraft && (
+                        {(isDraft || project.status === 'REJECTED') && canSubmitExistingProject(project) && (
                           <>
                             <button
                               onClick={() => handleEditProject(project)}
@@ -821,17 +839,35 @@ const CreateProposal: React.FC = () => {
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
+                            {isDraft && (
+                              <button
+                                onClick={() => handleDeleteProject(project.id, project.title)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete Project"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleDeleteProject(project.id, project.title)}
-                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete Project"
+                              onClick={() => submitExistingProject(project.id)}
+                              disabled={submittingProjectId === project.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 disabled:opacity-50"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Send className="w-3.5 h-3.5" />
+                              {submittingProjectId === project.id ? 'Submitting...' : project.status === 'REJECTED' ? 'Resubmit for review' : 'Submit for review'}
                             </button>
                           </>
                         )}
                       </div>
                     </div>
+                    {project.status === 'REJECTED' && (project.subadminNote || project.adminNote) && (
+                      <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
+                        <p className="text-xs font-semibold text-red-800">Revision required</p>
+                        {project.subadminNote && <p className="text-xs text-gray-700"><strong>Subadmin note:</strong> {project.subadminNote}</p>}
+                        {project.adminNote && <p className="text-xs text-gray-700"><strong>Admin note:</strong> {project.adminNote}</p>}
+                        <p className="text-xs text-gray-500">Edit this proposal, then resubmit it for review.</p>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1037,16 +1073,7 @@ const CreateProposal: React.FC = () => {
               ))}
             </div>
 
-            {/* Add More Button */}
-            {canAddMoreProposals() && (
-              <button
-                onClick={addProposal}
-                className="w-full mt-4 py-3 border-2 border-dashed border-[#CADEFC]/50 rounded-xl text-gray-500 hover:border-[#CCA8E9] hover:text-[#7C3AED] hover:bg-white/50 transition-all flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Another Project ({proposals.length}/{Math.min(remainingSlots, 4 - existingProjectsCount)})
-              </button>
-            )}
+            {/* Create one proposal per save; submit each saved proposal separately for review. */}
 
             {/* Action Buttons */}
             <div className="mt-6 flex gap-3">
@@ -1073,7 +1100,7 @@ const CreateProposal: React.FC = () => {
 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    Create {proposals.length} Project(s)
+                    Create Proposal
                   </>
                 )}
               </button>
