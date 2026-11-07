@@ -34,7 +34,7 @@ export class AdminTeamManagementService {
   private async activeMembershipsInAcademicYear(tx: any, pool: { academicYear: string }, studentIds: string[]) {
     return tx.teamMember.findMany({
       where: { studentId: { in: studentIds }, status: 'ACTIVE', team: { status: { not: 'DISSOLVED' }, pool: { academicYear: pool.academicYear } } },
-      include: { team: { select: { id: true, poolId: true, name: true, projectId: true } } },
+      include: { team: { select: { id: true, poolId: true, name: true, projectId: true, isFrozen: true, studentIdea: { select: { id: true } } } } },
     });
   }
 
@@ -107,12 +107,12 @@ export class AdminTeamManagementService {
       if (current?.team.id === target.id) throw new ConflictError('Student is already an active member of this team.');
       if (targetCount >= maxSize) throw new BadRequestError(`The selected team has reached its maximum size of ${maxSize}.`);
       if (current && current.team.poolId !== input.poolId) throw new ForbiddenError('Cross-pool transfers are not permitted through team management. Use the authorized academic reassignment process.');
-      if (current?.team.projectId) throw new ForbiddenError('This student belongs to a team that has already acquired a project. Project-linked transfers require the authorized academic reassignment process.');
+      if (current?.team.projectId || current?.team.studentIdea) throw new ForbiddenError('This student belongs to a project-linked or submitted-idea team. Project-linked transfers require the authorized academic reassignment process.');
       if (current) {
         if (current.teamId === input.teamId) throw new ConflictError('Student is already in this team.');
         await tx.teamMember.update({ where: { teamId_studentId: { teamId: current.team.id, studentId: input.studentId } }, data: { status: 'REMOVED', leftAt: new Date() } });
         const oldActiveCount = await tx.teamMember.count({ where: { teamId: current.team.id, status: 'ACTIVE' } });
-        await tx.team.update({ where: { id: current.team.id }, data: { status: oldActiveCount === 0 ? 'DISSOLVED' : (await tx.team.findUnique({ where: { id: current.team.id }, select: { isFrozen: true } }))?.isFrozen ? 'FROZEN' : 'FORMING' } });
+        await tx.team.update({ where: { id: current.team.id }, data: { status: current.team.isFrozen ? 'FROZEN' : (oldActiveCount >= pool.defaultMaxTeamSize ? 'COMPLETE' : 'FORMING') } });
       }
       const prior = await tx.teamMember.findUnique({ where: { teamId_studentId: { teamId: target.id, studentId: input.studentId } } });
       if (prior) await tx.teamMember.update({ where: { id: prior.id }, data: { status: 'ACTIVE', role: 'MEMBER', joinedAt: new Date(), leftAt: null } });
@@ -135,6 +135,8 @@ export class AdminTeamManagementService {
       if (!member || member.status !== 'ACTIVE') throw new NotFoundError('Active team membership not found.');
       if (team.leaderId === input.studentId) throw new BadRequestError('Assign another team leader before removing the current leader.');
       await tx.teamMember.update({ where: { id: member.id }, data: { status: 'REMOVED', leftAt: new Date() } });
+      const remaining = await tx.teamMember.count({ where: { teamId: team.id, status: 'ACTIVE' } });
+      await tx.team.update({ where: { id: team.id }, data: { status: team.isFrozen ? 'FROZEN' : (remaining >= (await this.getPool(input.poolId)).defaultMaxTeamSize ? 'COMPLETE' : 'FORMING') } });
       await tx.auditLog.create({ data: { userId: input.actorId, action: 'ADMIN_TEAM_MEMBER_REMOVED', entityType: 'TEAM', entityId: team.id, oldValue: { studentId: input.studentId }, newValue: { reason } } });
       return { teamId: team.id, student: member.student };
     });
