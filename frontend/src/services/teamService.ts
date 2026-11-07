@@ -3,6 +3,26 @@
 import api from '@/config/api';
 
 export const teamService = {
+  adminManagement: async (poolId: string) => {
+    const { data } = await api.get(`/pools/${poolId}/team-management`);
+    return data.data;
+  },
+  adminCreateTeam: async (poolId: string, body: { name: string; studentIds: string[]; leaderId: string; reason: string }) => {
+    const { data } = await api.post(`/pools/${poolId}/team-management/teams`, body);
+    return data.data;
+  },
+  adminAddMember: async (poolId: string, teamId: string, studentId: string, reason: string) => {
+    const { data } = await api.post(`/pools/${poolId}/team-management/teams/${teamId}/members`, { studentId, reason });
+    return data.data;
+  },
+  adminRemoveMember: async (poolId: string, teamId: string, studentId: string, reason: string) => {
+    const { data } = await api.delete(`/pools/${poolId}/team-management/teams/${teamId}/members/${studentId}`, { data: { reason } });
+    return data.data;
+  },
+  adminSetLeader: async (poolId: string, teamId: string, leaderId: string, reason: string) => {
+    const { data } = await api.patch(`/pools/${poolId}/team-management/teams/${teamId}/leader`, { leaderId, reason });
+    return data.data;
+  },
   // ============================================================
   // Team Creation & Listing
   // ============================================================
