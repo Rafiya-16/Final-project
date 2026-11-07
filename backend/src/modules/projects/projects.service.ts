@@ -400,7 +400,7 @@ export class ProjectsService {
 
     if (
       (project.status === 'DRAFT' && pool.status !== 'SUBMISSION_OPEN') ||
-      (project.status === 'REJECTED' && !['UNDER_REVIEW', 'DECISION_PENDING'].includes(pool.status))
+      (project.status === 'REJECTED' && pool.status !== 'SUBMISSION_OPEN')
     ) {
       throw new BadRequestError('This proposal cannot be submitted during the current pool phase');
     }
@@ -506,8 +506,8 @@ export class ProjectsService {
       throw new BadRequestError('Draft proposals can only be edited during the submission phase');
     }
 
-    if (project.status === 'REJECTED' && !['UNDER_REVIEW', 'DECISION_PENDING'].includes(pool.status)) {
-      throw new BadRequestError('Rejected proposals can only be revised while the review/decision phase is active');
+    if (project.status === 'REJECTED' && pool.status !== 'SUBMISSION_OPEN') {
+      throw new BadRequestError('Rejected proposals can only be revised during the submission phase');
     }
 
     /**
@@ -1197,6 +1197,7 @@ async getProjectsByPool(
   poolId: string,
   userId: string,
   userRole: string,
+  scope?: string,
 ) {
   const pool = await prisma.pool.findUnique({
     where: { id: poolId },
@@ -1339,9 +1340,12 @@ async getProjectsByPool(
 
   }
 
+  // A faculty account may also have pool-level SubAdmin capability.
+  // Only the explicit review scope may expose every faculty proposal;
+  // the ordinary faculty dashboard must remain restricted to its owner.
   if (
     userRole === 'SUBADMIN' ||
-    userRole === 'FACULTY'
+    (userRole === 'FACULTY' && scope === 'review')
   ) {
     const subadminAssignment =
       await prisma.poolSubadmin.findUnique({
