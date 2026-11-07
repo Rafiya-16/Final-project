@@ -129,8 +129,9 @@ export class AdminTeamManagementService {
   async removeMember(input: TeamChange) {
     const reason = this.validateReason(input.reason);
     const result = await prisma.$transaction(async (tx) => {
-      const team = await tx.team.findFirst({ where: { id: input.teamId, poolId: input.poolId, status: { not: 'DISSOLVED' } } });
+      const team = await tx.team.findFirst({ where: { id: input.teamId, poolId: input.poolId, status: { not: 'DISSOLVED' } }, include: { studentIdea: { select: { id: true } } } });
       if (!team) throw new NotFoundError('Team not found in this pool.');
+      if (team.projectId || team.studentIdea) throw new ForbiddenError('This team is linked to a selected project or submitted idea. Membership changes require the authorized academic reassignment process.');
       const member = await tx.teamMember.findUnique({ where: { teamId_studentId: { teamId: team.id, studentId: input.studentId } }, include: { student: { select: studentSelect } } });
       if (!member || member.status !== 'ACTIVE') throw new NotFoundError('Active team membership not found.');
       if (team.leaderId === input.studentId) throw new BadRequestError('Assign another team leader before removing the current leader.');
