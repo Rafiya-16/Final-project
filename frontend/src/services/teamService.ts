@@ -19,6 +19,10 @@ export const teamService = {
     const { data } = await api.delete(`/pools/${poolId}/team-management/teams/${teamId}/members/${studentId}`, { data: { reason } });
     return data.data;
   },
+  adminRenameTeam: async (poolId: string, teamId: string, name: string, reason: string) => {
+    const { data } = await api.patch(`/pools/${poolId}/team-management/teams/${teamId}/rename`, { name, reason });
+    return data.data;
+  },
   adminSetLeader: async (poolId: string, teamId: string, leaderId: string, reason: string) => {
     const { data } = await api.patch(`/pools/${poolId}/team-management/teams/${teamId}/leader`, { leaderId, reason });
     return data.data;
