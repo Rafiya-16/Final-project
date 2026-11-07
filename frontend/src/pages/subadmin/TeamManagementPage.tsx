@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeftRight, Plus, RefreshCw, ShieldCheck, UserPlus, Users, UserMinus, Crown } from 'lucide-react';
+import { AlertCircle, Plus, RefreshCw, ShieldCheck, UserPlus, Users, UserMinus, Crown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { poolService } from '@/services/poolService';
 import { teamService } from '@/services/teamService';
@@ -119,13 +119,13 @@ const SubadminTeamManagementPage: React.FC = () => {
         <section className="space-y-4">
           <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900 dark:text-white">Existing teams</h2><span className="text-xs text-slate-500">{teams.length} teams</span></div>
           {loading ? <div className="rounded-2xl border bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">Loading teams...</div> : teams.map(team => {
-            const available = students.filter(s => !teams.some(t => t.members.some(m => m.studentId === s.id)) || team.members.some(m => m.studentId === s.id));
+            const available = students.filter(s => !team.members.some(m => m.studentId === s.id));
             return <article key={team.id} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div><h3 className="font-bold text-slate-900 dark:text-white">{team.name}</h3><p className="text-xs text-slate-500">{team.project?.title || 'No project selected'} · {team.status}{team.isFrozen ? ' · Frozen' : ''}</p></div>
                 <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">{team.members.length} members</span>
               </div>
-              <div className="my-3 space-y-2">
+              <div className="my-3 flex flex-col gap-2 sm:flex-row"><input value={renameValues[team.id] ?? team.name} onChange={e => setRenameValues(old => ({ ...old, [team.id]: e.target.value }))} className="min-w-0 flex-1 rounded-lg border p-2 text-sm dark:border-slate-700 dark:bg-slate-950" aria-label={`Rename ${team.name}`} /><button disabled={busy || !(renameValues[team.id] ?? team.name).trim() || (renameValues[team.id] ?? team.name).trim() === team.name} onClick={() => void mutate(() => teamService.adminRenameTeam(poolId, team.id, renameValues[team.id] ?? team.name, reason))} className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50 dark:border-slate-700">Save name</button></div>\n              <div className="my-3 space-y-2">
                 {team.members.map(member => <div key={member.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-2 dark:bg-slate-800/70">
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{fullName(member.student)} {member.studentId === team.leaderId && <Crown className="inline h-3.5 w-3.5 text-amber-500" />}</p><p className="text-xs text-slate-500">{member.student.enrollmentNo || member.student.email} · {member.student.section || 'No section'}</p></div>
                   {member.studentId !== team.leaderId && <button disabled={busy} title="Remove member" onClick={() => void mutate(() => teamService.adminRemoveMember(poolId, team.id, member.studentId, reason))} className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"><UserMinus className="h-4 w-4" /></button>}
