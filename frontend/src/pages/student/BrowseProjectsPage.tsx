@@ -530,19 +530,17 @@ const BrowseProjectsPage: React.FC = () => {
         ? response.data
         : [];
 
-      const activePools = allPools.filter((pool: any) =>
-        ['SELECTION_OPEN', 'TEAMS_FORMING', 'IDEA_SUBMISSION'].includes(
-          pool.status
-        )
-      );
-
-      setPools(activePools);
+      // Keep every pool assigned to this student available in the
+      // Projects section. Approved projects are browseable before
+      // selection opens; the selection-window checks below still
+      // prevent acquisition until the configured selection period.
+      setPools(allPools);
 
       const currentPoolId =
         selectedPoolId &&
-        activePools.some((p: any) => p.id === selectedPoolId)
+        allPools.some((p: any) => p.id === selectedPoolId)
           ? selectedPoolId
-          : activePools[0]?.id || '';
+          : allPools[0]?.id || '';
 
       if (!currentPoolId) {
         setPoolId('');
