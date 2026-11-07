@@ -76,13 +76,12 @@ export class TeamsService {
     }
 
     if (
-      pool.status === 'FROZEN' ||
-      pool.status === 'ARCHIVED' ||
+      pool.status !== 'SELECTION_OPEN' ||
       now < pool.selectionStart ||
       now >= pool.selectionEnd
     ) {
       throw new BadRequestError(
-        'Faculty project selection is open only during the configured project selection period',
+        'Project acquisition is available only during the active Selection Open phase and within the configured selection period',
       );
     }
   }
