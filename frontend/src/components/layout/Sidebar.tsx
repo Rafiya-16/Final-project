@@ -27,7 +27,8 @@ const navItems: Record<string, NavItem[]> = {
   ],
   SUBADMIN: [
     { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { label: 'Review', path: '/review', icon: <ClipboardList className="w-5 h-5" /> },    { label: 'Pools', path: '/pools', icon: <FolderKanban className="w-5 h-5" /> },
+    { label: 'Review', path: '/review', icon: <ClipboardList className="w-5 h-5" /> },
+    { label: 'Team Management', path: '/team-management', icon: <Users className="w-5 h-5" /> },    { label: 'Pools', path: '/pools', icon: <FolderKanban className="w-5 h-5" /> },
     { label: 'Reports', path: '/reports', icon: <BarChart3 className="w-5 h-5" /> },
     { label: 'Faculty', path: '/faculty', icon: <Users className="w-5 h-5" /> },
     { label: 'Notifications', path: '/notifications', icon: <Bell className="w-5 h-5" /> },
