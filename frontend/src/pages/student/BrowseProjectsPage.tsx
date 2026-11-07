@@ -701,8 +701,7 @@ const BrowseProjectsPage: React.FC = () => {
 
   const selectionWindowOpen = Boolean(
     selectedPool &&
-    selectedPool.status !== 'FROZEN' &&
-    selectedPool.status !== 'ARCHIVED' &&
+    selectedPool.status === 'SELECTION_OPEN' &&
     Date.now() >= new Date(selectedPool.selectionStart).getTime() &&
     Date.now() < new Date(selectedPool.selectionEnd).getTime()
   );
