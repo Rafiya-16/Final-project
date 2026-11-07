@@ -264,7 +264,8 @@ const FacultyDashboard: React.FC = () => {
   // Use the fully fetched pool record for phase checks; the pool list can be stale or omit status.
   const currentPoolStatus = fullPool?.status ?? pool?.status;
   const canSubmit = currentPoolStatus === 'SUBMISSION_OPEN';
-  const canRevise = canSubmit || currentPoolStatus === 'UNDER_REVIEW' || currentPoolStatus === 'DECISION_PENDING';
+  // Both drafts and rejected proposals can be edited/resubmitted only while submissions are open.
+  const canRevise = canSubmit;
   const timeRemaining = getTimeRemaining(pool?.submissionEnd);
   const phaseDetails = getPhaseDetails();
 
