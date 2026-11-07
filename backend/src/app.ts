@@ -13,6 +13,7 @@ import userRoutes from './modules/users/users.routes';
 import poolRoutes from './modules/pools/pools.routes';
 import projectRoutes from './modules/projects/projects.routes';
 import teamRoutes from './modules/teams/teams.routes';
+import adminTeamManagementRoutes from './modules/teams/admin-team-management.routes';
 import ideaRoutes from './modules/student-ideas/ideas.routes';
 import notificationRoutes from './modules/notifications/notifications.routes';
 import reportRoutes from './modules/reports/reports.routes';
@@ -78,6 +79,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/pools', poolRoutes);
 
 // Other pool-related routes
+app.use('/api/pools', adminTeamManagementRoutes);
 app.use('/api/pools', teamRoutes);
 app.use('/api/pools', projectRoutes);
 app.use('/api/pools', ideaRoutes);
