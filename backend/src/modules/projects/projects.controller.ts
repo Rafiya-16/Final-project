@@ -267,7 +267,8 @@ export class ProjectsController {
       const data = await projectsService.getProjectsByPool(
         req.params.poolId as string,
         req.user!.userId,
-        req.user!.role
+        req.user!.role,
+        req.query.scope === 'review' ? 'review' : undefined
       );
 
       res.json({
