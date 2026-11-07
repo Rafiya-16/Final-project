@@ -149,8 +149,8 @@ const CreateProposal: React.FC = () => {
   };
 
   const canSubmitExistingProject = (project: any) =>
-    (project.status === 'DRAFT' && poolDetails?.status === 'SUBMISSION_OPEN') ||
-    (project.status === 'REJECTED' && ['UNDER_REVIEW', 'DECISION_PENDING'].includes(poolDetails?.status));
+    (project.status === 'DRAFT' || project.status === 'REJECTED') &&
+    poolDetails?.status === 'SUBMISSION_OPEN';
 
   const getRemainingSlots = () => 4 - existingProjectsCount;
   const canAddMoreProposals = () => proposals.length < getRemainingSlots();
