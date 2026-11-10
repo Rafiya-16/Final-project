@@ -56,6 +56,7 @@ import ReviewPage from '@/pages/subadmin/ReviewPage';
 import DashboardPage from '@/pages/subadmin/DashboardPage';
 import FacultyPage from '@/pages/subadmin/FacultyPage';
 import ProjectsPage from '@/pages/subadmin/ProjectsPage';
+import SubadminTeamManagementPage from '@/pages/subadmin/TeamManagementPage';
 
 // Common Pages
 import NotificationsPage from '@/pages/NotificationsPage';
@@ -308,6 +309,15 @@ const App: React.FC = () => (
               workplace="SUBADMIN"
             >
               <ProjectsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/team-management"
+          element={
+            <ProtectedRoute roles={['SUBADMIN']} workplace="SUBADMIN">
+              <SubadminTeamManagementPage />
             </ProtectedRoute>
           }
         />
