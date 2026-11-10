@@ -19,10 +19,10 @@ function sanitize(value: any, depth = 0): any {
 function getEntityType(path: string): string {
   if (/\/auth\//i.test(path)) return 'AUTH';
   if (/\/users?(\/|$)/i.test(path)) return 'USER';
-  if (/\/pools?(\/|$)/i.test(path)) return 'POOL';
   if (/\/projects?(\/|$)/i.test(path)) return 'PROJECT';
   if (/\/teams?(\/|$)|\/team\//i.test(path)) return 'TEAM';
   if (/\/ideas?(\/|$)/i.test(path)) return 'IDEA';
+  if (/\/pools?(\/|$)/i.test(path)) return 'POOL';
   if (/\/notifications?(\/|$)/i.test(path)) return 'NOTIFICATION';
   return 'SYSTEM';
 }
