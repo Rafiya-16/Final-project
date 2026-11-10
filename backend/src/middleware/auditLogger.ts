@@ -61,7 +61,7 @@ function getAction(method: string, path: string): string {
 
 export const auditMutationLogger = (req: Request, res: Response, next: NextFunction) => {
   const method = req.method.toUpperCase();
-  if (['GET', 'HEAD', 'OPTIONS'].includes(method) || /\/auth\/refresh\/?$/i.test(req.path)) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method) || /\/auth\/refresh\/?$/i.test(req.path) || (method === 'POST' && /\/api\/users\/?$/i.test(req.originalUrl.split('?')[0]))) {
     return next();
   }
 
