@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './shared/utils/logger';
+import { auditMutationLogger } from './middleware/auditLogger';
 
 // Routes
 import authRoutes from './modules/auth/auth.routes';
@@ -13,6 +14,7 @@ import userRoutes from './modules/users/users.routes';
 import poolRoutes from './modules/pools/pools.routes';
 import projectRoutes from './modules/projects/projects.routes';
 import teamRoutes from './modules/teams/teams.routes';
+import adminTeamManagementRoutes from './modules/teams/admin-team-management.routes';
 import ideaRoutes from './modules/student-ideas/ideas.routes';
 import notificationRoutes from './modules/notifications/notifications.routes';
 import reportRoutes from './modules/reports/reports.routes';
@@ -71,13 +73,18 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// API Routes
+// Capture successful state-changing API operations for the admin audit trail.
+// The authenticated user is populated by each route's authenticate middleware
+// before its response is serialized.
+app.use(auditMutationLogger);
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/pools', poolRoutes);
 
 // Other pool-related routes
+app.use('/api/pools', adminTeamManagementRoutes);
 app.use('/api/pools', teamRoutes);
 app.use('/api/pools', projectRoutes);
 app.use('/api/pools', ideaRoutes);
