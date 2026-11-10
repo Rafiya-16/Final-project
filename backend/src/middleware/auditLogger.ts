@@ -69,17 +69,18 @@ export const auditMutationLogger = (req: Request, res: Response, next: NextFunct
   let recorded = false;
 
   res.json = function (data: any) {
-    if (!recorded && res.statusCode < 400 && req.user?.userId) {
+    if (!recorded && res.statusCode < 400) {
       recorded = true;
       const path = req.originalUrl.split('?')[0];
       const params = req.params || {};
+      const actorId = req.user?.userId || data?.data?.user?.id || data?.data?.id;
       const entityId =
         params.id || params.projectId || params.teamId || params.poolId ||
         params.ideaId || params.requestId || params.inviteId || params.memberId ||
-        data?.data?.id;
+        data?.data?.id || data?.data?.user?.id;
 
-      auditService.log(
-        req.user.userId,
+      if (actorId) auditService.log(
+        actorId,
         getAction(method, path),
         getEntityType(path),
         typeof entityId === 'string' ? entityId : undefined,
