@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './shared/utils/logger';
+import { auditMutationLogger } from './middleware/auditLogger';
 
 // Routes
 import authRoutes from './modules/auth/auth.routes';
@@ -71,7 +72,11 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// API Routes
+// Capture successful state-changing API operations for the admin audit trail.
+// The authenticated user is populated by each route's authenticate middleware
+// before its response is serialized.
+app.use(auditMutationLogger);
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
